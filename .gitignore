@@ -1,1 +1,27 @@
-.claude
+# OS
+.DS_Store
+
+# Claude Code / agent-skills local state.
+# NOTE: .claude/skills and .agents/skills ARE tracked on purpose — they're the
+# Matt Pocock skill pack (see skills-lock.json) the whole team relies on, not
+# per-user config. Only the genuinely local/ephemeral bits are ignored here.
+.claude/worktrees/
+.claude/settings.local.json
+
+# Node / TypeScript (apps/backend, apps/backtest-worker, apps/frontend, packages/shared — see ADR-0001)
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.pnpm-store/
+
+# Python (apps/sentiment-service — see ADR-0001)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
