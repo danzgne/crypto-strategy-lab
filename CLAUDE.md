@@ -25,7 +25,14 @@ Default five-role vocabulary (`needs-triage`, `needs-info`, `ready-for-agent`, `
 
 ### Domain docs
 
-Single-context layout: `CONTEXT.md` + `docs/adr/` at the repo root (neither exists yet — created lazily by `/domain-modeling`). See `docs/agents/domain.md`.
+Single-context layout: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+
+### Contribution workflow
+
+**No direct pushes to `main` — every change lands via a PR**, even from a solo/agent session. Branch, push the
+branch, `gh pr create`. (Not currently enforced by GitHub branch protection on this repo, but it's the team's
+convention regardless — don't rely on the technical absence of protection as permission to push straight to
+`main`.)
 
 ## What this project is
 
