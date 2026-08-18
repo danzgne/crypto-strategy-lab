@@ -1,17 +1,8 @@
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { BacktestQueue } from '@crypto-strategy-lab/shared/src/queue';
+import { prisma, queue } from '@crypto-strategy-lab/shared/src/db';
 import { randomUUID } from 'crypto';
 
 const workerId = randomUUID();
 console.log(`[Worker ${workerId}] Starting up...`);
-
-const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres';
-const pool = new Pool({ connectionString });
-const adapter = new PrismaPg(pool);
-const prisma = new PrismaClient({ adapter });
-const queue = new BacktestQueue(prisma);
 
 // Polling settings
 let isShuttingDown = false;
