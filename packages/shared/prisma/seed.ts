@@ -1,6 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-
-const prisma = new PrismaClient();
+import { prisma } from '../src/db';
 
 async function main() {
   console.log('🌱 Starting database seed...');
@@ -96,6 +94,15 @@ async function main() {
     },
   });
   console.log('Created News & Sentiment');
+
+  // 6. Create a PENDING BacktestJob so the worker has something to pick up
+  await prisma.backtestJob.create({
+    data: {
+      experimentId: experiment.id,
+      status: 'PENDING',
+    },
+  });
+  console.log('Created PENDING BacktestJob for the worker');
 
   console.log('✅ Seeding completed successfully!');
 }
