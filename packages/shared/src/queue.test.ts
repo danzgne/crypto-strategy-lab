@@ -1,17 +1,8 @@
-import 'dotenv/config';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { PrismaClient } from '@prisma/client';
-import { Pool } from 'pg';
-import { PrismaPg } from '@prisma/adapter-pg';
-import { BacktestQueue } from './queue';
+import { prisma, queue } from './db';
 
 // NOTE: This test requires a running Postgres database.
 describe('BacktestQueue Concurrency', () => {
-  const connectionString = process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5432/postgres';
-  const pool = new Pool({ connectionString });
-  const adapter = new PrismaPg(pool);
-  const prisma = new PrismaClient({ adapter });
-  const queue = new BacktestQueue(prisma);
 
   beforeAll(async () => {
     // Clear out jobs before testing
