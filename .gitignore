@@ -29,3 +29,6 @@ venv/
 .env
 .env.*
 !.env.example
+
+/generated/prisma
+.windsurf

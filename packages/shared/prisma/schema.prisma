@@ -1,0 +1,146 @@
+// schema.prisma
+
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ----------------------------------------------------------------------------
+// Market Data
+// ----------------------------------------------------------------------------
+
+model Candle {
+  id        String   @id @default(uuid())
+  pair      String   // e.g., "BTCUSDT"
+  timeframe String   // e.g., "1m", "5m", "1d"
+  timestamp DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+
+  @@unique([pair, timeframe, timestamp])
+  @@index([pair, timeframe, timestamp(sort: Desc)])
+}
+
+// ----------------------------------------------------------------------------
+// Strategy & Search
+// ----------------------------------------------------------------------------
+
+model Strategy {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  
+  versions    StrategyVersion[]
+}
+
+model StrategyVersion {
+  id         String   @id @default(uuid())
+  strategyId String
+  versionTag String   // e.g., "v1.0.0", or a hash
+  parameters Json     // JSONB field for flexible strategy parameters
+  createdAt  DateTime @default(now())
+
+  strategy   Strategy @relation(fields: [strategyId], references: [id], onDelete: Cascade)
+  
+  experiments Experiment[]
+  leaderboard LeaderboardEntry[]
+
+  @@unique([strategyId, versionTag])
+}
+
+// ----------------------------------------------------------------------------
+// Backtesting & Evaluation
+// ----------------------------------------------------------------------------
+
+model Experiment {
+  id                String   @id @default(uuid())
+  strategyVersionId String
+  pair              String
+  timeframe         String
+  fromDate          DateTime
+  toDate            DateTime
+  initialInvestment Float    // e.g., 100 USD
+  status            String   // 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED'
+  
+  // Computed Metrics
+  winRate           Float?
+  wins              Int?
+  losses            Int?
+  totalProfit       Float?
+  maxDrawdown       Float?
+  totalTrades       Int?
+
+  createdAt         DateTime @default(now())
+  completedAt       DateTime?
+
+  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id])
+  trades            Trade[]
+  leaderboardEntry  LeaderboardEntry?
+}
+
+model Trade {
+  id              String   @id @default(uuid())
+  experimentId    String
+  pair            String
+  entryTime       DateTime
+  exitTime        DateTime?
+  direction       String   // 'LONG' or 'SHORT'
+  weight          Float    // USD size of the trade
+  entryPrice      Float
+  exitPrice       Float?
+  stopLoss        Float?
+  takeProfit      Float?
+  transactionCost Float    // Fee
+  slippage        Float    // e.g., 5bps
+  profit          Float?   // Net Profit
+
+  experiment      Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId])
+}
+
+model LeaderboardEntry {
+  id                String   @id @default(uuid())
+  strategyVersionId String
+  experimentId      String   @unique
+  score             Float    // Evaluated ranking score
+  rank              Int?     // Position in top-K (can be dynamically computed)
+  updatedAt         DateTime @updatedAt
+
+  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id])
+  experiment        Experiment      @relation(fields: [experimentId], references: [id])
+
+  @@index([score(sort: Desc)])
+}
+
+// ----------------------------------------------------------------------------
+// News & Sentiment
+// ----------------------------------------------------------------------------
+
+model NewsItem {
+  id           String   @id @default(uuid())
+  title        String
+  content      String
+  source       String
+  url          String
+  publishedAt  DateTime
+  relatedCoins String[] // Array of strings (e.g., ["BTC", "ETH"])
+
+  sentiments   Sentiment[]
+}
+
+model Sentiment {
+  id             String   @id @default(uuid())
+  newsItemId     String
+  classification String   // 'POSITIVE', 'NEUTRAL', 'NEGATIVE'
+  score          Float    // Confidence/Intensity score
+  computedAt     DateTime @default(now())
+
+  newsItem       NewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
+}
