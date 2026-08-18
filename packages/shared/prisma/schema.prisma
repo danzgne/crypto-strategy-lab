@@ -144,3 +144,21 @@ model Sentiment {
 
   newsItem       NewsItem @relation(fields: [newsItemId], references: [id], onDelete: Cascade)
 }
+
+// ----------------------------------------------------------------------------
+// Job Queue
+// ----------------------------------------------------------------------------
+
+model BacktestJob {
+  id           String   @id @default(uuid())
+  experimentId String   // Reference to Experiment for input parameters
+  status       String   @default("PENDING") // 'PENDING', 'RUNNING', 'COMPLETED', 'FAILED'
+  workerId     String?  // UUID of the worker that claimed the job
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+  claimedAt    DateTime?
+  completedAt  DateTime?
+  error        String?  // Error trace if FAILED
+
+  @@index([status, createdAt])
+}
