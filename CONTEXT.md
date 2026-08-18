@@ -9,23 +9,43 @@ evaluation, not trading — no real money changes hands.
 ### Strategy & Search
 
 **Strategy**:
-A plugin implementing `analyze(context) → Signal`. Knows only its own indicator logic — no exchange calls, no DB
-access, no chart rendering.
+A plugin implementing `analyze(context): Signal`, called synchronously exactly once per closed Candle (never a
+partial one). Knows only its own indicator logic: no exchange calls, no DB access, no chart rendering. Declares
+its configurable parameters via a static `paramsSchema` and the history window it needs via `requiredHistory`.
 _Avoid_: Indicator (an indicator, e.g. MA20, is data a Strategy consumes or computes, not the Strategy itself),
-Rule.
+Rule (as a synonym for a whole Strategy; see the narrower **Rule** entry below, used only inside RuleStrategy).
 
 **Signal**:
-The value a Strategy returns: `BUY | SELL | HOLD` (or `LONG | SHORT | NONE`).
-_Avoid_: Decision, Action.
+The value a Strategy returns: `{ action: 'BUY'|'SELL'|'HOLD' (or 'LONG'|'SHORT'|'NONE'), strength?: number
+(0 to 1), reason?: string }`. `action` is required; `strength` and `reason` are optional, so simple Strategies
+can omit them, but a weighted-score Composite Strategy has something to weight beyond a flat vote.
+_Avoid_: Decision (as a synonym for Signal itself).
 
 **Context**:
-The bundle passed into `Strategy.analyze()` — price, volume, candles, timeframe, indicators, market state,
-sentiment.
+The bundle passed into `Strategy.analyze()`: a rolling window of closed Candles (OHLCV) sized to the Strategy's
+own `requiredHistory`, plus Pair, Timeframe, market state, and Sentiment when available. Indicator values (MA,
+RSI, ...) are *not* precomputed into Context. Each Strategy computes its own from the raw Candle window via a
+shared indicator-math library, per "a Strategy only knows its own indicator logic."
 _Avoid_: Input, State.
 
 **StrategyRegistry**:
-Where Strategies register themselves (`StrategyRegistry.register(...)`) so the Combination Engine and
-StrategyGenerators can discover them without hard-coded dispatch.
+Where Strategies register themselves via an explicit `StrategyRegistry.register(id, factory)` call in each
+strategy's own module, collected through one barrel import so registration fires at boot. This is how the
+Combination Engine and StrategyGenerators discover them without hard-coded dispatch. The registry never grows
+at runtime; see RuleStrategy for how NL/link-authored strategies fit without adding registry entries.
+
+**Rule**:
+One single-condition building block inside a RuleStrategy's `params.rules` list: `{ indicator, indicatorParams,
+comparator, value, action }`. Not a synonym for Strategy: a RuleStrategy is one Strategy instance holding an
+ordered list of Rules.
+
+**RuleStrategy**:
+The one generic Strategy implementation that backs NL/link-authored strategies (see #15). Its `params` is
+`{ source: 'manual'|'nl-generated', sourceInput?: string, rules: Rule[] }`. Registered once at boot like any
+hand-written Strategy: authoring a new one via natural language or a link never adds a `StrategyRegistry` entry,
+it only produces a new `params` value (and therefore a new Strategy Version) for this one class. Rules are
+deliberately single-condition and evaluated in order; combining multiple signals into one decision stays the
+Combination Engine's job, not something a RuleStrategy does internally.
 
 **Composite Strategy**:
 Multiple enabled Strategies combined into one Signal-producing unit, via majority vote or weighted score (e.g.
