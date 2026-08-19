@@ -154,7 +154,13 @@ The normalized shape (id, title, content, source, publishedAt, relatedCoins, url
 A swappable source of NewsItems — RSS, a News API, a custom Crawler. The Crawler collects raw news only; it does
 not know about the ML model.
 
+**Sentiment Service**:
+The stateless, swappable component that scores a NewsItem's text into a Sentiment. Realized as an in-process
+module inside the backend (see ADR-0001, ADR-0004), not a separate deployable process; the interface stays
+swappable regardless of which scoring technique sits behind it. Decoupled from both the Crawler, which never
+depends on it, and its consumer, which owns persisting the result.
+_Avoid_: Sentiment Analysis (the activity, not the component).
+
 **Sentiment**:
 The `POSITIVE | NEUTRAL | NEGATIVE` classification plus numeric score the Sentiment Service attaches to a
-NewsItem. Computed by a separate, stateless service (see ADR-0001) — persistence stays with the consumer, not
-the Sentiment Service itself.
+NewsItem. Persistence of the result stays with the consumer, not the Sentiment Service itself.
