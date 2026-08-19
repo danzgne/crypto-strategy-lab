@@ -34,6 +34,15 @@ branch, `gh pr create`. (Not currently enforced by GitHub branch protection on t
 convention regardless — don't rely on the technical absence of protection as permission to push straight to
 `main`.)
 
+**Skill-pack installs/updates get their own PR.** `skills-lock.json` has no pinned ref per skill source, so
+re-running the installer can silently change many skills' `computedHash` at once, even when you only meant to add
+one new skill. A same-PR commit isn't enough of a boundary: this repo merges with squash-and-merge, which
+collapses every commit on a branch into one on `main`, so a "separate commit" inside a feature PR still lands as
+one mixed diff for a reviewer to approve as a unit. Never bundle a `skills-lock.json` change into a feature PR:
+run the install/update, open a PR containing only that change with a title/description saying what changed and
+why, merge it on its own, then branch the feature work from there. This keeps skill-pack drift independently
+reviewable, approvable, and revertable instead of riding along inside an unrelated diff.
+
 ## What this project is
 
 **Crypto Strategy Lab** is a school software-architecture capstone, not a trading product. The graded deliverable
