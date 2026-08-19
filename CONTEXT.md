@@ -18,7 +18,8 @@ Rule (as a synonym for a whole Strategy; see the narrower **Rule** entry below, 
 **Signal**:
 The value a Strategy returns: `{ action: 'BUY'|'SELL'|'HOLD' (or 'LONG'|'SHORT'|'NONE'), strength?: number
 (0 to 1), reason?: string }`. `action` is required; `strength` and `reason` are optional, so simple Strategies
-can omit them, but a weighted-score Composite Strategy has something to weight beyond a flat vote.
+can omit them, but a weighted-score Composite Strategy has something to weight beyond a flat vote. Weighted
+composition treats an omitted `strength` as `1`.
 _Avoid_: Decision (as a synonym for Signal itself).
 
 **Context**:
@@ -48,17 +49,25 @@ deliberately single-condition and evaluated in order; combining multiple signals
 Combination Engine's job, not something a RuleStrategy does internally.
 
 **Composite Strategy**:
-Multiple enabled Strategies combined into one Signal-producing unit, via majority vote or weighted score (e.g.
-"MA + RSI + Support/Resistance").
+At least two unique Strategy Versions combined into one Signal-producing unit. Its immutable definition contains the
+member versions, an explicit `majority` or `weighted` mode, and (for weighted mode) nonnegative normalized weights
+and a threshold. Every member sees the same Context. Majority mode emits BUY or SELL only when that action has a
+strict majority of all member actions; otherwise it emits HOLD. Weighted mode maps BUY/SELL/HOLD to `+1/-1/0`,
+scales by member strength and weight, and emits BUY above the threshold, SELL below its negative, and HOLD otherwise.
+Changing a member Strategy Version, mode, weight, or threshold produces a different Composite Strategy; member order
+alone does not. Its display name includes the member types and parameter summaries (for example,
+`MA[fast=20,slow=50] + RSI[period=14] · weighted`), while its machine identity is the canonical definition.
 _Avoid_: Combination (reserve for the Combination Engine, the component that builds Composite Strategies).
 
 **Combination Engine**:
-The component that assembles Composite Strategies from the set of currently-enabled Strategies.
+The component that validates and assembles a Composite Strategy from enabled Strategy Versions. It rejects empty,
+single-member, duplicate-member, or otherwise invalid definitions and does not silently convert member failures into
+HOLD.
 
 **CandidateStrategy**:
-A Composite Strategy once it has been produced by a StrategyGenerator and submitted to the Backtester/Evaluator
-pipeline. Downstream components (Backtester, Evaluator, Leaderboard, Visualization) treat it as opaque — they
-don't need to know how it was generated.
+A frozen Composite Strategy once it has been produced by a StrategyGenerator and submitted to the Backtester/Evaluator
+pipeline. Downstream components (Backtester, Evaluator, Leaderboard, Visualization) treat it as opaque — they don't
+need to know how it was generated.
 
 **StrategyGenerator**:
 The interface behind a search algorithm (`RandomGenerator`, `DomainGuidedGenerator`, `GeneticGenerator`, ...).
@@ -78,8 +87,10 @@ The finite limits governing when a SearchRun stops generating candidates, such a
 budget, or consecutive evaluations without a better Score.
 
 **Strategy Version**:
-An immutable snapshot of a Strategy's parameters at a point in time. Experiments and Leaderboard entries
-reference a specific version, never "the strategy" generically — this is what makes a result reproducible.
+An immutable snapshot of a Strategy's parameters at a point in time. Changing a Strategy's configuration creates a
+different Strategy Version: for example, MA(20,50)+RSI(14) and MA(10,30)+RSI(14) are different versions and therefore
+different Composite Strategies when assembled. Experiments and Leaderboard entries reference a specific version,
+never "the strategy" generically — this is what makes a result reproducible.
 
 ### Backtesting & Evaluation
 
