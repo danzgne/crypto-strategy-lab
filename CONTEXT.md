@@ -64,6 +64,19 @@ don't need to know how it was generated.
 The interface behind a search algorithm (`RandomGenerator`, `DomainGuidedGenerator`, `GeneticGenerator`, ...).
 Produces CandidateStrategies. Swappable independently of everything downstream.
 
+**Search Space**:
+The bounded set of enabled Strategies, parameter domains, and permitted combination choices from which a
+StrategyGenerator may produce CandidateStrategies.
+
+**SearchRun**:
+A bounded search session that generates CandidateStrategies, queues their Experiments, and tracks progress until
+its Stop Policy ends generation and all submitted Experiments reach a terminal state.
+_Avoid_: Experiment (one candidate evaluation), Job (the queue-level unit of work).
+
+**Stop Policy**:
+The finite limits governing when a SearchRun stops generating candidates, such as a candidate cap, wall-clock
+budget, or consecutive evaluations without a better Score.
+
 **Strategy Version**:
 An immutable snapshot of a Strategy's parameters at a point in time. Experiments and Leaderboard entries
 reference a specific version, never "the strategy" generically — this is what makes a result reproducible.
@@ -95,6 +108,10 @@ The single number a CandidateStrategy is ranked by on the Leaderboard (e.g. a we
 Rate, and a risk term).
 _Avoid_: Rank (Rank is the resulting position; Score is the number that determines it).
 
+**RiskScore**:
+A normalized [0, 1] measure of risk quality derived from Max Drawdown for Leaderboard scoring; higher means
+lower drawdown and therefore safer performance.
+
 **Leaderboard**:
 The ranked Top-K list of evaluated CandidateStrategies.
 
@@ -107,7 +124,8 @@ A tradable symbol, e.g. `BTCUSDT`.
 The candle interval a chart or Strategy operates on: 1m/5m/15m/1h/4h/1d.
 
 **Candle**:
-One OHLCV bar for a Pair at a Timeframe and Timestamp (Open, High, Low, Close, Volume).
+One OHLCV bar for a Pair at a Timeframe, identified by its UTC open time. A Candle may be forming or closed;
+closed means its OHLCV values will not receive further market updates.
 
 **Market Data Service**:
 The only component the Frontend is allowed to talk to for price data — never an exchange directly.
