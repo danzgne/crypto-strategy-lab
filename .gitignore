@@ -2,9 +2,13 @@
 .DS_Store
 
 # Claude Code / agent-skills local state.
-# NOTE: .claude/skills and .agents/skills ARE tracked on purpose — they're the
-# Matt Pocock skill pack (see skills-lock.json) the whole team relies on, not
-# per-user config. Only the genuinely local/ephemeral bits are ignored here.
+# NOTE: .claude/skills and .agents/skills are each developer's own installed
+# copy of the Matt Pocock skill pack, not shared repo content. skills-lock.json
+# stays tracked as the pinned baseline (source + hash per skill); everyone
+# installs from it locally and can customize their own copy from there without
+# it becoming a shared-repo diff.
+.claude/skills/
+.agents/skills/
 .claude/worktrees/
 .claude/settings.local.json
 
