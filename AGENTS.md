@@ -31,10 +31,29 @@ Single-context layout: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/ag
 
 ### Contribution workflow
 
-**No direct pushes to `main` — every change lands via a PR**, even from a solo/agent session. Branch, push the
-branch, `gh pr create`. (Not currently enforced by GitHub branch protection on this repo, but it's the team's
-convention regardless — don't rely on the technical absence of protection as permission to push straight to
-`main`.)
+**No direct pushes to `main`. Every change lands via a PR**, even from a solo/agent session. Branch, push the
+branch, `gh pr create`.
+
+This is enforced, not just convention. An active GitHub ruleset named `main` targets the branch with
+`required_approving_review_count: 1`, `required_linear_history`, `non_fast_forward`, and a `deletion` rule, and
+its bypass-actor list is empty. Practical consequences for an agent session:
+
+- You can open a PR but you cannot land it by yourself. GitHub refuses to let an account approve its own PR, so
+  a human teammate has to review it. Expect `mergeStateStatus: BLOCKED` with `reviewDecision: REVIEW_REQUIRED`
+  on a PR that is otherwise perfectly mergeable; that is the review requirement, not a problem with the branch.
+- Do not reach for `gh pr merge --admin` when that happens. `gh` suggests the flag in its error text, but no
+  bypass actors are configured, so using it would deliberately circumvent a control the team put in place.
+  Report the block and let a human decide. `gh pr merge --auto` is the safe way to queue a merge for the moment
+  approval lands.
+- Linear history is required, so rebase rather than merge when a branch falls behind.
+
+**Branch each PR off `main`, never off another PR's branch.** Stacked PRs have already cost this repo a silent
+loss of work. PR #50 was based on #49's branch; #49 merged into `main` first, and #50 merged into that
+now-consumed branch 19 seconds later. GitHub retargets a stacked child to `main` when its base merges, but that
+did not happen inside the 19-second window, so #50's content came to rest on a dead branch and never reached
+`main` until it was re-landed as #51. Nothing failed loudly: both PRs showed as merged. Because this repo
+squash-merges, a stacked branch's history diverges from `main` regardless, so the stacking buys nothing to
+begin with. If work genuinely depends on an unmerged PR, wait for that PR to land, then branch from `main`.
 
 **Skill-pack installs/updates get their own PR.** `skills-lock.json` has no pinned ref per skill source, so
 re-running the installer can silently change many skills' `computedHash` at once, even when you only meant to add
