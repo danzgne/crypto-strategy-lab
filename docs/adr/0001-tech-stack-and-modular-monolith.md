@@ -1,6 +1,8 @@
 # Tech stack: Node/TS modular monolith + two justified service boundaries
 
-**Status:** accepted
+**Status:** accepted. Sentiment Service portion superseded by
+[ADR-0004](0004-sentiment-service-in-process-llm-based.md); the modular-monolith reasoning and the Backtest
+Worker decision below remain current.
 
 Crypto Strategy Lab is a 4-person, 2-week capstone build with no confirmed stack familiarity across the team. We
 chose a Node.js/TypeScript backend (Express), a React/TS/Vite frontend using `lightweight-charts` for candlestick
