@@ -16,17 +16,50 @@ schema, independent backend and worker processes, a Next.js dashboard, and a rea
 The Prisma schema, migration history, and generated-client command live at the repository root because the backend
 and worker use the same database.
 
-## Quick start with Docker Compose
+## Host development (recommended)
 
-Requirements: Docker Engine with Compose v2. No host Node.js installation is needed.
+Run the applications directly on the host for fast feedback, and run only PostgreSQL in Docker. Requirements:
+Node.js 24, Corepack, pnpm 11.19, and Docker Engine with Compose v2.
 
 ```bash
+# Enable the package-manager shim declared by package.json.
+corepack enable
+
+# Install the exact dependency versions recorded in pnpm-lock.yaml.
+pnpm install --frozen-lockfile
+
+# Create the local environment file from the committed template.
 cp .env.example .env
-docker compose up --build -d --wait
+
+# Start only PostgreSQL and wait until its health check passes.
+docker compose up -d --wait postgres
+
+# Generate the Prisma Client used by the backend and worker.
+pnpm prisma:generate
+
+# Apply committed Prisma migrations to the running PostgreSQL instance.
+pnpm prisma:migrate:deploy
+
+# Start backend, backtest-worker, and frontend concurrently on the host.
+pnpm dev
 ```
 
 Open <http://localhost:3000>. The connection badge becomes **Transport live** only after the browser receives a
-Socket.IO ping acknowledgement from the backend.
+Socket.IO ping acknowledgement from the backend. `pnpm dev` starts all three applications together; when working
+on one application, use `pnpm dev:backend`, `pnpm dev:worker`, or `pnpm dev:frontend` instead.
+
+## Full local stack with Docker Compose
+
+This starts PostgreSQL, the Prisma migration job, backend, worker, and frontend as containers. It is useful for
+production-shaped local testing, CI-like verification, and demos. No host Node.js installation is needed.
+
+```bash
+# Create the local environment file from the committed template.
+cp .env.example .env
+
+# Build all application images, start the complete stack, and wait for health checks.
+docker compose up --build -d --wait
+```
 
 Default local endpoints:
 
@@ -49,23 +82,10 @@ Compose uses production builds, non-root application containers, health checks, 
 and a one-shot migration service. Its default credentials are only for local development; replace them before
 using the topology outside a developer machine.
 
-## Host development
-
-Requirements: Node.js 24, Corepack, pnpm 11.19, and Docker.
-
-```bash
-corepack enable
-pnpm install --frozen-lockfile
-cp .env.example .env
-docker compose up -d --wait postgres
-pnpm prisma:migrate:deploy
-pnpm dev
-```
-
-`pnpm dev` starts backend, worker, and frontend concurrently. Each workspace resolves the repository-root `.env`,
-so the same file also supports the per-workspace commands in the table above. Host-side Next.js uses `PORT`;
-Compose uses `FRONTEND_PORT` for its published port. The backend and worker each persist their process lifecycle in
-`service_heartbeats`; job claiming and backtesting arrive in later feature slices.
+Each workspace resolves the repository-root `.env`, so the same file also supports the per-workspace commands in
+the table above. Host-side Next.js uses `PORT`; Compose uses `FRONTEND_PORT` for its published port. The backend
+and worker each persist their process lifecycle in `service_heartbeats`; job claiming and backtesting arrive in
+later feature slices.
 
 ## Prisma commands
 
