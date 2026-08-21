@@ -6,10 +6,19 @@ tool sees the same content under whichever filename it looks for.
 
 ## Repository status
 
-This repository is **greenfield**: only agent tooling exists (`.claude/`). There is no source code, no chosen
-language/framework/tech stack, and no build/lint/test tooling yet. Do not assume any stack — check what's
-actually present before recommending commands, and update this file's "Commands" section once real tooling
-exists.
+This repository now has its issue #27 production scaffold. It is a pnpm/Node 24 monorepo with an Express backend,
+an independent Node backtest worker, a Next.js App Router frontend, shared TypeScript contracts, PostgreSQL via
+Prisma, Vitest, ESLint, Prettier, and Docker Compose. Check the current manifests and README before changing
+commands or dependencies.
+
+### Logging
+
+- Backend and worker application logs must use their injected Pino logger and structured context objects.
+- Direct `console.log`, `console.error`, `console.warn`, `console.info`, `console.debug`, and other `console.*`
+  calls are prohibited in application code. The repository ESLint configuration enforces `no-console`.
+- HTTP request logs go through `pino-http` so request IDs and service context use the same structured pipeline.
+- Production log destinations must remain asynchronous. Flush the logger during graceful shutdown when needed.
+- Tests use a disabled Pino logger; do not silence code by replacing the logger with console calls.
 
 The full assignment brief lives at `../project.pdf` (one directory above this repo root, Vietnamese-language
 final-project spec for "Crypto Strategy Lab"). The distillation below is the operative context; consult the PDF
@@ -72,6 +81,7 @@ MA+RSI make money," optimize for "can a brand-new strategy or search algorithm b
 existing components."
 
 The system lets a user:
+
 - Watch up to 4 realtime candlestick charts at once (same pair, independent timeframes, e.g. 5m/15m/1h/4h),
   streamed from Binance without polling.
 - Enable individual technical-analysis strategies (MA, RSI, Bollinger Bands, Support/Resistance, and later
@@ -159,5 +169,17 @@ which architectural problem they solve.
 
 ## Commands
 
-None yet — no package manifest, build system, or test runner exists. Once a stack is chosen, replace this
-section with the real install/build/lint/single-test commands.
+Run these commands from the repository root:
+
+- Install: `pnpm install --frozen-lockfile`
+- Development stack: `pnpm dev`
+- Full local Compose stack: `docker compose up --build -d --wait`
+- Generate Prisma client: `pnpm prisma:generate`
+- Apply migrations: `pnpm prisma:migrate:deploy`
+- Format check: `pnpm format:check`
+- Lint: `pnpm lint`
+- Typecheck: `pnpm typecheck`
+- All tests: `pnpm test`
+- One workspace test file: `pnpm --filter <workspace-name> exec vitest run <test-file>`
+- Production build: `pnpm build`
+- Complete verification: `pnpm check`

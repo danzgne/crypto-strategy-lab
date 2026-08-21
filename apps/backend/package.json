@@ -1,0 +1,45 @@
+{
+  "name": "@crypto-strategy-lab/backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup --config tsup.config.ts",
+    "dev": "tsx watch src/index.ts",
+    "lint": "eslint src tests *.ts *.mjs",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:integration": "vitest run tests/integration",
+    "typecheck": "tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@crypto-strategy-lab/shared": "workspace:*",
+    "@prisma/adapter-pg": "^7.9.1",
+    "@prisma/client": "^7.9.1",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.2.1",
+    "helmet": "^8.1.0",
+    "pg": "^8.16.0",
+    "pino": "^10.3.1",
+    "pino-http": "^11.0.0",
+    "socket.io": "^4.8.3",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.0",
+    "@types/express": "^5.0.0",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.15.0",
+    "@types/supertest": "^6.0.0",
+    "socket.io-client": "^4.8.3",
+    "supertest": "^7.1.0",
+    "tsx": "catalog:",
+    "tsup": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

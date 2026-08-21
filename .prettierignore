@@ -1,0 +1,11 @@
+.next
+coverage
+dist
+generated
+node_modules
+pnpm-lock.yaml
+**/next-env.d.ts
+CONTEXT.md
+docs/adr/0003-nl-link-strategy-generation-pipeline.md
+docs/agents/triage-labels.md
+imgs/README.md

@@ -1,0 +1,37 @@
+{
+  "name": "@crypto-strategy-lab/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "next build --webpack",
+    "dev": "dotenv -e ../../.env -- next dev --hostname 0.0.0.0",
+    "lint": "eslint --no-warn-ignored src tests *.ts *.mts *.mjs",
+    "start": "dotenv -e ../../.env -- next start --hostname 0.0.0.0",
+    "test": "vitest run",
+    "typecheck": "next typegen && tsc --project tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@crypto-strategy-lab/shared": "workspace:*",
+    "lucide-react": "^0.468.0",
+    "next": "^16.3.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "socket.io-client": "^4.8.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^6.9.0",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "catalog:",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "dotenv": "^17.2.0",
+    "dotenv-cli": "^11.0.0",
+    "eslint-config-next": "^16.3.1",
+    "jsdom": "^27.4.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

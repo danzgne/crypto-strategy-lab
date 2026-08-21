@@ -1,0 +1,25 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../generated/prisma"
+  engineType          = "client"
+  runtime             = "nodejs"
+  moduleFormat        = "esm"
+  importFileExtension = "ts"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model ServiceHeartbeat {
+  id         String    @id @default(uuid()) @db.Uuid
+  service    String
+  instanceId String
+  startedAt  DateTime  @default(now()) @db.Timestamptz(3)
+  lastSeenAt DateTime  @default(now()) @db.Timestamptz(3)
+  stoppedAt  DateTime? @db.Timestamptz(3)
+
+  @@unique([service, instanceId])
+  @@index([service, lastSeenAt])
+  @@map("service_heartbeats")
+}

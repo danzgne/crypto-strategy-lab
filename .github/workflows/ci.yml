@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://crypto_lab:crypto_lab@localhost:5432/crypto_strategy_lab?schema=public
+      NEXT_PUBLIC_BACKEND_URL: http://localhost:3100
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: crypto_strategy_lab
+          POSTGRES_PASSWORD: crypto_lab
+          POSTGRES_USER: crypto_lab
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U crypto_lab -d crypto_strategy_lab"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm prisma:migrate:deploy
+      - run: pnpm check
+      - run: docker compose config --quiet
