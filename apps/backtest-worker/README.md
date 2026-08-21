@@ -146,7 +146,7 @@ apps/backtest-worker/
 │   └── setup/
 ├── Dockerfile
 ├── eslint.config.mjs
-├── jest.config.json
+├── vitest.config.ts
 ├── tsconfig.json
 └── package.json
 ```
@@ -162,11 +162,28 @@ apps/backtest-worker/
 ├── README.md
 ├── src/
 │   ├── config/
+│   │   └── workerConfig.ts
 │   ├── database/
+│   │   └── prismaClient.ts
+│   ├── repositories/
+│   │   ├── interfaces/
+│   │   │   └── serviceHeartbeatRepository.interface.ts
+│   │   └── prisma/
+│   │       └── prismaServiceHeartbeatRepository.ts
+│   ├── utils/
+│   │   └── logger/
+│   │       └── index.ts
+│   ├── worker/
+│   │   └── runWorker.ts
 │   └── index.ts
 ├── tests/
+│   └── unit/
+│       └── worker/
+│           └── runWorker.test.ts
 ├── Dockerfile
 ├── tsconfig.json
+├── tsup.config.ts
+├── vitest.config.ts
 └── package.json
 ```
 

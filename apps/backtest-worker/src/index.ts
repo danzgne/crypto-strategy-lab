@@ -1,10 +1,15 @@
-import 'dotenv/config';
+import { config as loadEnvironment } from 'dotenv';
 
 import { readWorkerConfig } from './config/workerConfig';
 import { createPrismaClient } from './database/prismaClient';
 import { PrismaServiceHeartbeatRepository } from './repositories/prisma/prismaServiceHeartbeatRepository';
 import { createAppLogger } from './utils/logger';
 import { runWorker } from './worker/runWorker';
+
+loadEnvironment({
+  path: new URL('../../../.env', import.meta.url),
+  quiet: true,
+});
 
 const bootstrapLogger = createAppLogger({ service: 'backtest-worker' });
 

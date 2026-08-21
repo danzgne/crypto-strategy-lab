@@ -45,6 +45,7 @@ services:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-crypto_lab}:${POSTGRES_PASSWORD:-crypto_lab}@postgres:5432/${POSTGRES_DB:-crypto_strategy_lab}?schema=public
       BACKEND_HOST: 0.0.0.0
+      BACKEND_INSTANCE_ID: ${BACKEND_INSTANCE_ID:-backend-compose-1}
       BACKEND_PORT: 3100
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}

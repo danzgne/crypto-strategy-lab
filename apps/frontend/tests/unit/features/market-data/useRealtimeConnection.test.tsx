@@ -4,10 +4,10 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   type RealtimeSocket,
   useRealtimeConnection,
-} from '../../../../src/features/realtime/hooks/useRealtimeConnection';
+} from '../../../../src/features/market-data/hooks/useRealtimeConnection';
 
 describe('useRealtimeConnection', () => {
-  it('becomes live only after a real transport ping and returns offline on disconnect', async () => {
+  it('becomes live only after a real transport ping and reconnects on disconnect', async () => {
     const listeners = new Map<string, (...arguments_: unknown[]) => void>();
     const emitWithAck = vi.fn().mockResolvedValue({
       requestId: 'request-27',
@@ -46,6 +46,7 @@ describe('useRealtimeConnection', () => {
     expect(result.current.latencyMs).not.toBeNull();
 
     act(() => listeners.get('disconnect')?.('transport close'));
-    expect(result.current.phase).toBe('offline');
+    expect(result.current.phase).toBe('reconnecting');
+    expect(result.current.detail).toContain('reconnecting');
   });
 });

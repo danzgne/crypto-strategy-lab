@@ -62,9 +62,10 @@ pnpm prisma:migrate:deploy
 pnpm dev
 ```
 
-`pnpm dev` starts backend, worker, and frontend concurrently. To run only one process, use the per-workspace
-commands in the table above. The worker is intentionally only a database-connected heartbeat skeleton in issue
-#27; job claiming and backtesting arrive in later feature slices.
+`pnpm dev` starts backend, worker, and frontend concurrently. Each workspace resolves the repository-root `.env`,
+so the same file also supports the per-workspace commands in the table above. Host-side Next.js uses `PORT`;
+Compose uses `FRONTEND_PORT` for its published port. The backend and worker each persist their process lifecycle in
+`service_heartbeats`; job claiming and backtesting arrive in later feature slices.
 
 ## Prisma commands
 
@@ -108,7 +109,7 @@ Next.js dashboard
   → Socket.IO client
   → backend marketData gateway
   → typed ping acknowledgement
-  → live/offline dashboard status
+  → live/reconnecting/stale dashboard status
 ```
 
 This issue does not connect to Binance and does not fabricate market data. The ping lives at the future market-data
@@ -153,4 +154,5 @@ ESLint.
 2. Confirm **Transport live** and a measured round-trip latency.
 3. Request `/api/v1/health/ready` and confirm PostgreSQL is connected.
 4. Inspect `docker compose logs backtest-worker` to see its independent process heartbeat registration.
-5. Stop and restart the backend to see the dashboard move from **Transport offline** back to **Transport live**.
+5. Stop and restart the backend to see the dashboard move from **Transport reconnecting** back to **Transport
+   live**.

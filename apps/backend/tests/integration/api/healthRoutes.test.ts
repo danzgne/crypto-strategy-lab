@@ -8,6 +8,8 @@ describe('health routes', () => {
     const app = createApp({
       healthRepository: {
         checkConnection: vi.fn().mockResolvedValue(undefined),
+        recordStarted: vi.fn().mockResolvedValue(undefined),
+        recordStopped: vi.fn().mockResolvedValue(undefined),
       },
     });
 
@@ -27,7 +29,13 @@ describe('health routes', () => {
 
   it('reports database readiness through the health repository', async () => {
     const checkConnection = vi.fn().mockResolvedValue(undefined);
-    const app = createApp({ healthRepository: { checkConnection } });
+    const app = createApp({
+      healthRepository: {
+        checkConnection,
+        recordStarted: vi.fn().mockResolvedValue(undefined),
+        recordStopped: vi.fn().mockResolvedValue(undefined),
+      },
+    });
 
     const response = await request(app).get('/api/v1/health/ready');
 

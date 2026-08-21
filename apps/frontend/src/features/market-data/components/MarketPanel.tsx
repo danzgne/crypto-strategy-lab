@@ -2,7 +2,7 @@ import { ArrowUpRight, CandlestickChart } from 'lucide-react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 
-const PATHS = {
+const PLACEHOLDER_SPARKLINE_PATHS = {
   '1m': 'M2 67 C 24 61, 30 38, 51 45 S 82 59, 101 36 S 140 42, 158 23 S 190 31, 218 16',
   '5m': 'M2 72 C 19 51, 31 62, 49 43 S 75 33, 96 47 S 123 38, 142 25 S 182 43, 218 20',
   '15m':
@@ -10,7 +10,11 @@ const PATHS = {
   '1h': 'M2 75 C 24 65, 35 69, 53 46 S 83 54, 105 31 S 139 44, 160 27 S 190 36, 218 15',
 } as const;
 
-export function MarketPanel({ timeframe }: { timeframe: keyof typeof PATHS }) {
+export function MarketPanel({
+  timeframe,
+}: {
+  timeframe: keyof typeof PLACEHOLDER_SPARKLINE_PATHS;
+}) {
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)]">
       <div className="flex items-start justify-between gap-3">
@@ -51,11 +55,11 @@ export function MarketPanel({ timeframe }: { timeframe: keyof typeof PATHS }) {
             </linearGradient>
           </defs>
           <path
-            d={`${PATHS[timeframe]} L218 90 L2 90 Z`}
+            d={`${PLACEHOLDER_SPARKLINE_PATHS[timeframe]} L218 90 L2 90 Z`}
             fill={`url(#area-${timeframe})`}
           />
           <path
-            d={PATHS[timeframe]}
+            d={PLACEHOLDER_SPARKLINE_PATHS[timeframe]}
             fill="none"
             stroke="#4f46e5"
             strokeLinecap="round"

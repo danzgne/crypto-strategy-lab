@@ -1,18 +1,12 @@
-'use client';
-
 import { RadioTower } from 'lucide-react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
-import { useRealtimeConnection } from '../hooks/useRealtimeConnection';
-import { ConnectionStatusCard } from './ConnectionStatusCard';
 import { MarketPanel } from './MarketPanel';
-import { SystemStatusGrid } from './SystemStatusGrid';
+import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
 const TIMEFRAMES = ['1m', '5m', '15m', '1h'] as const;
 
-export function RealtimeDashboard() {
-  const connection = useRealtimeConnection();
-
+export function MarketDataDashboard() {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -24,24 +18,18 @@ export function RealtimeDashboard() {
             Realtime foundation
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-            The production skeleton is online. This milestone proves browser,
-            backend, worker, and database wiring before market logic is added.
+            This milestone assembles browser, backend, worker, and database
+            wiring before market logic is added. The connection panel reports
+            only the transport state it verifies live.
           </p>
         </div>
-        <StatusBadge
-          pulse={connection.phase === 'live'}
-          tone={connection.phase === 'live' ? 'positive' : 'pending'}
-        >
+        <StatusBadge tone="neutral">
           <RadioTower aria-hidden="true" className="size-3.5" />
           Market-data boundary
         </StatusBadge>
       </div>
 
-      <div className="mt-7">
-        <SystemStatusGrid />
-      </div>
-
-      <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)]">
+      <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)]">
         <section aria-labelledby="workspace-title">
           <div className="mb-3 flex items-end justify-between gap-4">
             <div>
@@ -71,7 +59,7 @@ export function RealtimeDashboard() {
           aria-label="Realtime connection details"
           className="xl:pt-[3.25rem]"
         >
-          <ConnectionStatusCard connection={connection} />
+          <RealtimeConnectionPanel />
           <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
             <p className="text-sm font-semibold text-blue-950">
               Scope boundary

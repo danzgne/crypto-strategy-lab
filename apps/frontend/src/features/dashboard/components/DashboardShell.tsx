@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-import { LogoMark } from '../ui/LogoMark';
+import { ProductLogoMark } from './ProductLogoMark';
 
 const navigation = [
   { label: 'Realtime', icon: Activity, active: true },
@@ -25,7 +25,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="hidden min-h-screen border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
         <div className="flex items-center gap-3 px-2">
-          <LogoMark />
+          <ProductLogoMark />
           <div>
             <p className="text-sm font-bold tracking-tight">Crypto Strategy</p>
             <p className="text-sm font-bold tracking-tight text-indigo-600">
@@ -60,8 +60,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             Foundation milestone
           </div>
           <p className="mt-2 text-xs leading-5 text-slate-600">
-            Transport and process health are live. Market streams arrive in the
-            next feature slice.
+            Transport status is measured here. Worker and database readiness
+            remain visible through Compose health checks.
           </p>
         </div>
       </aside>
@@ -69,7 +69,7 @@ export function DashboardShell({ children }: { children: ReactNode }) {
       <div className="min-w-0">
         <header className="flex items-center justify-between border-b border-slate-200 bg-white px-4 py-4 lg:hidden">
           <div className="flex items-center gap-3">
-            <LogoMark />
+            <ProductLogoMark />
             <span className="text-sm font-bold">Crypto Strategy Lab</span>
           </div>
           <Activity

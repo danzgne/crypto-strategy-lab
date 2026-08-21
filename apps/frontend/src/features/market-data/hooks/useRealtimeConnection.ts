@@ -11,7 +11,7 @@ import {
 export type RealtimeSocket = AppSocket;
 
 export interface RealtimeConnectionState {
-  phase: 'connecting' | 'live' | 'offline';
+  phase: 'connecting' | 'live' | 'reconnecting' | 'stale';
   latencyMs: number | null;
   serverTime: string | null;
   detail: string;
@@ -23,6 +23,18 @@ const INITIAL_STATE: RealtimeConnectionState = {
   serverTime: null,
   detail: 'Opening a secure realtime channel',
 };
+
+function unavailableConnection(
+  phase: 'reconnecting' | 'stale',
+  detail: string,
+): RealtimeConnectionState {
+  return {
+    phase,
+    latencyMs: null,
+    serverTime: null,
+    detail,
+  };
+}
 
 export function useRealtimeConnection(
   socketFactory: () => RealtimeSocket = getRealtimeSocket,
@@ -60,12 +72,12 @@ export function useRealtimeConnection(
         }));
       } catch {
         if (!active) return;
-        setConnection({
-          phase: 'offline',
-          latencyMs: null,
-          serverTime: null,
-          detail: 'Backend did not acknowledge the transport ping',
-        });
+        setConnection(
+          unavailableConnection(
+            'stale',
+            'Backend did not acknowledge the transport ping',
+          ),
+        );
       }
     };
 
@@ -73,20 +85,20 @@ export function useRealtimeConnection(
       void verifyRoundTrip();
     };
     const handleDisconnect = (): void => {
-      setConnection({
-        phase: 'offline',
-        latencyMs: null,
-        serverTime: null,
-        detail: 'Realtime transport disconnected',
-      });
+      setConnection(
+        unavailableConnection(
+          'reconnecting',
+          'Realtime transport disconnected; reconnecting',
+        ),
+      );
     };
     const handleConnectError = (): void => {
-      setConnection({
-        phase: 'offline',
-        latencyMs: null,
-        serverTime: null,
-        detail: 'Backend is unavailable; reconnecting automatically',
-      });
+      setConnection(
+        unavailableConnection(
+          'reconnecting',
+          'Backend is unavailable; reconnecting automatically',
+        ),
+      );
     };
     const handleStatus = (status: MarketDataTransportStatus): void => {
       setConnection((current) => ({

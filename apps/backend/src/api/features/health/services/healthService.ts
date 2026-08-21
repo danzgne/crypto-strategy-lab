@@ -28,4 +28,12 @@ export class HealthService implements HealthServiceContract {
       database: 'connected',
     };
   }
+
+  public async recordStarted(instanceId: string): Promise<void> {
+    await this.repository.recordStarted(instanceId);
+  }
+
+  public async recordStopped(instanceId: string): Promise<void> {
+    await this.repository.recordStopped(instanceId);
+  }
 }

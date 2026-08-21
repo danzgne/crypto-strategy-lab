@@ -1,13 +1,19 @@
-import 'dotenv/config';
-
 import { createServer } from 'node:http';
 
+import { config as loadEnvironment } from 'dotenv';
+
 import { PrismaHealthRepository } from './api/features/health/repositories/prismaHealthRepository';
+import { HealthService } from './api/features/health/services/healthService';
 import { readAppConfig } from './config/appConfig';
 import { createPrismaClient } from './database/prismaClient';
 import { createSocketServer } from './realtime/socketServer';
 import { createApp } from './server';
 import { createAppLogger } from './utils/logger';
+
+loadEnvironment({
+  path: new URL('../../../.env', import.meta.url),
+  quiet: true,
+});
 
 const bootstrapLogger = createAppLogger({ service: 'backend' });
 
@@ -19,8 +25,10 @@ async function startBackend(): Promise<void> {
   });
   const prisma = createPrismaClient(config.databaseUrl);
   const healthRepository = new PrismaHealthRepository(prisma);
+  const healthService = new HealthService(healthRepository);
 
   await prisma.$connect();
+  await healthService.recordStarted(config.instanceId);
 
   const app = createApp({
     healthRepository,
@@ -55,6 +63,7 @@ async function startBackend(): Promise<void> {
         httpServer.close((error) => (error ? reject(error) : resolve()));
       });
     }
+    await healthService.recordStopped(config.instanceId);
     await prisma.$disconnect();
     logger.info('Backend shutdown complete');
     logger.flush();

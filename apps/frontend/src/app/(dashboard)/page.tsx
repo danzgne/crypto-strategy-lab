@@ -1,5 +1,5 @@
-import { RealtimeDashboard } from '../../features/realtime/components/RealtimeDashboard';
+import { MarketDataDashboard } from '../../features/market-data';
 
 export default function RealtimePage() {
-  return <RealtimeDashboard />;
+  return <MarketDataDashboard />;
 }

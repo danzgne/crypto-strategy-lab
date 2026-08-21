@@ -19,6 +19,7 @@ build/
 .next/
 coverage/
 generated/
+apps/frontend/next-env.d.ts
 *.tsbuildinfo
 .pnpm-store/
 

@@ -7,7 +7,8 @@ import type { RealtimeConnectionState } from '../hooks/useRealtimeConnection';
 const PHASE_COPY = {
   connecting: { label: 'Connecting', tone: 'pending' },
   live: { label: 'Transport live', tone: 'positive' },
-  offline: { label: 'Transport offline', tone: 'negative' },
+  reconnecting: { label: 'Transport reconnecting', tone: 'pending' },
+  stale: { label: 'Transport stale', tone: 'negative' },
 } as const;
 
 export function ConnectionStatusCard({

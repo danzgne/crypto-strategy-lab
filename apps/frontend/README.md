@@ -55,10 +55,10 @@ shared ────────→ packages/shared
 Pages stay thin and use feature modules:
 
 ```tsx
-import { RealtimeDashboard } from '@/features/market-data';
+import { MarketDataDashboard } from '@/features/market-data';
 
 export default function RealtimePage() {
-  return <RealtimeDashboard />;
+  return <MarketDataDashboard />;
 }
 ```
 
@@ -170,6 +170,11 @@ apps/frontend/
 │   │   └── global-error.tsx
 │   │
 │   ├── features/
+│   │   ├── dashboard/
+│   │   │   ├── components/
+│   │   │   │   ├── DashboardShell.tsx
+│   │   │   │   └── ProductLogoMark.tsx
+│   │   │   └── index.ts
 │   │   ├── auth/
 │   │   │   ├── api/
 │   │   │   │   ├── authClient.ts
@@ -183,8 +188,11 @@ apps/frontend/
 │   │   ├── market-data/
 │   │   │   ├── api/
 │   │   │   ├── components/
+│   │   │   │   ├── MarketDataDashboard.tsx
+│   │   │   │   ├── RealtimeConnectionPanel.tsx
 │   │   │   │   └── candlestickChart.client.tsx
 │   │   │   ├── hooks/
+│   │   │   │   ├── useRealtimeConnection.ts
 │   │   │   │   └── useMarketSubscription.ts
 │   │   │   ├── state/
 │   │   │   ├── types/
