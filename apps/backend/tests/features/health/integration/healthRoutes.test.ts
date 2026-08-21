@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../../src/server';
+import { createApp } from '../../../../src/server';
 
 describe('health routes', () => {
   it('reports that the backend process is alive', async () => {

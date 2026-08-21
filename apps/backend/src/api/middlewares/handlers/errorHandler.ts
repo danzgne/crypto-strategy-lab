@@ -8,7 +8,7 @@ export function createErrorHandler(logger: AppLogger): ErrorRequestHandler {
   return (error: unknown, request, response, _next): void => {
     if (error instanceof AppError) {
       logger.warn(
-        { error, requestId: request.requestId },
+        { err: error, requestId: request.requestId },
         'Request failed with an expected application error',
       );
       sendError(
@@ -20,7 +20,7 @@ export function createErrorHandler(logger: AppLogger): ErrorRequestHandler {
     }
 
     logger.error(
-      { error, requestId: request.requestId },
+      { err: error, requestId: request.requestId },
       'Request failed unexpectedly',
     );
     sendError(

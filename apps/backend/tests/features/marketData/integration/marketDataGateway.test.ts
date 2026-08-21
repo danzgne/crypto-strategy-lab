@@ -7,7 +7,7 @@ import type {
 import { io as createClient, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { createSocketServer } from '../../../src/realtime/socketServer';
+import { createSocketServer } from '../../../../src/realtime/socketServer';
 
 describe('market-data realtime gateway', () => {
   const closeCallbacks: Array<() => Promise<void>> = [];

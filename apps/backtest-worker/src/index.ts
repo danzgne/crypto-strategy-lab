@@ -45,7 +45,7 @@ async function startWorker(): Promise<void> {
 }
 
 void startWorker().catch((error: unknown) => {
-  bootstrapLogger.fatal({ error }, 'Backtest worker failed');
+  bootstrapLogger.fatal({ err: error }, 'Backtest worker failed');
   bootstrapLogger.flush();
   process.exitCode = 1;
 });

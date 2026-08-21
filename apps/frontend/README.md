@@ -252,11 +252,14 @@ inside their features. Use CSS Modules only for isolated styling that utilities 
 
 - Unit tests cover pure formatters, reducers/state, schemas, hooks, and synchronous UI behavior.
 - Integration tests cover feature behavior with HTTP and Socket.IO adapters replaced by controlled test adapters.
-- Playwright E2E tests cover the production build with Express: login cookie flow, protected navigation, realtime
-  connect/disconnect, four chart subscriptions, and at least one complete backtest flow.
-- Async Server Components are verified through E2E tests rather than fragile implementation-level unit tests.
-- CI runs lockfile installation, formatting, ESLint, TypeScript, unit/integration tests, `next build`, then E2E smoke
-  tests. Never suppress TypeScript build failures.
+- Issue #27 tests the connection card and Socket.IO lifecycle with Vitest, while its production Compose dashboard is
+  browser-smoke-tested against the real backend.
+- Add Playwright to CI with the first end-to-end product flow. That suite will cover the production build with
+  Express: login cookie flow, protected navigation, realtime connect/disconnect, four chart subscriptions, and a
+  complete backtest flow.
+- Verify future async Server Components through E2E tests rather than fragile implementation-level unit tests.
+- Current CI runs lockfile installation, migration deployment, formatting, ESLint, TypeScript, unit/integration
+  tests, `next build`, and Compose validation. Never suppress TypeScript build failures.
 
 ## Production deployment
 

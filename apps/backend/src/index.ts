@@ -74,7 +74,7 @@ async function startBackend(): Promise<void> {
 }
 
 void startBackend().catch((error: unknown) => {
-  bootstrapLogger.fatal({ error }, 'Backend failed to start');
+  bootstrapLogger.fatal({ err: error }, 'Backend failed to start');
   bootstrapLogger.flush();
   process.exitCode = 1;
 });

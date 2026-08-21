@@ -195,9 +195,15 @@ crypto-strategy-lab/
 │   │   │   │   │   └── integration/
 │   │   │   │   │       ├── healthRoutes.test.ts
 │   │   │   │   │       └── prismaHealthRepository.test.ts
-│   │   │   │   └── auth/
-│   │   │   │       ├── unit/
+│   │   │   │   ├── auth/
+│   │   │   │   │   ├── unit/
+│   │   │   │   │   └── integration/
+│   │   │   │   └── marketData/
 │   │   │   │       └── integration/
+│   │   │   │           └── marketDataGateway.test.ts
+│   │   │   ├── infrastructure/
+│   │   │   │   └── unit/
+│   │   │   │       └── errorHandler.test.ts
 │   │   │   ├── e2e/
 │   │   │   ├── fixtures/
 │   │   │   ├── helpers/

@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { HealthService } from '../../../../../src/api/features/health/services/healthService';
-import type { HealthRepository } from '../../../../../src/api/features/health/repositories/interfaces/healthRepository.interface';
+import { HealthService } from '../../../../src/api/features/health/services/healthService';
+import type { HealthRepository } from '../../../../src/api/features/health/repositories/interfaces/healthRepository.interface';
 
 describe('HealthService lifecycle persistence', () => {
   it('records backend startup and shutdown through its repository', async () => {

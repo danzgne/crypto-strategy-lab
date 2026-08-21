@@ -37,7 +37,7 @@ export async function runWorker(
         .recordHeartbeat(config.workerId)
         .catch((error: unknown) => {
           logger.error(
-            { error, workerId: config.workerId },
+            { err: error, workerId: config.workerId },
             'Backtest worker heartbeat failed',
           );
         });
