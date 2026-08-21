@@ -1,0 +1,38 @@
+{
+  "name": "crypto-strategy-lab",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/backend build && pnpm --filter @crypto-strategy-lab/backtest-worker build && pnpm --filter @crypto-strategy-lab/frontend build",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "dev": "pnpm prisma:generate && pnpm --parallel --stream --filter @crypto-strategy-lab/backend --filter @crypto-strategy-lab/backtest-worker --filter @crypto-strategy-lab/frontend dev",
+    "dev:backend": "pnpm --filter @crypto-strategy-lab/backend dev",
+    "dev:frontend": "pnpm --filter @crypto-strategy-lab/frontend dev",
+    "dev:worker": "pnpm --filter @crypto-strategy-lab/backtest-worker dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm --recursive --if-present lint",
+    "prisma:format": "prisma format",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "test": "pnpm prisma:generate && pnpm --recursive --if-present test",
+    "typecheck": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --recursive --if-present typecheck"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.0",
+    "dotenv": "^17.2.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.0",
+    "globals": "^16.5.0",
+    "prettier": "^3.8.0",
+    "prisma": "^7.9.1",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.50.0"
+  }
+}
