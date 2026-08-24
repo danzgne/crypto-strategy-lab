@@ -3,7 +3,11 @@ import { redirect } from 'next/navigation';
 import { DashboardShell } from '../../features/dashboard';
 import { authServer } from '../../features/auth/api/authServer';
 
-export default async function DashboardLayout({ children }: { children: ReactNode }) {
+export default async function DashboardLayout({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const user = await authServer.getCurrentUser();
 
   if (!user) {

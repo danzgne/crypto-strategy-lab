@@ -5,10 +5,10 @@ const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3100';
 
 export async function browserHttpClient<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const url = `${BASE_URL}${endpoint}`;
-  
+
   const response = await fetch(url, {
     ...options,
     headers: {
@@ -16,7 +16,7 @@ export async function browserHttpClient<T>(
       ...options.headers,
     },
     // Crucial for sending and receiving cookies cross-origin (or same-origin)
-    credentials: 'include', 
+    credentials: 'include',
   });
 
   if (!response.ok) {

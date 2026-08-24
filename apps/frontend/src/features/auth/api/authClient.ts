@@ -1,5 +1,8 @@
 import { browserHttpClient } from '../../../shared/api/browserHttpClient';
-import type { LoginCredentials, RegisterCredentials } from '../schemas/authSchemas';
+import type {
+  LoginCredentials,
+  RegisterCredentials,
+} from '../schemas/authSchemas';
 import type { User } from '../types';
 
 export const authClient = {

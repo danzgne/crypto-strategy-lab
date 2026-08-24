@@ -22,7 +22,13 @@ const navigation = [
   { label: 'Settings', icon: Settings },
 ];
 
-export function DashboardShell({ children, user }: { children: ReactNode; user?: User }) {
+export function DashboardShell({
+  children,
+  user,
+}: {
+  children: ReactNode;
+  user?: User;
+}) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="hidden min-h-screen border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">

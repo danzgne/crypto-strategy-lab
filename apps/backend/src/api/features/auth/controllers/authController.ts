@@ -5,7 +5,11 @@ import type { AuthServiceInterface } from '@/api/features/auth/services/interfac
 export class AuthController {
   public constructor(private readonly authService: AuthServiceInterface) {}
 
-  public register = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  public register = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
@@ -17,8 +21,8 @@ export class AuthController {
       const user = await this.authService.register(email, password);
       req.session.userId = user.id;
       req.session.role = user.role;
-      
-      // using res.status(201).json to maintain compatibility with existing frontend 
+
+      // using res.status(201).json to maintain compatibility with existing frontend
       // which doesn't expect the ApiResponse { success: true, data: ... } wrapper yet
       res.status(201).json(user);
     } catch (error) {
@@ -26,7 +30,11 @@ export class AuthController {
     }
   };
 
-  public login = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  public login = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
@@ -37,7 +45,7 @@ export class AuthController {
       const user = await this.authService.authenticate(email, password);
       req.session.userId = user.id;
       req.session.role = user.role;
-      
+
       res.json(user);
     } catch (error) {
       next(error);
@@ -52,7 +60,11 @@ export class AuthController {
     });
   };
 
-  public me = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  public me = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
     try {
       if (!req.session.userId) {
         res.status(401).json({ error: 'Not authenticated' });

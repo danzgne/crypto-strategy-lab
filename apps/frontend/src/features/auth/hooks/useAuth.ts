@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '../api/authClient';
-import type { LoginCredentials, RegisterCredentials } from '../schemas/authSchemas';
+import type {
+  LoginCredentials,
+  RegisterCredentials,
+} from '../schemas/authSchemas';
 
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);

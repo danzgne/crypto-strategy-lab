@@ -1,5 +1,8 @@
 import { PrismaClient } from '../../../../../../../generated/prisma/client';
-import { AuthRepository, AuthUserRecord } from '@/api/features/auth/repositories/interfaces/authRepository.interface';
+import {
+  AuthRepository,
+  AuthUserRecord,
+} from '@/api/features/auth/repositories/interfaces/authRepository.interface';
 import { Role } from '@crypto-strategy-lab/shared';
 
 export class PrismaAuthRepository implements AuthRepository {
