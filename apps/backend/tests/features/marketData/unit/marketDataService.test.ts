@@ -80,6 +80,7 @@ describe('MarketDataService', () => {
           timeframe: '1m',
           openTime: bufferedUpdate.openTime,
           price: '101.5',
+          exchangeEventTime: 1_756_000_100_000,
         }),
       }),
     );

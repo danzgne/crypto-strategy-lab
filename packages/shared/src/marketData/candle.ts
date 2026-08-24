@@ -28,6 +28,16 @@ export interface CandleUpdateMetadata {
   exchangeEventTime?: number;
 }
 
+export const DEFAULT_CANDLE_LIMIT = 500;
+export const MAX_CANDLE_LIMIT = 1_000;
+
+export function normalizeCandleLimit(limit?: number): number {
+  if (limit === undefined || !Number.isFinite(limit)) {
+    return DEFAULT_CANDLE_LIMIT;
+  }
+  return Math.min(MAX_CANDLE_LIMIT, Math.max(1, Math.trunc(limit)));
+}
+
 export function marketKey({ pair, timeframe }: MarketKey): string {
   return `${pair}:${timeframe}`;
 }

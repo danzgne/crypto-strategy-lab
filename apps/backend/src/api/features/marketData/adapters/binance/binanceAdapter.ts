@@ -5,6 +5,7 @@ import type {
   MarketKey,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
+import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
 
 import type {
   CloseExchangeStream,
@@ -14,9 +15,6 @@ import type {
 
 const DEFAULT_REST_BASE_URL = 'https://api.binance.com';
 const DEFAULT_WEBSOCKET_BASE_URL = 'wss://stream.binance.com:9443/stream';
-const DEFAULT_CANDLE_LIMIT = 500;
-const MAX_CANDLE_LIMIT = 1_000;
-
 const BINANCE_TIMEFRAMES: Record<Timeframe, string> = {
   '1m': '1m',
   '5m': '5m',
@@ -104,10 +102,7 @@ export class BinanceAdapter implements ExchangeAdapter {
     const url = new URL(`${this.restBaseUrl}/api/v3/klines`);
     url.searchParams.set('symbol', query.pair.toUpperCase());
     url.searchParams.set('interval', BINANCE_TIMEFRAMES[query.timeframe]);
-    url.searchParams.set(
-      'limit',
-      String(normalizeLimit(query.limit ?? DEFAULT_CANDLE_LIMIT)),
-    );
+    url.searchParams.set('limit', String(normalizeCandleLimit(query.limit)));
 
     if (query.startTime !== undefined) {
       url.searchParams.set('startTime', String(query.startTime));
@@ -274,11 +269,6 @@ function parseMessage(data: unknown): BinanceKlineMessage | null {
   } catch {
     return null;
   }
-}
-
-function normalizeLimit(limit: number): number {
-  if (!Number.isFinite(limit)) return DEFAULT_CANDLE_LIMIT;
-  return Math.min(MAX_CANDLE_LIMIT, Math.max(1, Math.trunc(limit)));
 }
 
 function uniqueMarketKeys(keys: readonly MarketKey[]): MarketKey[] {

@@ -84,6 +84,7 @@ describe('market-data realtime gateway', () => {
       fetchCandles: async () => [initialCandle],
       openKlineStream: (_keys, handlers) => {
         streamHandlers = handlers;
+        void handlers.onCandle({ ...initialCandle, close: 100.75 });
         return () => undefined;
       },
     };
@@ -119,6 +120,9 @@ describe('market-data realtime gateway', () => {
     await new Promise<void>((resolve) =>
       client.once('connect', () => resolve()),
     );
+    const receivedMarketEvents: string[] = [];
+    client.on('market:snapshot', () => receivedMarketEvents.push('snapshot'));
+    client.on('market:candle', () => receivedMarketEvents.push('candle'));
     const snapshotPromise = new Promise<
       Parameters<ServerToClientEvents['market:snapshot']>[0]
     >((resolve) => client.once('market:snapshot', resolve));
@@ -134,8 +138,9 @@ describe('market-data realtime gateway', () => {
       chartId: 'chart-a',
       pair: 'BTCUSDT',
       timeframe: '1m',
-      candles: [initialCandle],
+      candles: [{ ...initialCandle, close: 100.75 }],
     });
+    expect(receivedMarketEvents).toEqual(['snapshot']);
 
     const candlePromise = new Promise<
       Parameters<ServerToClientEvents['market:candle']>[0]
@@ -148,5 +153,6 @@ describe('market-data realtime gateway', () => {
       timeframe: '1m',
       candle: liveCandle,
     });
+    expect(receivedMarketEvents).toEqual(['snapshot', 'candle']);
   });
 });

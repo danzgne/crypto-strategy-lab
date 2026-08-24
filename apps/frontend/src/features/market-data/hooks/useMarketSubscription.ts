@@ -8,6 +8,7 @@ import type {
   MarketSubscriptionStatus,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
+import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
 import { useEffect, useRef, useState } from 'react';
 
 import {
@@ -170,7 +171,7 @@ function trimCandles(candles: Candle[], limit: number): Candle[] {
   return candles
     .slice()
     .sort((left, right) => left.openTime - right.openTime)
-    .slice(-Math.max(1, Math.min(1_000, Math.trunc(limit))));
+    .slice(-normalizeCandleLimit(limit));
 }
 
 function statusToPhase(

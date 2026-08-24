@@ -8,7 +8,7 @@ export interface MarketPriceUpdatedPayload {
   timeframe: Timeframe;
   openTime: number;
   price: string;
-  exchangeEventTime: string;
+  exchangeEventTime: number;
 }
 
 export interface CandleClosedPayload {

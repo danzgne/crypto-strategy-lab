@@ -6,6 +6,10 @@ import type {
   MarketKey,
 } from '@crypto-strategy-lab/shared';
 import { createDomainEvent, marketKey } from '@crypto-strategy-lab/shared';
+import {
+  DEFAULT_CANDLE_LIMIT,
+  normalizeCandleLimit,
+} from '@crypto-strategy-lab/shared/market-data';
 
 import type { AppLogger } from '../../../../../utils/logger';
 import { createAppLogger } from '../../../../../utils/logger';
@@ -21,8 +25,10 @@ import type {
   ExchangeStreamStatus,
 } from '../interfaces/exchangeAdapter.interface';
 
-export const DEFAULT_CANDLE_LIMIT = 500;
-export const MAX_CANDLE_LIMIT = 1_000;
+export {
+  DEFAULT_CANDLE_LIMIT,
+  MAX_CANDLE_LIMIT,
+} from '@crypto-strategy-lab/shared/market-data';
 
 export type MarketDataCandleListener = (candle: Candle) => void;
 export type MarketDataStatusListener = (status: ExchangeStreamStatus) => void;
@@ -102,17 +108,28 @@ export class MarketDataService {
     }
 
     const normalizedHandlers = normalizeHandlers(handlers);
-    if (normalizedHandlers.onCandle !== undefined) {
-      state.candleListeners.add(normalizedHandlers.onCandle);
-    }
-    if (normalizedHandlers.onStatus !== undefined) {
-      state.statusListeners.add(normalizedHandlers.onStatus);
-    }
+    const candleListener =
+      normalizedHandlers.onCandle === undefined
+        ? undefined
+        : (candle: Candle) => normalizedHandlers.onCandle?.(candle);
+    const statusListener =
+      normalizedHandlers.onStatus === undefined
+        ? undefined
+        : (status: ExchangeStreamStatus) =>
+            normalizedHandlers.onStatus?.(status);
+    if (candleListener !== undefined) state.candleListeners.add(candleListener);
+    if (statusListener !== undefined) state.statusListeners.add(statusListener);
     state.referenceCount += 1;
 
     try {
       await state.initialization;
     } catch (error) {
+      if (candleListener !== undefined) {
+        state.candleListeners.delete(candleListener);
+      }
+      if (statusListener !== undefined) {
+        state.statusListeners.delete(statusListener);
+      }
       state.referenceCount -= 1;
       this.removeStateIfUnused(state, key);
       throw error;
@@ -125,6 +142,12 @@ export class MarketDataService {
       unsubscribe: async () => {
         if (unsubscribed) return;
         unsubscribed = true;
+        if (candleListener !== undefined) {
+          state.candleListeners.delete(candleListener);
+        }
+        if (statusListener !== undefined) {
+          state.statusListeners.delete(statusListener);
+        }
         state.referenceCount -= 1;
         await this.removeStateIfUnused(state, key);
       },
@@ -193,11 +216,19 @@ export class MarketDataService {
     streamPromise: Promise<CloseExchangeStream>,
     historyPromise: Promise<Candle[]>,
   ): Promise<void> {
-    const [closeStream, history] = await Promise.all([
+    const [streamResult, historyResult] = await Promise.allSettled([
       streamPromise,
       historyPromise,
     ]);
-    state.closeStream = closeStream;
+    if (streamResult.status === 'rejected') {
+      throw streamResult.reason;
+    }
+    if (historyResult.status === 'rejected') {
+      await streamResult.value();
+      throw historyResult.reason;
+    }
+    state.closeStream = streamResult.value;
+    const history = historyResult.value;
 
     const historyByOpenTime = new Map<number, Candle>();
     for (const candle of history) {
@@ -257,9 +288,7 @@ export class MarketDataService {
           timeframe: candle.timeframe,
           openTime: candle.openTime,
           price: String(candle.close),
-          exchangeEventTime: new Date(
-            metadata.exchangeEventTime ?? Date.now(),
-          ).toISOString(),
+          exchangeEventTime: metadata.exchangeEventTime ?? Date.now(),
         }),
       );
     }
@@ -296,10 +325,7 @@ function normalizeQuery(query: CandleQuery): CandleQuery {
     pair: query.pair.toUpperCase(),
     timeframe: query.timeframe,
   };
-  normalized.limit =
-    query.limit === undefined
-      ? DEFAULT_CANDLE_LIMIT
-      : Math.min(MAX_CANDLE_LIMIT, Math.max(1, Math.trunc(query.limit)));
+  normalized.limit = normalizeCandleLimit(query.limit);
   if (query.startTime !== undefined) normalized.startTime = query.startTime;
   if (query.endTime !== undefined) normalized.endTime = query.endTime;
   return normalized;

@@ -7,6 +7,7 @@ import type {
   SocketData,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
+import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
 import type { Server, Socket } from 'socket.io';
 
 import type { AppLogger } from '../../../../utils/logger';
@@ -35,7 +36,7 @@ interface RoomState {
   timeframe: Timeframe;
   memberCount: number;
   status: 'LIVE' | 'RECONNECTING' | 'STALE';
-  rootAssigned: boolean;
+  snapshotSent: boolean;
   rootSubscription?: MarketDataSubscription;
   ready: Promise<void>;
 }
@@ -150,7 +151,7 @@ async function subscribeSocket(
       timeframe: normalizedRequest.timeframe,
       memberCount: 0,
       status: 'RECONNECTING',
-      rootAssigned: false,
+      snapshotSent: false,
       ready: Promise.resolve(),
     };
     roomStates.set(roomKey, roomState);
@@ -164,9 +165,7 @@ async function subscribeSocket(
 
   try {
     await roomState.ready;
-    const subscription = roomState.rootAssigned
-      ? await marketDataService.subscribe(normalizedRequest)
-      : takeRootSubscription(roomState);
+    const subscription = await marketDataService.subscribe(normalizedRequest);
 
     roomState.memberCount += 1;
     let subscriptions = clientSubscriptions.get(socket.id);
@@ -188,6 +187,7 @@ async function subscribeSocket(
       timeframe: normalizedRequest.timeframe,
       candles: subscription.candles,
     });
+    roomState.snapshotSent = true;
     socket.emit('market:status', {
       pair: normalizedRequest.pair,
       timeframe: normalizedRequest.timeframe,
@@ -195,7 +195,10 @@ async function subscribeSocket(
     });
   } catch (error) {
     await socket.leave(room);
-    if (roomStates.get(roomKey) === roomState) roomStates.delete(roomKey);
+    if (roomStates.get(roomKey) === roomState) {
+      roomStates.delete(roomKey);
+      await roomState.rootSubscription?.unsubscribe();
+    }
     logger.error(
       {
         err: error,
@@ -222,6 +225,7 @@ async function initializeRoom(
 ): Promise<void> {
   const subscription = await marketDataService.subscribe(request, {
     onCandle: (candle) => {
+      if (!roomState.snapshotSent) return;
       socketServer.to(roomState.room).emit('market:candle', {
         pair: roomState.pair,
         timeframe: roomState.timeframe,
@@ -239,14 +243,6 @@ async function initializeRoom(
   });
   roomState.rootSubscription = subscription;
   roomState.status = 'LIVE';
-}
-
-function takeRootSubscription(roomState: RoomState): MarketDataSubscription {
-  if (roomState.rootAssigned || roomState.rootSubscription === undefined) {
-    throw new Error('Market room root subscription was already assigned');
-  }
-  roomState.rootAssigned = true;
-  return roomState.rootSubscription;
 }
 
 async function unsubscribeSocket(
@@ -273,6 +269,7 @@ async function unsubscribeSocket(
   roomState.memberCount = Math.max(0, roomState.memberCount - 1);
   if (roomState.memberCount > 0) return;
   roomStates.delete(clientSubscription.roomKey);
+  await roomState.rootSubscription?.unsubscribe();
   logger.debug({ room: clientSubscription.room }, 'Market data room released');
 }
 
@@ -323,7 +320,7 @@ function normalizeSubscribeRequest(
     timeframe: request.timeframe,
   };
   if (request.limit !== undefined) {
-    normalized.limit = Math.min(1_000, Math.max(1, Math.trunc(request.limit)));
+    normalized.limit = normalizeCandleLimit(request.limit);
   }
   return normalized;
 }

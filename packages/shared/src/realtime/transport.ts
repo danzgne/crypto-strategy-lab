@@ -1,4 +1,4 @@
-import type { Candle, Pair, Timeframe } from '../marketData/candle';
+import type { Candle, MarketKey } from '../marketData/candle';
 
 export interface MarketDataTransportStatus {
   status: 'ready';
@@ -15,35 +15,25 @@ export interface MarketDataPong extends MarketDataPing {
   serverReceivedAt: string;
 }
 
-export interface MarketSubscribeRequest {
+export interface MarketSubscribeRequest extends MarketKey {
   chartId: string;
-  pair: Pair;
-  timeframe: Timeframe;
   limit?: number;
 }
 
-export interface MarketUnsubscribeRequest {
+export interface MarketUnsubscribeRequest extends MarketKey {
   chartId: string;
-  pair: Pair;
-  timeframe: Timeframe;
 }
 
-export interface MarketSnapshot {
+export interface MarketSnapshot extends MarketKey {
   chartId: string;
-  pair: Pair;
-  timeframe: Timeframe;
   candles: Candle[];
 }
 
-export interface MarketCandleUpdate {
-  pair: Pair;
-  timeframe: Timeframe;
+export interface MarketCandleUpdate extends MarketKey {
   candle: Candle;
 }
 
-export interface MarketSubscriptionStatus {
-  pair: Pair;
-  timeframe: Timeframe;
+export interface MarketSubscriptionStatus extends MarketKey {
   status: 'LIVE' | 'RECONNECTING' | 'STALE';
   detail?: string;
 }
