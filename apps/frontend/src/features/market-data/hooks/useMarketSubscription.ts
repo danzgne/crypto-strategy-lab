@@ -52,8 +52,9 @@ export function useMarketSubscription({
   useEffect(() => {
     const socket = socketFactoryRef.current();
     let active = true;
+    const activeChartId = chartIdRef.current;
     const request: MarketSubscribeRequest = {
-      chartId: chartIdRef.current,
+      chartId: activeChartId,
       pair,
       timeframe,
       limit,
@@ -87,7 +88,7 @@ export function useMarketSubscription({
     const handleSnapshot = (snapshot: MarketSnapshot): void => {
       if (
         !active ||
-        snapshot.chartId !== chartIdRef.current ||
+        snapshot.chartId !== activeChartId ||
         snapshot.pair !== pair ||
         snapshot.timeframe !== timeframe
       ) {
@@ -148,7 +149,7 @@ export function useMarketSubscription({
       socket.off('market:status', handleStatus);
       if (socket.connected) {
         socket.emit('market:unsubscribe', {
-          chartId: chartIdRef.current,
+          chartId: activeChartId,
           pair,
           timeframe,
         });
