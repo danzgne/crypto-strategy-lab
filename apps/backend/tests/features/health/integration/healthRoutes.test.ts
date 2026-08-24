@@ -11,6 +11,9 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
+      authProvider:
+        {} as unknown as import('@crypto-strategy-lab/shared').AuthProvider,
+      sessionMiddleware: (req, res, next) => next(),
     });
 
     const response = await request(app).get('/api/v1/health');
@@ -35,6 +38,9 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
+      authProvider:
+        {} as unknown as import('@crypto-strategy-lab/shared').AuthProvider,
+      sessionMiddleware: (req, res, next) => next(),
     });
 
     const response = await request(app).get('/api/v1/health/ready');

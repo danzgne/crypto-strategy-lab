@@ -13,6 +13,8 @@ import { createSocketServer } from './realtime/socketServer';
 import { createApp } from './server';
 import { createAppLogger } from './utils/logger';
 import { InMemoryDomainEventBus } from './events/inMemoryDomainEventBus';
+import { createSessionMiddleware } from './auth/session';
+import { PostgresAuthProvider } from './auth/provider';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -40,14 +42,48 @@ async function startBackend(): Promise<void> {
   await prisma.$connect();
   await healthService.recordStarted(config.instanceId);
 
+  const sessionMiddleware = createSessionMiddleware(prisma);
+  const authProvider = new PostgresAuthProvider(prisma);
+
+  const adminEmail = config.adminEmail;
+  if (adminEmail) {
+    let adminId: string;
+    let adminRole: string;
+
+    const admin = await prisma.user.findUnique({
+      where: { email: adminEmail },
+    });
+    if (!admin) {
+      const newUser = await authProvider.register(
+        adminEmail,
+        config.adminDefaultPassword || 'admin123',
+      );
+      adminId = newUser.id;
+      adminRole = newUser.role;
+    } else {
+      adminId = admin.id;
+      adminRole = admin.role;
+    }
+    if (adminRole !== 'ADMIN') {
+      await prisma.user.update({
+        where: { id: adminId },
+        data: { role: 'ADMIN' },
+      });
+      logger.info({ email: adminEmail }, 'Promoted user to ADMIN role');
+    }
+  }
+
   const app = createApp({
     healthRepository,
+    authProvider,
+    sessionMiddleware,
     allowedOrigin: config.frontendOrigin,
     logger,
   });
   const httpServer = createServer(app);
   const socketServer = createSocketServer(httpServer, {
     allowedOrigin: config.frontendOrigin,
+    sessionMiddleware,
     logger,
     marketDataService,
   });

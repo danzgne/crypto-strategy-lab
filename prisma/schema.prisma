@@ -43,3 +43,90 @@ model Candle {
   @@index([pair, timeframe, closeTime])
   @@map("candles")
 }
+
+enum Role {
+  ADMIN
+  USER
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(USER)
+
+  strategyDefinitions StrategyDefinition[]
+  strategyVersions    StrategyVersion[]
+  experiments         Experiment[]
+  trades              Trade[]
+  searchRuns          SearchRun[]
+  backtestJobs        BacktestJob[]
+  leaderboardEntries  Leaderboard[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  sid       String   @unique
+  data      String   @db.Text
+  expiresAt DateTime
+
+  @@map("sessions")
+}
+
+model StrategyDefinition {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("strategy_definitions")
+}
+
+model StrategyVersion {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("strategy_versions")
+}
+
+model Experiment {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("experiments")
+}
+
+model Trade {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("trades")
+}
+
+model SearchRun {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("search_runs")
+}
+
+model BacktestJob {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("backtest_jobs")
+}
+
+model Leaderboard {
+  id      String @id @default(uuid()) @db.Uuid
+  ownerId String @db.Uuid
+  owner   User   @relation(fields: [ownerId], references: [id])
+
+  @@map("leaderboard")
+}

@@ -10,6 +10,8 @@ import {
 import type { ReactNode } from 'react';
 
 import { ProductLogoMark } from './ProductLogoMark';
+import { UserMenu } from '../../auth/components/UserMenu';
+import type { User } from '../../auth/types';
 
 const navigation = [
   { label: 'Realtime', icon: Activity, active: true },
@@ -20,7 +22,7 @@ const navigation = [
   { label: 'Settings', icon: Settings },
 ];
 
-export function DashboardShell({ children }: { children: ReactNode }) {
+export function DashboardShell({ children, user }: { children: ReactNode; user?: User }) {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="hidden min-h-screen border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
@@ -64,6 +66,8 @@ export function DashboardShell({ children }: { children: ReactNode }) {
             remain visible through Compose health checks.
           </p>
         </div>
+
+        {user && <UserMenu user={user} />}
       </aside>
 
       <div className="min-w-0">

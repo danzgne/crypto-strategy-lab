@@ -12,6 +12,8 @@ const appConfigSchema = z.object({
   LOG_LEVEL: z
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
+  ADMIN_EMAIL: z.string().email().optional(),
+  ADMIN_DEFAULT_PASSWORD: z.string().min(1).default('admin123'),
 });
 
 export type AppConfig = {
@@ -22,6 +24,8 @@ export type AppConfig = {
   databaseUrl: string;
   frontendOrigin: string;
   logLevel: z.infer<typeof appConfigSchema>['LOG_LEVEL'];
+  adminEmail?: string | undefined;
+  adminDefaultPassword?: string | undefined;
 };
 
 export function readAppConfig(
@@ -37,5 +41,7 @@ export function readAppConfig(
     databaseUrl: parsed.DATABASE_URL,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     logLevel: parsed.LOG_LEVEL,
+    adminEmail: parsed.ADMIN_EMAIL,
+    adminDefaultPassword: parsed.ADMIN_DEFAULT_PASSWORD,
   };
 }
