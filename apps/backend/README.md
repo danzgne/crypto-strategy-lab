@@ -88,6 +88,29 @@ Socket.IO connection or event
   → Repository and/or domain event publisher
 ```
 
+### Market-data vertical slice
+
+The first market-data slice keeps exchange protocol details behind `BinanceAdapter`:
+
+```text
+market:subscribe
+  → marketDataGateway
+  → MarketDataService
+  → ExchangeAdapter.fetchCandles + openKlineStream
+  → normalized Candle snapshot/update
+  → market:snapshot (requesting socket only)
+  → market:candle (market:<pair>:<timeframe> room)
+```
+
+`MarketDataService` starts the WebSocket before requesting REST history, buffers incoming updates while history is
+being merged, and deduplicates by `(pair, timeframe, openTime)`. Forming candles remain in the keyed in-memory
+state. Closed candles go through `CandleRepository.upsertClosed`, whose Prisma implementation is protected by the
+same unique database key. Forming updates publish `MarketPriceUpdated`; the first transition to closed publishes
+`CandleClosed` exactly once.
+
+The service accepts an injected `ExchangeAdapter`, `CandleRepository`, and domain-event publisher, so unit tests do
+not connect to Binance and a future exchange adapter does not require gateway or frontend changes.
+
 ## File structure
 
 ```text
