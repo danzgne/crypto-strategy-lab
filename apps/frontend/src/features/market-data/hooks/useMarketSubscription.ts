@@ -96,8 +96,8 @@ export function useMarketSubscription({
       }
       setState({
         candles: trimCandles(snapshot.candles, limit),
-        phase: 'live',
-        detail: 'Live market stream connected',
+        phase: 'connecting',
+        detail: 'Fresh market snapshot received; checking stream status',
       });
     };
     const handleCandle = (update: MarketCandleUpdate): void => {
@@ -105,11 +105,11 @@ export function useMarketSubscription({
         return;
       }
       setState((current) => ({
+        ...current,
         candles: trimCandles(
           replaceCandle(current.candles, update.candle),
           limit,
         ),
-        phase: 'live',
         detail: update.candle.isClosed
           ? 'Latest candle closed'
           : 'Forming candle updating live',

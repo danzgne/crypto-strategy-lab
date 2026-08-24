@@ -1,0 +1,65 @@
+import { fireEvent, render, screen } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
+
+import type {
+  MarketSubscriptionState,
+  UseMarketSubscriptionOptions,
+} from '../../../../src/features/market-data/hooks/useMarketSubscription';
+import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
+
+vi.mock(
+  '../../../../src/features/market-data/hooks/useMarketSubscription',
+  () => ({
+    useMarketSubscription: ({
+      pair,
+      timeframe,
+    }: UseMarketSubscriptionOptions): MarketSubscriptionState => ({
+      candles: [],
+      phase: 'connecting',
+      detail: `Loading ${pair} ${timeframe}`,
+    }),
+  }),
+);
+
+vi.mock(
+  '../../../../src/features/market-data/hooks/useRealtimeConnection',
+  () => ({
+    useRealtimeConnection: (): RealtimeConnectionState => ({
+      phase: 'live',
+      latencyMs: 12,
+      serverTime: '2026-08-24T00:00:00.000Z',
+      detail: 'Round trip verified',
+    }),
+  }),
+);
+
+import { MarketDataDashboard } from '../../../../src/features/market-data/components/MarketDataDashboard';
+
+describe('MarketDataDashboard', () => {
+  it('renders four independently switchable timeframe panels behind one global pair selector', () => {
+    render(<MarketDataDashboard />);
+
+    const pairSelector = screen.getByRole('combobox', { name: 'Market pair' });
+    const timeframeSelectors = screen.getAllByRole('combobox', {
+      name: /Timeframe for panel/,
+    });
+
+    expect(pairSelector).toHaveValue('BTCUSDT');
+    expect(timeframeSelectors).toHaveLength(4);
+    expect(screen.getByText('4 live panels')).toBeInTheDocument();
+    expect(
+      screen.queryByRole('option', { name: '1d' }),
+    ).not.toBeInTheDocument();
+
+    const firstTimeframeSelector = timeframeSelectors.at(0);
+    if (firstTimeframeSelector === undefined) {
+      throw new Error('Expected the first timeframe selector');
+    }
+    fireEvent.change(firstTimeframeSelector, { target: { value: '4h' } });
+    expect(screen.getByText('BTCUSDT · 4h')).toBeInTheDocument();
+
+    fireEvent.change(pairSelector, { target: { value: 'ETHUSDT' } });
+    expect(screen.getByText('ETHUSDT · 4h')).toBeInTheDocument();
+    expect(screen.getAllByText('ETHUSDT · 5m')).toHaveLength(1);
+  });
+});

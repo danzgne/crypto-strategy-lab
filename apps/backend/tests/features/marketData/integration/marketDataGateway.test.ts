@@ -5,7 +5,7 @@ import type {
   ServerToClientEvents,
 } from '@crypto-strategy-lab/shared';
 import { io as createClient, type Socket } from 'socket.io-client';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExchangeAdapter } from '@/api/features/marketData/application/interfaces/exchangeAdapter.interface';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
@@ -165,5 +165,106 @@ describe('market-data realtime gateway', () => {
       candle: liveCandle,
     });
     expect(receivedMarketEvents).toEqual(['snapshot', 'candle']);
+  });
+
+  it('shares one upstream stream when two panels subscribe to the same market key', async () => {
+    let streamHandlers:
+      Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+    const closeStream = vi.fn();
+    const initialCandle = {
+      pair: 'BTCUSDT' as const,
+      timeframe: '5m' as const,
+      openTime: 1_756_000_000_000,
+      closeTime: 1_756_000_299_999,
+      open: 100,
+      high: 101,
+      low: 99,
+      close: 100.5,
+      volume: 10,
+      isClosed: false,
+    };
+    const exchangeAdapter: ExchangeAdapter = {
+      fetchCandles: vi.fn(async () => [initialCandle]),
+      openKlineStream: vi.fn((_keys, handlers) => {
+        streamHandlers = handlers;
+        return closeStream;
+      }),
+    };
+    const marketDataService = new MarketDataService({
+      exchangeAdapter,
+      candleRepository: { upsertClosed: async () => undefined },
+    });
+    const httpServer = createServer();
+    const socketServer = createSocketServer(httpServer, {
+      allowedOrigin: 'http://localhost:3000',
+      marketDataService,
+    });
+
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const address = httpServer.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error(
+        'Expected the test server to listen on an ephemeral port',
+      );
+    }
+
+    const client: Socket<ServerToClientEvents, ClientToServerEvents> =
+      createClient(`http://127.0.0.1:${address.port}`, {
+        transports: ['websocket'],
+      });
+    closeCallbacks.push(async () => {
+      client.disconnect();
+      await marketDataService.close();
+      await socketServer.close();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    });
+
+    await new Promise<void>((resolve) => client.once('connect', resolve));
+    const snapshots: string[] = [];
+    client.on('market:snapshot', ({ chartId }) => snapshots.push(chartId));
+    client.emit('market:subscribe', {
+      chartId: 'chart-a',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+    client.emit('market:subscribe', {
+      chartId: 'chart-b',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+
+    await new Promise<void>((resolve) => {
+      const check = (): void => {
+        if (snapshots.length === 2) {
+          resolve();
+          return;
+        }
+        setTimeout(check, 1);
+      };
+      check();
+    });
+
+    expect(exchangeAdapter.openKlineStream).toHaveBeenCalledOnce();
+    expect(exchangeAdapter.fetchCandles).toHaveBeenCalledOnce();
+    expect(snapshots.sort()).toEqual(['chart-a', 'chart-b']);
+
+    const updates: unknown[] = [];
+    client.on('market:candle', (update) => updates.push(update));
+    await streamHandlers?.onCandle({ ...initialCandle, close: 101.5 });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    expect(updates).toHaveLength(1);
+
+    client.emit('market:unsubscribe', {
+      chartId: 'chart-a',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+    client.emit('market:unsubscribe', {
+      chartId: 'chart-b',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+    await new Promise<void>((resolve) => setTimeout(resolve, 5));
+    expect(closeStream).toHaveBeenCalledOnce();
   });
 });

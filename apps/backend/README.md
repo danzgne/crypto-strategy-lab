@@ -108,6 +108,13 @@ state. Closed candles go through `CandleRepository.upsertClosed`, whose Prisma i
 same unique database key. Forming updates publish `MarketPriceUpdated`; the first transition to closed publishes
 `CandleClosed` exactly once.
 
+The service keeps one reference-counted state per `(pair, timeframe)`, so multiple chart panels and users share one
+upstream kline stream. A stream drop changes the state to `RECONNECTING`, resubscribes after capped exponential
+backoff, then fetches from the last known closed candle minus one interval. Recovery opens the new stream before
+backfill, batches REST ranges at Binance's 1,000-candle limit, and merges overlap idempotently. A failed backfill
+closes the replacement stream, discards its unconfirmed updates, retains the last confirmed state, and reports
+`STALE` until a later recovery succeeds.
+
 The service accepts an injected `ExchangeAdapter`, `CandleRepository`, and domain-event publisher, so unit tests do
 not connect to Binance and a future exchange adapter does not require gateway or frontend changes.
 

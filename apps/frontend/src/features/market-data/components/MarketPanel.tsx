@@ -1,7 +1,6 @@
 'use client';
 
 import { CandlestickChart as CandlestickIcon } from 'lucide-react';
-import type { Timeframe } from '@crypto-strategy-lab/shared';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { useMarketSubscription } from '../hooks/useMarketSubscription';
@@ -14,9 +13,24 @@ const PHASE_COPY = {
   stale: { label: 'STALE', tone: 'negative' },
 } as const;
 
-export function MarketPanel({ timeframe }: { timeframe: Timeframe }) {
+export const CHART_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h'] as const;
+export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number];
+
+interface MarketPanelProperties {
+  pair: string;
+  timeframe: ChartTimeframe;
+  panelNumber: number;
+  onTimeframeChange: (timeframe: ChartTimeframe) => void;
+}
+
+export function MarketPanel({
+  pair,
+  timeframe,
+  panelNumber,
+  onTimeframeChange,
+}: MarketPanelProperties) {
   const market = useMarketSubscription({
-    pair: 'BTCUSDT',
+    pair,
     timeframe,
     limit: 500,
   });
@@ -32,25 +46,39 @@ export function MarketPanel({ timeframe }: { timeframe: Timeframe }) {
     <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-900">
-              BTCUSDT
-            </span>
-            <span className="text-xs font-medium text-slate-400">
-              · {timeframe}
-            </span>
-          </div>
+          <p className="text-sm font-semibold text-slate-900">
+            {pair} · {timeframe}
+          </p>
           <p className="mt-1 text-xs text-slate-500">Binance market stream</p>
         </div>
-        <StatusBadge pulse={market.phase === 'live'} tone={phase.tone}>
-          {phase.label}
-        </StatusBadge>
+        <div className="flex items-center gap-2">
+          <label className="sr-only" htmlFor={`timeframe-panel-${panelNumber}`}>
+            Timeframe for panel {panelNumber}
+          </label>
+          <select
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+            id={`timeframe-panel-${panelNumber}`}
+            onChange={(event) =>
+              onTimeframeChange(event.target.value as ChartTimeframe)
+            }
+            value={timeframe}
+          >
+            {CHART_TIMEFRAMES.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+          <StatusBadge pulse={market.phase === 'live'} tone={phase.tone}>
+            {phase.label}
+          </StatusBadge>
+        </div>
       </div>
 
       <div className="mt-5">
         <CandlestickChart
           candles={market.candles}
-          pair="BTCUSDT"
+          pair={pair}
           timeframe={timeframe}
         />
       </div>

@@ -242,7 +242,6 @@ async function initializeRoom(
     },
   });
   roomState.rootSubscription = subscription;
-  roomState.status = 'LIVE';
 }
 
 async function unsubscribeSocket(

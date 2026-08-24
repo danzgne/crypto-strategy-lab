@@ -142,7 +142,10 @@ The browser receives only the normalized `Candle` contract. The adapter converts
 millisecond timestamps and canonical OHLCV fields. The service opens the upstream stream before fetching REST history,
 buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`, keeps the forming candle in memory,
 and upserts a candle only after it closes. Socket snapshots are private to the requesting chart; live candle updates
-are broadcast through the shared `market:<pair>:<timeframe>` room.
+are broadcast through the shared `market:<pair>:<timeframe>` room. Multiple panels watching the same key share one
+reference-counted service state and upstream stream. On stream loss, the service reconnects with capped backoff and
+backfills from the previous closed candle minus one interval before reporting `LIVE` again; failed reconciliation
+keeps confirmed candles and reports `STALE`.
 
 ```text
 Frontend → Market Data Service → Exchange Adapter → Binance
@@ -177,12 +180,15 @@ CI applies the committed Prisma migration to PostgreSQL before running the compl
 use asynchronous structured Pino output; direct `console.*` calls are prohibited by both repository policy and
 ESLint.
 
-## Issue #28 demo
+## Issue #29 demo
 
 1. Start Compose and open the dashboard.
 2. Confirm **Transport live** and a measured round-trip latency.
-3. Confirm the BTCUSDT 1m panel reaches **LIVE** and shows a candlestick snapshot.
-4. Watch the latest forming candle update before its `CandleClosed` event persists it.
-5. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
+3. Confirm four BTCUSDT panels reach **LIVE**, with independent 1m/5m/15m/1h timeframe selectors and one global
+   pair selector.
+4. Set two panels to the same timeframe and confirm they continue receiving updates through one shared backend room.
+5. Watch the latest forming candle update before its `CandleClosed` event persists it.
+6. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
    bars.
-6. Stop and restart the backend to see the dashboard move from **RECONNECTING** back to **LIVE**.
+7. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
+   backfill to **LIVE**; a failed recovery remains **STALE** without inventing candles.

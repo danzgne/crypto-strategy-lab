@@ -1,10 +1,32 @@
+'use client';
+
 import { RadioTower } from 'lucide-react';
+import { useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
-import { MarketPanel } from './MarketPanel';
+import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
+const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
+const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
+
 export function MarketDataDashboard() {
+  const [pair, setPair] = useState<string>(PAIR_OPTIONS[0]);
+  const [panelTimeframes, setPanelTimeframes] = useState<ChartTimeframe[]>(
+    INITIAL_PANEL_TIMEFRAMES,
+  );
+
+  const changeTimeframe = (
+    panelIndex: number,
+    timeframe: ChartTimeframe,
+  ): void => {
+    setPanelTimeframes((current) =>
+      current.map((currentTimeframe, index) =>
+        index === panelIndex ? timeframe : currentTimeframe,
+      ),
+    );
+  };
+
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -16,9 +38,9 @@ export function MarketDataDashboard() {
             Realtime foundation
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-            Watch the current BTCUSDT candle move in real time. The browser
-            receives normalized candles from the Market Data Service; Binance
-            remains behind the backend exchange adapter.
+            Watch four independently switchable market panels in real time. The
+            browser receives normalized candles from the Market Data Service;
+            Binance remains behind the backend exchange adapter.
           </p>
         </div>
         <StatusBadge tone="neutral">
@@ -29,7 +51,7 @@ export function MarketDataDashboard() {
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)]">
         <section aria-labelledby="workspace-title">
-          <div className="mb-3 flex items-end justify-between gap-4">
+          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:flex-row sm:items-end sm:justify-between sm:p-5">
             <div>
               <h2
                 id="workspace-title"
@@ -38,16 +60,49 @@ export function MarketDataDashboard() {
                 Live market workspace
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                The first live slice starts with one 1-minute chart. Additional
-                independently switchable panels follow in the next market-data
-                slice.
+                Choose one shared pair, then tune each panel to its own
+                timeframe. Matching panels share one backend market stream.
               </p>
             </div>
-            <span className="hidden text-xs font-medium text-slate-400 sm:block">
-              1 live panel
-            </span>
+            <div className="flex items-end gap-3">
+              <div>
+                <label
+                  className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+                  htmlFor="market-pair"
+                >
+                  Market pair
+                </label>
+                <select
+                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  id="market-pair"
+                  onChange={(event) => setPair(event.target.value)}
+                  value={pair}
+                >
+                  {PAIR_OPTIONS.map((option) => (
+                    <option key={option} value={option}>
+                      {option}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <span className="pb-2 text-xs font-medium text-slate-400">
+                {panelTimeframes.length} live panels
+              </span>
+            </div>
           </div>
-          <MarketPanel timeframe="1m" />
+          <div className="grid gap-5 md:grid-cols-2">
+            {panelTimeframes.map((timeframe, index) => (
+              <MarketPanel
+                key={`market-panel-${index + 1}`}
+                onTimeframeChange={(nextTimeframe) =>
+                  changeTimeframe(index, nextTimeframe)
+                }
+                panelNumber={index + 1}
+                pair={pair}
+                timeframe={timeframe}
+              />
+            ))}
+          </div>
         </section>
 
         <aside
