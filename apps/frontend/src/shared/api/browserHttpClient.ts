@@ -23,7 +23,7 @@ export async function browserHttpClient<T>(
     let message = 'API request failed';
     try {
       const data = await response.json();
-      message = data.error || message;
+      message = data.error?.message || data.error || data.message || message;
     } catch {
       // ignore JSON parse error
     }
