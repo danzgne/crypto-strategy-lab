@@ -24,6 +24,7 @@ describe('market-data realtime gateway', () => {
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
       sessionMiddleware: (req, _res, next) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (req as unknown as Request & { session: any }).session = {
           userId: 'mock-user-id',
         };

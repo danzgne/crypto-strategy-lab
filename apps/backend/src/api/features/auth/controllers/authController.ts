@@ -1,7 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import { sendSuccess } from '@/utils/response/ApiResponse';
 import type { AuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
-
 export class AuthController {
   public constructor(private readonly authService: AuthServiceInterface) {}
 

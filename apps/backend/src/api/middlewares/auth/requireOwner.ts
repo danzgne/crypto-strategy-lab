@@ -9,7 +9,7 @@ import { Request, Response, NextFunction } from 'express';
  * you may not need this middleware, but it's useful for targeted checks (e.g. updates/deletes)
  * where the resource ID is passed in the URL.
  */
-export function requireOwner(paramName: string = 'id') {
+export function requireOwner(_paramName: string = 'id') {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.session || !req.session.userId) {
       res.status(401).json({ error: 'Not authenticated' });

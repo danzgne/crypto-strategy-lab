@@ -1,4 +1,4 @@
-import { User } from '@crypto-strategy-lab/shared';
+import { User, Role } from '@crypto-strategy-lab/shared';
 import argon2 from 'argon2';
 import { AuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
 import { AuthRepository } from '@/api/features/auth/repositories/interfaces/authRepository.interface';
@@ -66,7 +66,7 @@ export class AuthService implements AuthServiceInterface {
       if (!this.authRepository.updateRole) {
         throw new Error('AuthRepository does not implement updateRole');
       }
-      await this.authRepository.updateRole(userRecord.id, 'ADMIN' as any);
+      await this.authRepository.updateRole(userRecord.id, 'ADMIN' as Role);
       return true;
     }
 
