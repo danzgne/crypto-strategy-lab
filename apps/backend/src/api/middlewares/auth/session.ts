@@ -1,6 +1,6 @@
 import session from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';
-import { PrismaClient } from '../../../../generated/prisma/client';
+import { PrismaClient } from '../../../../../../generated/prisma/client';
 import { Role } from '@crypto-strategy-lab/shared';
 
 declare module 'express-session' {

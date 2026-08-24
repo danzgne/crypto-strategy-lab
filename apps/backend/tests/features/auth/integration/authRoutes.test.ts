@@ -1,13 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../../src/server';
-import { createPrismaClient } from '../../src/database/prismaClient';
-import { createSessionMiddleware } from '../../src/auth/session';
-import { PostgresAuthProvider } from '../../src/auth/provider';
-import { PrismaClient } from '../../../../generated/prisma/client';
+import { createApp } from '@/server';
+import { createPrismaClient } from '@/database/prismaClient';
+import { createSessionMiddleware } from '@/api/middlewares/auth/session';
+import { PrismaAuthRepository } from '@/api/features/auth/repositories/prismaAuthRepository';
+import { AuthService } from '@/api/features/auth/services/authService';
+import { PrismaClient } from '../../../../../../generated/prisma/client';
 import { config as loadEnvironment } from 'dotenv';
 
-loadEnvironment({ path: new URL('../../../../.env', import.meta.url) });
+loadEnvironment({ path: new URL('../../../../../../.env', import.meta.url) });
 
 describe('Auth & Admin API', () => {
   let app: ReturnType<typeof createApp>;
@@ -26,10 +27,11 @@ describe('Auth & Admin API', () => {
     });
 
     const sessionMiddleware = createSessionMiddleware(prisma);
-    const authProvider = new PostgresAuthProvider(prisma);
+    const authRepository = new PrismaAuthRepository(prisma);
+    const authService = new AuthService(authRepository);
 
     // Create admin user for testing
-    const admin = await authProvider.register('admin@test.com', 'adminpass');
+    const admin = await authService.register('admin@test.com', 'adminpass');
     await prisma.user.update({
       where: { id: admin.id },
       data: { role: 'ADMIN' },
@@ -37,8 +39,8 @@ describe('Auth & Admin API', () => {
 
     app = createApp({
       healthRepository:
-        {} as unknown as import('../../src/api/features/health').HealthRepository,
-      authProvider,
+        {} as unknown as import('@/api/features/health').HealthRepository,
+      authService,
       sessionMiddleware,
     });
   });

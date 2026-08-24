@@ -2,7 +2,7 @@ import type { IncomingMessage } from 'node:http';
 
 import pinoHttp from 'pino-http';
 
-import type { AppLogger } from '../../../utils/logger';
+import type { AppLogger } from '@/utils/logger';
 
 export function requestLogger(logger: AppLogger) {
   return pinoHttp({

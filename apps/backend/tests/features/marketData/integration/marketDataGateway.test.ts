@@ -7,9 +7,9 @@ import type {
 import { io as createClient, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import type { ExchangeAdapter } from '../../../../src/api/features/marketData/application/interfaces/exchangeAdapter.interface';
-import { MarketDataService } from '../../../../src/api/features/marketData/application/services/marketDataService';
-import { createSocketServer } from '../../../../src/realtime/socketServer';
+import type { ExchangeAdapter } from '@/api/features/marketData/application/interfaces/exchangeAdapter.interface';
+import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import { createSocketServer } from '@/realtime/socketServer';
 import type { Request } from 'express';
 
 describe('market-data realtime gateway', () => {
@@ -102,6 +102,12 @@ describe('market-data realtime gateway', () => {
     const httpServer = createServer();
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
+      sessionMiddleware: (req, _res, next) => {
+        (req as unknown as Request & { session: any }).session = {
+          userId: 'mock-user-id',
+        };
+        next();
+      },
       marketDataService,
     });
 

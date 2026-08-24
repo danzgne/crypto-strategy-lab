@@ -8,10 +8,10 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { Server, type Socket } from 'socket.io';
 
-import type { MarketDataService } from '../api/features/marketData/application/services/marketDataService';
-import { registerMarketDataGateway } from '../api/features/marketData/realtime/marketDataGateway';
+import type { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import { registerMarketDataGateway } from '@/api/features/marketData/realtime/marketDataGateway';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { createAppLogger, type AppLogger } from '../utils/logger';
+import { createAppLogger, type AppLogger } from '@/utils/logger';
 
 interface SocketServerOptions {
   allowedOrigin: string;

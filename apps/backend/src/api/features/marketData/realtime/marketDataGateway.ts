@@ -10,7 +10,7 @@ import type {
 import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
 import type { Server, Socket } from 'socket.io';
 
-import type { AppLogger } from '../../../../utils/logger';
+import type { AppLogger } from '@/utils/logger';
 import type {
   MarketDataService,
   MarketDataSubscription,

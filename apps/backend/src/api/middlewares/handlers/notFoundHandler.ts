@@ -1,6 +1,6 @@
 import type { Request, Response } from 'express';
 
-import { sendError } from '../../../utils/response/ApiResponse';
+import { sendError } from '@/utils/response/ApiResponse';
 
 export function notFoundHandler(
   request: Request,

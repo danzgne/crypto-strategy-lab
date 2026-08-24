@@ -1,23 +1,12 @@
-import { Router, Request, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { Role } from '@crypto-strategy-lab/shared';
+import { authorizeRole } from '@/api/middlewares/auth/authorizeRole';
 
-export function requireRole(role: Role) {
-  return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session.userId) {
-      return res.status(401).json({ error: 'Not authenticated' });
-    }
-    if (req.session.role !== role) {
-      return res.status(403).json({ error: 'Forbidden: Insufficient role' });
-    }
-    next();
-  };
-}
-
-export function createAdminRouter() {
+export function createAdminFeatureRouter(): Router {
   const router = Router();
 
   // Apply admin role middleware to all routes in this router
-  router.use(requireRole(Role.ADMIN));
+  router.use(authorizeRole(Role.ADMIN));
 
   // 1. Configuring News Sources
   router.post('/news-sources', (req, res) => {

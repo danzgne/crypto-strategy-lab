@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 
-import { sendSuccess } from '../../../../utils/response/ApiResponse';
-import type { HealthService } from '../services/interfaces/healthService.interface';
+import { sendSuccess } from '@/utils/response/ApiResponse';
+import type { HealthService } from '@/api/features/health/services/interfaces/healthService.interface';
 
 export class HealthController {
   public constructor(private readonly service: HealthService) {}

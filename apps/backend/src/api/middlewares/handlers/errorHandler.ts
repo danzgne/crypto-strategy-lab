@@ -1,8 +1,8 @@
 import type { ErrorRequestHandler } from 'express';
 
-import { AppError } from '../../../errors/AppError';
-import type { AppLogger } from '../../../utils/logger';
-import { sendError } from '../../../utils/response/ApiResponse';
+import { AppError } from '@/errors/AppError';
+import type { AppLogger } from '@/utils/logger';
+import { sendError } from '@/utils/response/ApiResponse';
 
 export function createErrorHandler(logger: AppLogger): ErrorRequestHandler {
   return (error: unknown, request, response, _next): void => {

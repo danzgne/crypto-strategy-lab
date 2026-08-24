@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../../../src/server';
+import { createApp } from '@/server';
 
 describe('health routes', () => {
   it('reports that the backend process is alive', async () => {
@@ -11,8 +11,8 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
-      authProvider:
-        {} as unknown as import('@crypto-strategy-lab/shared').AuthProvider,
+      authService:
+        {} as unknown as import('@/api/features/auth').AuthServiceInterface,
       sessionMiddleware: (req, res, next) => next(),
     });
 
@@ -38,8 +38,8 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
-      authProvider:
-        {} as unknown as import('@crypto-strategy-lab/shared').AuthProvider,
+      authService:
+        {} as unknown as import('@/api/features/auth').AuthServiceInterface,
       sessionMiddleware: (req, res, next) => next(),
     });
 
