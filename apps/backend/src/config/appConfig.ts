@@ -14,9 +14,18 @@ const appConfigSchema = z
       .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
       .default('info'),
     SESSION_SECRET: z.string().min(1).default('super-secret-key-for-dev'),
-    SECURE_COOKIE: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
-    ADMIN_EMAIL: z.union([z.string().email(), z.literal('')]).optional().transform(e => e === '' ? undefined : e),
-    ADMIN_DEFAULT_PASSWORD: z.union([z.string().min(8), z.literal('')]).optional().transform(p => p === '' ? undefined : p),
+    SECURE_COOKIE: z
+      .enum(['true', 'false'])
+      .optional()
+      .transform((v) => v === 'true'),
+    ADMIN_EMAIL: z
+      .union([z.string().email(), z.literal('')])
+      .optional()
+      .transform((e) => (e === '' ? undefined : e)),
+    ADMIN_DEFAULT_PASSWORD: z
+      .union([z.string().min(8), z.literal('')])
+      .optional()
+      .transform((p) => (p === '' ? undefined : p)),
   })
   .refine((data) => !data.ADMIN_EMAIL || data.ADMIN_DEFAULT_PASSWORD, {
     message: 'ADMIN_DEFAULT_PASSWORD is required when ADMIN_EMAIL is set',
@@ -51,7 +60,10 @@ export function readAppConfig(
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     logLevel: parsed.LOG_LEVEL,
     sessionSecret: parsed.SESSION_SECRET,
-    secureCookie: parsed.SECURE_COOKIE !== undefined ? parsed.SECURE_COOKIE : parsed.NODE_ENV === 'production',
+    secureCookie:
+      parsed.SECURE_COOKIE !== undefined
+        ? parsed.SECURE_COOKIE
+        : parsed.NODE_ENV === 'production',
     adminEmail: parsed.ADMIN_EMAIL,
     adminDefaultPassword: parsed.ADMIN_DEFAULT_PASSWORD,
   };

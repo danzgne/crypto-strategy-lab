@@ -69,6 +69,22 @@ describe('Auth & Admin API', () => {
     userCookie = res.headers['set-cookie']![0] as string;
   });
 
+  it('should reject registration with existing email', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'test-user@test.com', password: 'password123' });
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should reject registration with missing fields', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/register')
+      .send({ email: 'incomplete@test.com' });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
   it('should login as admin', async () => {
     const res = await request(app)
       .post('/api/v1/auth/login')
@@ -78,6 +94,22 @@ describe('Auth & Admin API', () => {
     expect(res.body.data.role).toBe('ADMIN');
     expect(res.headers['set-cookie']).toBeDefined();
     adminCookie = res.headers['set-cookie']![0] as string;
+  });
+
+  it('should reject login with wrong password', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@test.com', password: 'wrongpassword' });
+    expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('should reject login with missing fields', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/login')
+      .send({ email: 'admin@test.com' });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
   });
 
   it('should get current user info with session', async () => {
@@ -109,5 +141,19 @@ describe('Auth & Admin API', () => {
       .set('Cookie', adminCookie);
     expect(res.status).toBe(200);
     expect(res.body.message).toBe('News sources configured');
+  });
+
+  it('should logout user successfully', async () => {
+    const res = await request(app)
+      .post('/api/v1/auth/logout')
+      .set('Cookie', userCookie);
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // Test that the session is destroyed by calling /me
+    const meRes = await request(app)
+      .get('/api/v1/auth/me')
+      .set('Cookie', userCookie);
+    expect(meRes.status).toBe(401);
   });
 });
