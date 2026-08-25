@@ -1,5 +1,5 @@
-import type { AppPrismaClient } from '../../../../database/prismaClient';
-import type { HealthRepository } from './interfaces/healthRepository.interface';
+import type { AppPrismaClient } from '@/database/prismaClient';
+import type { HealthRepository } from '@/api/features/health/repositories/interfaces/healthRepository.interface';
 
 const SERVICE_NAME = 'backend';
 

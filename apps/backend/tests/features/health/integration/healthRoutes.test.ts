@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createApp } from '../../../../src/server';
+import { createApp } from '@/server';
 
 describe('health routes', () => {
   it('reports that the backend process is alive', async () => {
@@ -11,6 +11,9 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
+      authService:
+        {} as unknown as import('@/api/features/auth').PasswordAuthServiceInterface,
+      sessionMiddleware: (req, res, next) => next(),
     });
 
     const response = await request(app).get('/api/v1/health');
@@ -35,6 +38,9 @@ describe('health routes', () => {
         recordStarted: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
+      authService:
+        {} as unknown as import('@/api/features/auth').PasswordAuthServiceInterface,
+      sessionMiddleware: (req, res, next) => next(),
     });
 
     const response = await request(app).get('/api/v1/health/ready');

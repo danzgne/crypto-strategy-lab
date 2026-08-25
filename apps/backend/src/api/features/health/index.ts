@@ -1,9 +1,9 @@
 import { Router } from 'express';
 
-import { HealthController } from './controllers/healthController';
-import type { HealthRepository } from './repositories/interfaces/healthRepository.interface';
-import { createHealthRouter } from './routes/v1/health.routes';
-import { HealthService } from './services/healthService';
+import { HealthController } from '@/api/features/health/controllers/healthController';
+import type { HealthRepository } from '@/api/features/health/repositories/interfaces/healthRepository.interface';
+import { createHealthRouter } from '@/api/features/health/routes/v1/health.routes';
+import { HealthService } from '@/api/features/health/services/healthService';
 
 export function createHealthFeatureRouter(
   repository: HealthRepository,
@@ -13,4 +13,4 @@ export function createHealthFeatureRouter(
   return createHealthRouter(controller);
 }
 
-export type { HealthRepository } from './repositories/interfaces/healthRepository.interface';
+export type { HealthRepository } from '@/api/features/health/repositories/interfaces/healthRepository.interface';

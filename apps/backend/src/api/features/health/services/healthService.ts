@@ -1,10 +1,10 @@
-import { ServiceUnavailableError } from '../../../../errors/AppError';
-import type { HealthRepository } from '../repositories/interfaces/healthRepository.interface';
+import { ServiceUnavailableError } from '@/errors/AppError';
+import type { HealthRepository } from '@/api/features/health/repositories/interfaces/healthRepository.interface';
 import type {
   HealthService as HealthServiceContract,
   LivenessStatus,
   ReadinessStatus,
-} from './interfaces/healthService.interface';
+} from '@/api/features/health/services/interfaces/healthService.interface';
 
 export class HealthService implements HealthServiceContract {
   public constructor(private readonly repository: HealthRepository) {}

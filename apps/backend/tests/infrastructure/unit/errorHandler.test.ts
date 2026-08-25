@@ -1,8 +1,8 @@
 import type { NextFunction, Request, Response } from 'express';
 import { describe, expect, it, vi } from 'vitest';
 
-import { createErrorHandler } from '../../../src/api/middlewares/handlers/errorHandler';
-import type { AppLogger } from '../../../src/utils/logger';
+import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
+import type { AppLogger } from '@/utils/logger';
 
 describe('errorHandler structured logging', () => {
   it('passes unexpected failures through Pino standard error serialization', () => {

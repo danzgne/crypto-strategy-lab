@@ -6,21 +6,28 @@ import type {
   ServerToClientEvents,
   SocketData,
 } from '@crypto-strategy-lab/shared';
-import { Server } from 'socket.io';
+import { Server, type Socket } from 'socket.io';
 
-import type { MarketDataService } from '../api/features/marketData/application/services/marketDataService';
-import { registerMarketDataGateway } from '../api/features/marketData/realtime/marketDataGateway';
-import { createAppLogger, type AppLogger } from '../utils/logger';
+import type { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import { registerMarketDataGateway } from '@/api/features/marketData/realtime/marketDataGateway';
+import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import { createAppLogger, type AppLogger } from '@/utils/logger';
 
 interface SocketServerOptions {
   allowedOrigin: string;
+  sessionMiddleware: RequestHandler;
   logger?: AppLogger;
   marketDataService?: MarketDataService;
 }
 
 export function createSocketServer(
   httpServer: HttpServer,
-  { allowedOrigin, logger, marketDataService }: SocketServerOptions,
+  {
+    allowedOrigin,
+    sessionMiddleware,
+    logger,
+    marketDataService,
+  }: SocketServerOptions,
 ): Server<
   ClientToServerEvents,
   ServerToClientEvents,
@@ -37,6 +44,34 @@ export function createSocketServer(
       origin: allowedOrigin,
       credentials: true,
     },
+  });
+
+  const wrap =
+    (middleware: RequestHandler) =>
+    (
+      socket: Socket<
+        ClientToServerEvents,
+        ServerToClientEvents,
+        InterServerEvents,
+        SocketData
+      >,
+      next: (err?: Error) => void,
+    ) =>
+      middleware(
+        socket.request as unknown as Request,
+        {} as unknown as Response,
+        next as NextFunction,
+      );
+  socketServer.use(wrap(sessionMiddleware));
+
+  socketServer.use((socket, next) => {
+    const session = (
+      socket.request as Request & { session?: { userId?: string } }
+    ).session;
+    if (!session || !session.userId) {
+      return next(new Error('Unauthorized'));
+    }
+    next();
   });
 
   registerMarketDataGateway(

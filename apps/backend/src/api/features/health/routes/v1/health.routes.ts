@@ -1,6 +1,6 @@
 import { Router } from 'express';
 
-import type { HealthController } from '../../controllers/healthController';
+import type { HealthController } from '@/api/features/health/controllers/healthController';
 
 export function createHealthRouter(controller: HealthController): Router {
   const router = Router();

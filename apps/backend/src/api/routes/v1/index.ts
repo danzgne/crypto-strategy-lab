@@ -3,10 +3,18 @@ import { Router } from 'express';
 import {
   createHealthFeatureRouter,
   type HealthRepository,
-} from '../../features/health';
+} from '@/api/features/health';
+import { createAuthFeatureRouter, AuthController } from '@/api/features/auth';
+import { createAdminFeatureRouter } from '@/api/features/admin';
+import type { PasswordAuthServiceInterface } from '@/api/features/auth';
 
-export function createV1Router(healthRepository: HealthRepository): Router {
+export function createV1Router(
+  healthRepository: HealthRepository,
+  authService: PasswordAuthServiceInterface,
+): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
+  router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
+  router.use('/admin', createAdminFeatureRouter());
   return router;
 }
