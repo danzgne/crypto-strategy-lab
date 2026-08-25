@@ -4,6 +4,7 @@ import { RadioTower } from 'lucide-react';
 import { useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
+import type { FinancialChartRenderer } from '../../../shared/charting';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
@@ -11,7 +12,13 @@ import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
 const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
 
-export function MarketDataDashboard() {
+export interface MarketDataDashboardProperties {
+  chartRenderer?: FinancialChartRenderer;
+}
+
+export function MarketDataDashboard({
+  chartRenderer,
+}: MarketDataDashboardProperties) {
   const [pair, setPair] = useState<string>(PAIR_OPTIONS[0]);
   const [panelTimeframes, setPanelTimeframes] = useState<ChartTimeframe[]>(
     INITIAL_PANEL_TIMEFRAMES,
@@ -117,6 +124,7 @@ export function MarketDataDashboard() {
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
+                {...(chartRenderer === undefined ? {} : { chartRenderer })}
                 key={`market-panel-${index + 1}`}
                 onTimeframeChange={(nextTimeframe) =>
                   changeTimeframe(index, nextTimeframe)

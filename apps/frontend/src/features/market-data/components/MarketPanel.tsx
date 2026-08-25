@@ -3,6 +3,7 @@
 import { CandlestickChart as CandlestickIcon } from 'lucide-react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
+import type { FinancialChartRenderer } from '../../../shared/charting';
 import { useMarketSubscription } from '../hooks/useMarketSubscription';
 import { useStrategySignal } from '../hooks/useStrategySignal';
 import { CandlestickChart } from './CandlestickChart';
@@ -18,6 +19,7 @@ export const CHART_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h'] as const;
 export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number];
 
 interface MarketPanelProperties {
+  chartRenderer?: FinancialChartRenderer;
   pair: string;
   timeframe: ChartTimeframe;
   panelNumber: number;
@@ -26,6 +28,7 @@ interface MarketPanelProperties {
 }
 
 export function MarketPanel({
+  chartRenderer,
   pair,
   timeframe,
   panelNumber,
@@ -62,7 +65,7 @@ export function MarketPanel({
           <p className="text-sm font-semibold text-slate-900">
             {pair} · {timeframe}
           </p>
-          <p className="mt-1 text-xs text-slate-500">Binance market stream</p>
+          <p className="mt-1 text-xs text-slate-500">Market data stream</p>
         </div>
         <div className="flex items-center gap-2">
           <label className="sr-only" htmlFor={`timeframe-panel-${panelNumber}`}>
@@ -92,6 +95,7 @@ export function MarketPanel({
         <CandlestickChart
           candles={market.candles}
           pair={pair}
+          {...(chartRenderer === undefined ? {} : { renderer: chartRenderer })}
           strategySignals={strategy.history}
           timeframe={timeframe}
         />

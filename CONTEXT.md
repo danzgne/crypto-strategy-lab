@@ -181,6 +181,12 @@ are never persisted.
 Translates one exchange's API/WebSocket protocol into the system's normalized Candle, Tick, and price shapes.
 Adding a new exchange means adding a new Adapter, not touching the Market Data Service or Frontend.
 
+**Chart Renderer**:
+A frontend-only adapter that renders neutral financial chart data (candles, volume, indicator lines, and markers).
+It has no market-data subscription, exchange, strategy, or network responsibility. The current implementation uses
+TradingView Lightweight Charts behind the `FinancialChartRenderer` interface, so another chart renderer can be
+introduced without changing the Market Data Service or strategy pipeline.
+
 **Stream Latency**:
 The delay between the exchange stamping a message and this system receiving it, computed as local receive time
 minus the message's exchange-side event time, corrected for clock skew. Derived by the Market Data Service; no

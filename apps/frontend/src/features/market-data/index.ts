@@ -1,1 +1,4 @@
-export { MarketDataDashboard } from './components/MarketDataDashboard';
+export {
+  MarketDataDashboard,
+  type MarketDataDashboardProperties,
+} from './components/MarketDataDashboard';

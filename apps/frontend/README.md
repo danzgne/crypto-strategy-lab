@@ -50,6 +50,18 @@ shared ────────→ packages/shared
   them separately from `server.ts` and protect their implementation with `server-only`.
 - Do not build one wildcard barrel that exports the whole frontend. Keep public feature exports small and explicit.
 
+### Chart renderer seam
+
+The market-data feature owns the mapping from `Candle` and strategy signal contracts to neutral financial chart
+data. It depends on `FinancialChartRenderer`, not on a vendor chart API. The default
+`lightweightChartsRenderer` adapter is the only module that imports `lightweight-charts`; it has no Socket.IO,
+Binance, backend-service, repository, or Strategy Registry dependency and performs no network access.
+
+`MarketDataDashboard`, `MarketPanel`, and `CandlestickChart` accept an optional renderer for future product areas
+and tests. This keeps chart lifecycle and vendor-specific series configuration behind one deep interface while
+leaving market subscriptions and strategy execution in their existing modules. See
+[`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
+
 ## Route composition
 
 Pages stay thin and use feature modules:
@@ -187,10 +199,12 @@ apps/frontend/
 │   │   │   └── server.ts
 │   │   ├── market-data/
 │   │   │   ├── api/
+│   │   │   ├── charting/
+│   │   │   │   └── marketChartData.ts  # Candle/signals → neutral chart data
 │   │   │   ├── components/
 │   │   │   │   ├── MarketDataDashboard.tsx
 │   │   │   │   ├── RealtimeConnectionPanel.tsx
-│   │   │   │   └── candlestickChart.client.tsx
+│   │   │   │   └── CandlestickChart.tsx
 │   │   │   ├── hooks/
 │   │   │   │   ├── useRealtimeConnection.ts
 │   │   │   │   └── useMarketSubscription.ts
@@ -205,6 +219,10 @@ apps/frontend/
 │   │   └── news/
 │   │
 │   └── shared/
+│       ├── charting/
+│       │   ├── chartRenderer.ts       # Vendor-neutral renderer interface
+│       │   ├── lightweightChartsRenderer.ts
+│       │   └── defaultChartRenderer.ts
 │       ├── api/
 │       │   ├── apiError.ts
 │       │   ├── browserHttpClient.ts

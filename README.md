@@ -151,6 +151,13 @@ keeps confirmed candles and reports `STALE`.
 Frontend → Market Data Service → Exchange Adapter → Binance
 ```
 
+The chart is a separate frontend rendering module. The market-data feature maps normalized `Candle` and strategy
+signal contracts into neutral chart data, then passes that data through the `FinancialChartRenderer` interface.
+TradingView Lightweight Charts is the default renderer adapter; it owns only browser chart concerns such as series,
+volume, overlays, markers, resizing, and cleanup. It does not open sockets, call Binance, execute strategies, or
+depend on backend services. Replacing the renderer therefore does not change the Market Data Service or strategy
+pipeline. See [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
+
 ### Domain event catalog
 
 `packages/shared` types `MarketPriceUpdated`, `CandleClosed`, `StrategyGenerated`, `BacktestStarted`,
@@ -188,7 +195,9 @@ ESLint.
    pair selector.
 4. Set two panels to the same timeframe and confirm they continue receiving updates through one shared backend room.
 5. Watch the latest forming candle update before its `CandleClosed` event persists it.
-6. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
+6. Pan, zoom, and inspect the interactive candlestick/volume chart; confirm strategy overlays and BUY/SELL markers
+   render from the existing normalized contracts.
+7. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
    bars.
-7. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
+8. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
    backfill to **LIVE**; a failed recovery remains **STALE** without inventing candles.
