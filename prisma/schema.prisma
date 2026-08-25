@@ -23,3 +23,23 @@ model ServiceHeartbeat {
   @@index([service, lastSeenAt])
   @@map("service_heartbeats")
 }
+
+model Candle {
+  id         String   @id @default(uuid()) @db.Uuid
+  pair       String
+  timeframe  String
+  openTime   BigInt
+  closeTime  BigInt
+  open       Decimal  @db.Decimal(38, 18)
+  high       Decimal  @db.Decimal(38, 18)
+  low        Decimal  @db.Decimal(38, 18)
+  close      Decimal  @db.Decimal(38, 18)
+  volume     Decimal  @db.Decimal(38, 18)
+  isClosed   Boolean  @default(true)
+  createdAt  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([pair, timeframe, openTime])
+  @@index([pair, timeframe, closeTime])
+  @@map("candles")
+}

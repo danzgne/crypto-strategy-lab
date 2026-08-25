@@ -2,6 +2,9 @@ import { createServer } from 'node:http';
 
 import { config as loadEnvironment } from 'dotenv';
 
+import { BinanceAdapter } from './api/features/marketData/adapters/binance/binanceAdapter';
+import { MarketDataService } from './api/features/marketData/application/services/marketDataService';
+import { PrismaCandleRepository } from './api/features/marketData/repositories/prismaCandleRepository';
 import { PrismaHealthRepository } from './api/features/health/repositories/prismaHealthRepository';
 import { HealthService } from './api/features/health/services/healthService';
 import { readAppConfig } from './config/appConfig';
@@ -9,6 +12,7 @@ import { createPrismaClient } from './database/prismaClient';
 import { createSocketServer } from './realtime/socketServer';
 import { createApp } from './server';
 import { createAppLogger } from './utils/logger';
+import { InMemoryDomainEventBus } from './events/inMemoryDomainEventBus';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -26,6 +30,12 @@ async function startBackend(): Promise<void> {
   const prisma = createPrismaClient(config.databaseUrl);
   const healthRepository = new PrismaHealthRepository(prisma);
   const healthService = new HealthService(healthRepository);
+  const marketDataService = new MarketDataService({
+    exchangeAdapter: new BinanceAdapter(),
+    candleRepository: new PrismaCandleRepository(prisma),
+    eventPublisher: new InMemoryDomainEventBus(),
+    logger,
+  });
 
   await prisma.$connect();
   await healthService.recordStarted(config.instanceId);
@@ -39,6 +49,7 @@ async function startBackend(): Promise<void> {
   const socketServer = createSocketServer(httpServer, {
     allowedOrigin: config.frontendOrigin,
     logger,
+    marketDataService,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -57,6 +68,7 @@ async function startBackend(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Backend shutdown started');
 
+    await marketDataService.close();
     await socketServer.close();
     if (httpServer.listening) {
       await new Promise<void>((resolve, reject) => {

@@ -8,17 +8,19 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { Server } from 'socket.io';
 
+import type { MarketDataService } from '../api/features/marketData/application/services/marketDataService';
 import { registerMarketDataGateway } from '../api/features/marketData/realtime/marketDataGateway';
 import { createAppLogger, type AppLogger } from '../utils/logger';
 
 interface SocketServerOptions {
   allowedOrigin: string;
   logger?: AppLogger;
+  marketDataService?: MarketDataService;
 }
 
 export function createSocketServer(
   httpServer: HttpServer,
-  { allowedOrigin, logger }: SocketServerOptions,
+  { allowedOrigin, logger, marketDataService }: SocketServerOptions,
 ): Server<
   ClientToServerEvents,
   ServerToClientEvents,
@@ -40,6 +42,7 @@ export function createSocketServer(
   registerMarketDataGateway(
     socketServer,
     logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
+    marketDataService,
   );
   return socketServer;
 }

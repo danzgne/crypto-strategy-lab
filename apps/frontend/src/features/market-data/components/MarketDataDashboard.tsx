@@ -4,8 +4,6 @@ import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { MarketPanel } from './MarketPanel';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
-const TIMEFRAMES = ['1m', '5m', '15m', '1h'] as const;
-
 export function MarketDataDashboard() {
   return (
     <div>
@@ -18,9 +16,9 @@ export function MarketDataDashboard() {
             Realtime foundation
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
-            This milestone assembles browser, backend, worker, and database
-            wiring before market logic is added. The connection panel reports
-            only the transport state it verifies live.
+            Watch the current BTCUSDT candle move in real time. The browser
+            receives normalized candles from the Market Data Service; Binance
+            remains behind the backend exchange adapter.
           </p>
         </div>
         <StatusBadge tone="neutral">
@@ -37,22 +35,19 @@ export function MarketDataDashboard() {
                 id="workspace-title"
                 className="text-base font-semibold text-slate-900"
               >
-                Multi-timeframe workspace
+                Live market workspace
               </h2>
               <p className="mt-1 text-xs text-slate-500">
-                Layout follows the instructor mockup; feeds are intentionally
-                deferred.
+                The first live slice starts with one 1-minute chart. Additional
+                independently switchable panels follow in the next market-data
+                slice.
               </p>
             </div>
             <span className="hidden text-xs font-medium text-slate-400 sm:block">
-              4 panels reserved
+              1 live panel
             </span>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            {TIMEFRAMES.map((timeframe) => (
-              <MarketPanel key={timeframe} timeframe={timeframe} />
-            ))}
-          </div>
+          <MarketPanel timeframe="1m" />
         </section>
 
         <aside
@@ -65,9 +60,8 @@ export function MarketDataDashboard() {
               Scope boundary
             </p>
             <p className="mt-2 text-xs leading-5 text-blue-900/70">
-              No browser connection to Binance exists here. The future flow
-              remains Frontend → Market Data Service → Exchange Adapter →
-              Binance.
+              The browser never connects to Binance. The live flow is Frontend →
+              Market Data Service → Exchange Adapter → Binance.
             </p>
           </div>
         </aside>

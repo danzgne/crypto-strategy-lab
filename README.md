@@ -1,8 +1,9 @@
 # Crypto Strategy Lab
 
 Crypto Strategy Lab is a software-architecture capstone for composing, backtesting, evaluating, and discovering
-crypto strategies. Issue #27 establishes the production-shaped foundation: a pnpm monorepo, one PostgreSQL/Prisma
-schema, independent backend and worker processes, a Next.js dashboard, and a real Socket.IO round trip.
+crypto strategies. Issues #27 and #28 establish the production-shaped foundation: a pnpm monorepo, one
+PostgreSQL/Prisma schema, independent backend and worker processes, a Next.js dashboard, a real Socket.IO round
+trip, and the first live BTCUSDT market-data chart.
 
 ## Workspace
 
@@ -122,18 +123,26 @@ The backend is divided by feature. There is no separate model layer: `prisma/sch
 model, feature-owned types are application shapes, and repositories are the only runtime feature layer allowed to
 issue Prisma queries.
 
-### Realtime skeleton
+### Live market-data flow
 
 ```text
 Next.js dashboard
   → Socket.IO client
   → backend marketData gateway
-  → typed ping acknowledgement
-  → live/reconnecting/stale dashboard status
+  → MarketDataService
+  → BinanceAdapter
+  → Binance REST history + kline WebSocket
+
+MarketDataService
+  → closed Candle upsert
+  → PostgreSQL
 ```
 
-This issue does not connect to Binance and does not fabricate market data. The ping lives at the future market-data
-feature boundary so the next slice can extend the required chain without moving the transport:
+The browser receives only the normalized `Candle` contract. The adapter converts Binance payloads to UTC epoch-
+millisecond timestamps and canonical OHLCV fields. The service opens the upstream stream before fetching REST history,
+buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`, keeps the forming candle in memory,
+and upserts a candle only after it closes. Socket snapshots are private to the requesting chart; live candle updates
+are broadcast through the shared `market:<pair>:<timeframe>` room.
 
 ```text
 Frontend → Market Data Service → Exchange Adapter → Binance
@@ -168,11 +177,12 @@ CI applies the committed Prisma migration to PostgreSQL before running the compl
 use asynchronous structured Pino output; direct `console.*` calls are prohibited by both repository policy and
 ESLint.
 
-## Issue #27 demo
+## Issue #28 demo
 
 1. Start Compose and open the dashboard.
 2. Confirm **Transport live** and a measured round-trip latency.
-3. Request `/api/v1/health/ready` and confirm PostgreSQL is connected.
-4. Inspect `docker compose logs backtest-worker` to see its independent process heartbeat registration.
-5. Stop and restart the backend to see the dashboard move from **Transport reconnecting** back to **Transport
-   live**.
+3. Confirm the BTCUSDT 1m panel reaches **LIVE** and shows a candlestick snapshot.
+4. Watch the latest forming candle update before its `CandleClosed` event persists it.
+5. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
+   bars.
+6. Stop and restart the backend to see the dashboard move from **RECONNECTING** back to **LIVE**.

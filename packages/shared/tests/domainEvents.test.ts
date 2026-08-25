@@ -9,8 +9,8 @@ describe('createDomainEvent', () => {
       {
         pair: 'BTCUSDT',
         timeframe: '1m',
-        openTime: '2026-08-21T10:00:00.000Z',
-        closeTime: '2026-08-21T10:00:59.999Z',
+        openTime: 1_755_773_400_000,
+        closeTime: 1_755_773_459_999,
       },
       {
         eventId: 'event-27',
@@ -26,8 +26,8 @@ describe('createDomainEvent', () => {
       payload: {
         pair: 'BTCUSDT',
         timeframe: '1m',
-        openTime: '2026-08-21T10:00:00.000Z',
-        closeTime: '2026-08-21T10:00:59.999Z',
+        openTime: 1_755_773_400_000,
+        closeTime: 1_755_773_459_999,
       },
     });
   });

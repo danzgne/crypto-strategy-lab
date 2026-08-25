@@ -1,19 +1,21 @@
 import { randomUUID } from 'node:crypto';
 
-export type Pair = string;
-export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
+export type { Pair, Timeframe } from '../marketData/candle';
+import type { Pair, Timeframe } from '../marketData/candle';
 
 export interface MarketPriceUpdatedPayload {
   pair: Pair;
+  timeframe: Timeframe;
+  openTime: number;
   price: string;
-  exchangeEventTime: string;
+  exchangeEventTime: number;
 }
 
 export interface CandleClosedPayload {
   pair: Pair;
   timeframe: Timeframe;
-  openTime: string;
-  closeTime: string;
+  openTime: number;
+  closeTime: number;
 }
 
 export interface StrategyGeneratedPayload {
