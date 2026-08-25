@@ -1,7 +1,11 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { AuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
+import type { PasswordAuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
+import { sendSuccess, sendError } from '@/utils/response/ApiResponse';
+
 export class AuthController {
-  public constructor(private readonly authService: AuthServiceInterface) {}
+  public constructor(
+    private readonly authService: PasswordAuthServiceInterface,
+  ) {}
 
   public register = async (
     req: Request,
@@ -11,8 +15,14 @@ export class AuthController {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
-        // AppError can be thrown instead, but for now we'll match existing behavior
-        res.status(400).json({ error: 'Email and password are required' });
+        sendError(
+          res,
+          {
+            code: 'VALIDATION_ERROR',
+            message: 'Email and password are required',
+          },
+          400,
+        );
         return;
       }
 
@@ -20,9 +30,7 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.role = user.role;
 
-      // using res.status(201).json to maintain compatibility with existing frontend
-      // which doesn't expect the ApiResponse { success: true, data: ... } wrapper yet
-      res.status(201).json(user);
+      sendSuccess(res, user, 201);
     } catch (error) {
       next(error);
     }
@@ -36,7 +44,14 @@ export class AuthController {
     try {
       const { email, password } = req.body;
       if (!email || !password) {
-        res.status(400).json({ error: 'Email and password are required' });
+        sendError(
+          res,
+          {
+            code: 'VALIDATION_ERROR',
+            message: 'Email and password are required',
+          },
+          400,
+        );
         return;
       }
 
@@ -44,7 +59,7 @@ export class AuthController {
       req.session.userId = user.id;
       req.session.role = user.role;
 
-      res.json(user);
+      sendSuccess(res, user);
     } catch (error) {
       next(error);
     }
@@ -54,7 +69,7 @@ export class AuthController {
     req.session.destroy((err) => {
       if (err) return next(err);
       res.clearCookie('connect.sid');
-      res.json({ message: 'Logged out' });
+      sendSuccess(res, { message: 'Logged out' });
     });
   };
 
@@ -65,17 +80,25 @@ export class AuthController {
   ): Promise<void> => {
     try {
       if (!req.session.userId) {
-        res.status(401).json({ error: 'Not authenticated' });
+        sendError(
+          res,
+          { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+          401,
+        );
         return;
       }
 
       const user = await this.authService.validateUser(req.session.userId);
       if (!user) {
-        res.status(401).json({ error: 'User not found' });
+        sendError(
+          res,
+          { code: 'UNAUTHORIZED', message: 'User not found' },
+          401,
+        );
         return;
       }
 
-      res.json(user);
+      sendSuccess(res, user);
     } catch (error) {
       next(error);
     }

@@ -1,27 +1,39 @@
 import { Request, Response, NextFunction } from 'express';
+import { sendError } from '@/utils/response/ApiResponse';
 
 /**
- * Ensures the resource being accessed belongs to the currently authenticated user.
- * This middleware expects that the `ownerId` parameter is available in `req.params`,
- * OR it can be used to manually scope down Prisma queries inside the controller.
+ * Placeholder middleware for resource ownership checks.
  *
- * Note: If you are filtering globally on read paths (e.g. `where: { ownerId: req.session.userId }`),
- * you may not need this middleware, but it's useful for targeted checks (e.g. updates/deletes)
- * where the resource ID is passed in the URL.
+ * **Status**: Intentional placeholder. This middleware currently only verifies
+ * that the user is authenticated — it does NOT query the database to confirm
+ * that the target resource belongs to the requesting user.
+ *
+ * **When to implement**: The first feature ticket that needs a real ownership
+ * guard (e.g. updating/deleting a StrategyDefinition, Experiment, or
+ * BacktestJob) should implement the database lookup here. At that point:
+ *
+ * 1. Accept the Prisma client (or a repository) as a dependency.
+ * 2. Look up the resource by `req.params[paramName]`.
+ * 3. Compare `resource.ownerId` with `req.session.userId`.
+ * 4. Return 403 if they don't match.
+ *
+ * Until then, ownership scoping is enforced at the query level
+ * (`WHERE ownerId = currentUser`) in each repository, which is sufficient
+ * for read paths.
  */
 export function requireOwner(_paramName: string = 'id') {
   return (req: Request, res: Response, next: NextFunction) => {
     if (!req.session || !req.session.userId) {
-      res.status(401).json({ error: 'Not authenticated' });
+      sendError(
+        res,
+        { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+        401,
+      );
       return;
     }
 
-    // In a real scenario, this middleware might need to query the database
-    // to check if the resource (e.g. Strategy, Backtest) actually belongs to the user.
-    // For now, this serves as a placeholder to enforce the `ownerId` scoping requirement.
-    // When the feature is implemented, the query should do:
-    // `const resource = await prisma.strategy.findUnique({ where: { id: req.params[paramName] } });`
-    // `if (resource.ownerId !== req.session.userId) return res.status(403).json(...)`
+    // TODO(ownership): Implement database lookup when the first feature
+    // that mutates a user-owned resource is built. See docstring above.
 
     next();
   };

@@ -6,11 +6,11 @@ import {
 } from '@/api/features/health';
 import { createAuthFeatureRouter, AuthController } from '@/api/features/auth';
 import { createAdminFeatureRouter } from '@/api/features/admin';
-import type { AuthServiceInterface } from '@/api/features/auth';
+import type { PasswordAuthServiceInterface } from '@/api/features/auth';
 
 export function createV1Router(
   healthRepository: HealthRepository,
-  authService: AuthServiceInterface,
+  authService: PasswordAuthServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));

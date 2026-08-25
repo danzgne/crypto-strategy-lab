@@ -4,7 +4,7 @@ import { createApp } from '@/server';
 import { createPrismaClient } from '@/database/prismaClient';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
 import { PrismaAuthRepository } from '@/api/features/auth/repositories/prismaAuthRepository';
-import { AuthService } from '@/api/features/auth/services/authService';
+import { PasswordAuthService } from '@/api/features/auth/services/authService';
 import { PrismaClient } from '../../../../../../generated/prisma/client';
 import { config as loadEnvironment } from 'dotenv';
 
@@ -26,9 +26,11 @@ describe('Auth & Admin API', () => {
       where: { email: { in: ['test-user@test.com', 'admin@test.com'] } },
     });
 
-    const sessionMiddleware = createSessionMiddleware(prisma);
+    const sessionMiddleware = createSessionMiddleware(prisma, {
+      secret: 'test-session-secret',
+    });
     const authRepository = new PrismaAuthRepository(prisma);
-    const authService = new AuthService(authRepository);
+    const authService = new PasswordAuthService(authRepository);
 
     // Create admin user for testing
     const admin = await authService.register('admin@test.com', 'adminpass');
@@ -60,8 +62,9 @@ describe('Auth & Admin API', () => {
       .post('/api/v1/auth/register')
       .send({ email: 'test-user@test.com', password: 'password123' });
     expect(res.status).toBe(201);
-    expect(res.body.email).toBe('test-user@test.com');
-    expect(res.body.role).toBe('USER');
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.email).toBe('test-user@test.com');
+    expect(res.body.data.role).toBe('USER');
     expect(res.headers['set-cookie']).toBeDefined();
     userCookie = res.headers['set-cookie']![0] as string;
   });
@@ -71,7 +74,8 @@ describe('Auth & Admin API', () => {
       .post('/api/v1/auth/login')
       .send({ email: 'admin@test.com', password: 'adminpass' });
     expect(res.status).toBe(200);
-    expect(res.body.role).toBe('ADMIN');
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.role).toBe('ADMIN');
     expect(res.headers['set-cookie']).toBeDefined();
     adminCookie = res.headers['set-cookie']![0] as string;
   });
@@ -81,12 +85,14 @@ describe('Auth & Admin API', () => {
       .get('/api/v1/auth/me')
       .set('Cookie', userCookie);
     expect(res.status).toBe(200);
-    expect(res.body.email).toBe('test-user@test.com');
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.email).toBe('test-user@test.com');
   });
 
   it('should reject unauthenticated access to admin routes', async () => {
     const res = await request(app).post('/api/v1/admin/news-sources');
     expect(res.status).toBe(401);
+    expect(res.body.success).toBe(false);
   });
 
   it('should reject standard user access to admin routes', async () => {
@@ -94,6 +100,7 @@ describe('Auth & Admin API', () => {
       .post('/api/v1/admin/news-sources')
       .set('Cookie', userCookie);
     expect(res.status).toBe(403);
+    expect(res.body.success).toBe(false);
   });
 
   it('should allow admin access to admin routes', async () => {

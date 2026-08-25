@@ -22,7 +22,12 @@ interface SocketServerOptions {
 
 export function createSocketServer(
   httpServer: HttpServer,
-  { allowedOrigin, sessionMiddleware, logger, marketDataService }: SocketServerOptions,
+  {
+    allowedOrigin,
+    sessionMiddleware,
+    logger,
+    marketDataService,
+  }: SocketServerOptions,
 ): Server<
   ClientToServerEvents,
   ServerToClientEvents,

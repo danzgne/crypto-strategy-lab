@@ -14,7 +14,7 @@ import { createApp } from '@/server';
 import { createAppLogger } from '@/utils/logger';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
-import { PrismaAuthRepository, AuthService } from '@/api/features/auth';
+import { PrismaAuthRepository, PasswordAuthService } from '@/api/features/auth';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -40,18 +40,21 @@ async function startBackend(): Promise<void> {
   });
 
   const authRepository = new PrismaAuthRepository(prisma);
-  const authService = new AuthService(authRepository);
+  const authService = new PasswordAuthService(authRepository);
 
   await prisma.$connect();
   await healthService.recordStarted(config.instanceId);
 
-  const sessionMiddleware = createSessionMiddleware(prisma);
+  const sessionMiddleware = createSessionMiddleware(prisma, {
+    secret: config.sessionSecret,
+    secureCookie: config.secureCookie,
+  });
 
   const adminEmail = config.adminEmail;
   if (adminEmail) {
     const promoted = await authService.ensureAdmin(
       adminEmail,
-      config.adminDefaultPassword,
+      config.adminDefaultPassword!,
     );
     if (promoted) {
       logger.info({ email: adminEmail }, 'Promoted user to ADMIN role');

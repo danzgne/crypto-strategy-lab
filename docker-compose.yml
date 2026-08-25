@@ -49,6 +49,10 @@ services:
       BACKEND_PORT: 3100
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      SESSION_SECRET: ${SESSION_SECRET:-super-secret-key-for-dev}
+      SECURE_COOKIE: "false"
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-}
     ports:
       - '${BACKEND_PORT:-3100}:3100'
     depends_on:

@@ -1,10 +1,10 @@
 import { User, Role } from '@crypto-strategy-lab/shared';
 import argon2 from 'argon2';
-import { AuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
+import { PasswordAuthServiceInterface } from '@/api/features/auth/services/interfaces/authService.interface';
 import { AuthRepository } from '@/api/features/auth/repositories/interfaces/authRepository.interface';
 import { AppError } from '@/errors/AppError';
 
-export class AuthService implements AuthServiceInterface {
+export class PasswordAuthService implements PasswordAuthServiceInterface {
   constructor(private readonly authRepository: AuthRepository) {}
 
   async authenticate(email: string, password: string): Promise<User> {
@@ -53,12 +53,11 @@ export class AuthService implements AuthServiceInterface {
     };
   }
 
-  async ensureAdmin(email: string, defaultPassword?: string): Promise<boolean> {
+  async ensureAdmin(email: string, defaultPassword: string): Promise<boolean> {
     let userRecord = await this.authRepository.findByEmail(email);
 
     if (!userRecord) {
-      const passwordToUse = defaultPassword || 'admin123';
-      const passwordHash = await argon2.hash(passwordToUse);
+      const passwordHash = await argon2.hash(defaultPassword);
       userRecord = await this.authRepository.create(email, passwordHash);
     }
 

@@ -10,8 +10,6 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { ExchangeAdapter } from '@/api/features/marketData/application/interfaces/exchangeAdapter.interface';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
 import { createSocketServer } from '@/realtime/socketServer';
-import type { Request } from 'express';
-
 describe('market-data realtime gateway', () => {
   const closeCallbacks: Array<() => Promise<void>> = [];
 
@@ -24,10 +22,9 @@ describe('market-data realtime gateway', () => {
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
       sessionMiddleware: (req, _res, next) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (req as unknown as Request & { session: any }).session = {
-          userId: 'mock-user-id',
-        };
+        Object.assign(req, {
+          session: { userId: 'mock-user-id' },
+        });
         next();
       },
     });
@@ -104,9 +101,9 @@ describe('market-data realtime gateway', () => {
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
       sessionMiddleware: (req, _res, next) => {
-        (req as unknown as Request & { session: any }).session = {
-          userId: 'mock-user-id',
-        };
+        Object.assign(req, {
+          session: { userId: 'mock-user-id' },
+        });
         next();
       },
       marketDataService,

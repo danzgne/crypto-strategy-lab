@@ -12,7 +12,7 @@ describe('health routes', () => {
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
       authService:
-        {} as unknown as import('@/api/features/auth').AuthServiceInterface,
+        {} as unknown as import('@/api/features/auth').PasswordAuthServiceInterface,
       sessionMiddleware: (req, res, next) => next(),
     });
 
@@ -39,7 +39,7 @@ describe('health routes', () => {
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
       authService:
-        {} as unknown as import('@/api/features/auth').AuthServiceInterface,
+        {} as unknown as import('@/api/features/auth').PasswordAuthServiceInterface,
       sessionMiddleware: (req, res, next) => next(),
     });
 

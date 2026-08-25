@@ -10,16 +10,23 @@ declare module 'express-session' {
   }
 }
 
-export function createSessionMiddleware(prisma: PrismaClient) {
+interface SessionOptions {
+  secret: string;
+  secureCookie?: boolean;
+}
+
+export function createSessionMiddleware(
+  prisma: PrismaClient,
+  { secret, secureCookie = false }: SessionOptions,
+) {
   return session({
     cookie: {
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
       httpOnly: true,
-      secure:
-        process.env.NODE_ENV === 'production' && process.env.HTTPS === 'true',
+      secure: secureCookie,
       sameSite: 'lax',
     },
-    secret: process.env.SESSION_SECRET || 'super-secret-key-for-dev',
+    secret,
     resave: false,
     saveUninitialized: false,
     store: new PrismaSessionStore(prisma, {

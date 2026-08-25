@@ -43,5 +43,18 @@ export async function serverHttpClient<T>(
     return null as unknown as T;
   }
 
-  return response.json();
+  const json = await response.json();
+
+  // Unwrap the ApiResponse envelope: { success: true, data: T }
+  if (
+    json &&
+    typeof json === 'object' &&
+    'success' in json &&
+    json.success &&
+    'data' in json
+  ) {
+    return json.data as T;
+  }
+
+  return json as T;
 }
