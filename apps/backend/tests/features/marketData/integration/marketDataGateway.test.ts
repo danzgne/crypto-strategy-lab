@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 
 import type {
+  Candle,
   ClientToServerEvents,
   ServerToClientEvents,
 } from '@crypto-strategy-lab/shared';
@@ -10,6 +11,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ExchangeAdapter } from '@/api/features/marketData/application/interfaces/exchangeAdapter.interface';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
 import { createSocketServer } from '@/realtime/socketServer';
+import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
+import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 describe('market-data realtime gateway', () => {
   const closeCallbacks: Array<() => Promise<void>> = [];
 
@@ -266,5 +269,113 @@ describe('market-data realtime gateway', () => {
     });
     await new Promise<void>((resolve) => setTimeout(resolve, 5));
     expect(closeStream).toHaveBeenCalledOnce();
+  });
+
+  it('pushes one combined MA signal payload when an enabled strategy sees a closed candle', async () => {
+    const startTime = 1_756_000_000_000;
+    const makeCandle = (index: number, close: number): Candle => {
+      const openTime = startTime + index * 60_000;
+      return {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        openTime,
+        closeTime: openTime + 59_999,
+        open: close,
+        high: close + 1,
+        low: close - 1,
+        close,
+        volume: 10 + index,
+        isClosed: true,
+      };
+    };
+    const initialCandles = Array.from({ length: 50 }, (_, index) =>
+      makeCandle(index, 10),
+    );
+    let streamHandlers:
+      Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        },
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+    const httpServer = createServer();
+    const socketServer = createSocketServer(httpServer, {
+      allowedOrigin: 'http://localhost:3000',
+      sessionMiddleware: (req, _res, next) => {
+        Object.assign(req, {
+          session: { userId: 'mock-user-id' },
+        });
+        next();
+      },
+      marketDataService,
+      strategyLiveService,
+    });
+
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const address = httpServer.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error(
+        'Expected the test server to listen on an ephemeral port',
+      );
+    }
+
+    const client: Socket<ServerToClientEvents, ClientToServerEvents> =
+      createClient(`http://127.0.0.1:${address.port}`, {
+        transports: ['websocket'],
+      });
+    closeCallbacks.push(async () => {
+      client.disconnect();
+      await strategyLiveService.close();
+      await marketDataService.close();
+      await socketServer.close();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    });
+
+    await new Promise<void>((resolve) => client.once('connect', resolve));
+    const signalPromise = new Promise<
+      Parameters<ServerToClientEvents['strategy:signal']>[0]
+    >((resolve) => client.once('strategy:signal', resolve));
+    client.emit('strategy:subscribe', {
+      chartId: 'chart-ma',
+      pair: 'BTCUSDT',
+      strategyId: 'ma',
+      timeframe: '1m',
+    });
+
+    await new Promise<void>((resolve) => {
+      const check = (): void => {
+        if (streamHandlers !== undefined) {
+          resolve();
+          return;
+        }
+        setTimeout(check, 1);
+      };
+      check();
+    });
+
+    const crossingCandle = makeCandle(50, 12);
+    await streamHandlers?.onCandle(crossingCandle);
+
+    await expect(signalPromise).resolves.toEqual({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      candle: crossingCandle,
+      indicators: { MA_20: 10.1, MA_50: 10.04 },
+      signal: {
+        action: 'BUY',
+        indicators: { MA_20: 10.1, MA_50: 10.04 },
+      },
+    });
   });
 });

@@ -16,6 +16,7 @@
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {
+    "@crypto-strategy-lab/strategy-engine": "workspace:*",
     "@crypto-strategy-lab/shared": "workspace:*",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",

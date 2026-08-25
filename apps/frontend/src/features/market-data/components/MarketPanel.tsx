@@ -4,6 +4,7 @@ import { CandlestickChart as CandlestickIcon } from 'lucide-react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { useMarketSubscription } from '../hooks/useMarketSubscription';
+import { useStrategySignal } from '../hooks/useStrategySignal';
 import { CandlestickChart } from './CandlestickChart';
 
 const PHASE_COPY = {
@@ -21,6 +22,7 @@ interface MarketPanelProperties {
   timeframe: ChartTimeframe;
   panelNumber: number;
   onTimeframeChange: (timeframe: ChartTimeframe) => void;
+  strategyId: string | null;
 }
 
 export function MarketPanel({
@@ -28,11 +30,22 @@ export function MarketPanel({
   timeframe,
   panelNumber,
   onTimeframeChange,
+  strategyId,
 }: MarketPanelProperties) {
+  const chartId = `market-panel-${panelNumber}`;
   const market = useMarketSubscription({
     pair,
     timeframe,
     limit: 500,
+    chartId,
+  });
+  const strategy = useStrategySignal({
+    chartId,
+    enabled: strategyId !== null,
+    limit: 500,
+    pair,
+    strategyId: strategyId ?? '',
+    timeframe,
   });
   const phase = PHASE_COPY[market.phase];
   const latestCandle = market.candles.at(-1);
@@ -79,6 +92,7 @@ export function MarketPanel({
         <CandlestickChart
           candles={market.candles}
           pair={pair}
+          strategySignals={strategy.history}
           timeframe={timeframe}
         />
       </div>

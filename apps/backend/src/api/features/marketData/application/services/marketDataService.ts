@@ -428,19 +428,12 @@ export class MarketDataService {
     if (previous?.isClosed === true) return;
 
     state.candles.set(candle.openTime, candle);
+    let isFirstClosedUpdate = false;
     if (candle.isClosed) {
-      const isFirstClosedUpdate = !state.closedOpenTimes.has(candle.openTime);
+      isFirstClosedUpdate = !state.closedOpenTimes.has(candle.openTime);
       state.closedOpenTimes.add(candle.openTime);
       if (isFirstClosedUpdate) {
         await this.candleRepository.upsertClosed(candle);
-        this.publishDomainEvent(
-          createDomainEvent('CandleClosed', {
-            pair: candle.pair,
-            timeframe: candle.timeframe,
-            openTime: candle.openTime,
-            closeTime: candle.closeTime,
-          }),
-        );
       }
     } else {
       this.publishDomainEvent(
@@ -456,6 +449,16 @@ export class MarketDataService {
 
     this.trimState(state);
     for (const listener of state.candleListeners) listener(candle);
+    if (candle.isClosed && isFirstClosedUpdate) {
+      this.publishDomainEvent(
+        createDomainEvent('CandleClosed', {
+          pair: candle.pair,
+          timeframe: candle.timeframe,
+          openTime: candle.openTime,
+          closeTime: candle.closeTime,
+        }),
+      );
+    }
   }
 
   private async mergeRecoveredCandles(
@@ -477,20 +480,11 @@ export class MarketDataService {
       }
 
       state.candles.set(candle.openTime, candle);
+      let isFirstClosedUpdate = false;
       if (candle.isClosed) {
-        const isFirstClosedUpdate = !state.closedOpenTimes.has(candle.openTime);
+        isFirstClosedUpdate = !state.closedOpenTimes.has(candle.openTime);
         state.closedOpenTimes.add(candle.openTime);
         await this.candleRepository.upsertClosed(candle);
-        if (isFirstClosedUpdate) {
-          this.publishDomainEvent(
-            createDomainEvent('CandleClosed', {
-              pair: candle.pair,
-              timeframe: candle.timeframe,
-              openTime: candle.openTime,
-              closeTime: candle.closeTime,
-            }),
-          );
-        }
       } else {
         this.publishDomainEvent(
           createDomainEvent('MarketPriceUpdated', {
@@ -503,10 +497,19 @@ export class MarketDataService {
         );
       }
 
+      this.trimState(state);
       for (const listener of state.candleListeners) listener(candle);
+      if (candle.isClosed && isFirstClosedUpdate) {
+        this.publishDomainEvent(
+          createDomainEvent('CandleClosed', {
+            pair: candle.pair,
+            timeframe: candle.timeframe,
+            openTime: candle.openTime,
+            closeTime: candle.closeTime,
+          }),
+        );
+      }
     }
-
-    this.trimState(state);
   }
 
   private handleStreamStatus(

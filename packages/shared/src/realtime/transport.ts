@@ -1,4 +1,5 @@
 import type { Candle, MarketKey } from '../marketData/candle';
+import type { Signal } from '../strategy/types';
 
 export interface MarketDataTransportStatus {
   status: 'ready';
@@ -38,11 +39,30 @@ export interface MarketSubscriptionStatus extends MarketKey {
   detail?: string;
 }
 
+export interface StrategySubscribeRequest extends MarketKey {
+  chartId: string;
+  strategyId: string;
+}
+
+export type StrategyUnsubscribeRequest = StrategySubscribeRequest;
+
+export interface StrategyCatalog {
+  strategyIds: string[];
+}
+
+export interface StrategySignalUpdate extends MarketKey {
+  candle: Candle;
+  indicators: Readonly<Record<string, number>>;
+  signal: Signal;
+}
+
 export interface ServerToClientEvents {
   'market-data:status': (status: MarketDataTransportStatus) => void;
   'market:snapshot': (snapshot: MarketSnapshot) => void;
   'market:candle': (update: MarketCandleUpdate) => void;
   'market:status': (status: MarketSubscriptionStatus) => void;
+  'strategy:catalog': (catalog: StrategyCatalog) => void;
+  'strategy:signal': (update: StrategySignalUpdate) => void;
 }
 
 export interface ClientToServerEvents {
@@ -52,6 +72,9 @@ export interface ClientToServerEvents {
   ) => void;
   'market:subscribe': (request: MarketSubscribeRequest) => void;
   'market:unsubscribe': (request: MarketUnsubscribeRequest) => void;
+  'strategy:catalog:request': () => void;
+  'strategy:subscribe': (request: StrategySubscribeRequest) => void;
+  'strategy:unsubscribe': (request: StrategyUnsubscribeRequest) => void;
 }
 
 export type InterServerEvents = Record<never, never>;

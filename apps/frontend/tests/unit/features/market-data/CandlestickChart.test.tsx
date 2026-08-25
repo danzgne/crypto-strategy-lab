@@ -51,4 +51,44 @@ describe('CandlestickChart', () => {
       screen.getByRole('img', { name: 'BTCUSDT 1m live candlestick chart' }),
     ).toBeInTheDocument();
   });
+
+  it('renders MA overlays and a marker for a live strategy signal', () => {
+    const candle = {
+      pair: 'BTCUSDT' as const,
+      timeframe: '1m' as const,
+      openTime: 1_756_000_000_000,
+      closeTime: 1_756_000_059_999,
+      open: 100,
+      high: 102,
+      low: 99,
+      close: 101,
+      volume: 10,
+      isClosed: true,
+    };
+
+    render(
+      <CandlestickChart
+        candles={[candle]}
+        pair="BTCUSDT"
+        strategySignals={[
+          {
+            pair: 'BTCUSDT',
+            timeframe: '1m',
+            candle,
+            indicators: { MA_20: 100.5, MA_50: 100.25 },
+            signal: {
+              action: 'BUY',
+              indicators: { MA_20: 100.5, MA_50: 100.25 },
+            },
+          },
+        ]}
+        timeframe="1m"
+      />,
+    );
+
+    const chart = screen.getByTestId('candlestick-chart');
+    expect(chart.querySelector('[data-indicator="MA_20"]')).not.toBeNull();
+    expect(chart.querySelector('[data-indicator="MA_50"]')).not.toBeNull();
+    expect(chart.querySelector('[data-signal-action="BUY"]')).not.toBeNull();
+  });
 });

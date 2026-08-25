@@ -4,6 +4,7 @@ import { RadioTower } from 'lucide-react';
 import { useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
+import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
@@ -15,6 +16,10 @@ export function MarketDataDashboard() {
   const [panelTimeframes, setPanelTimeframes] = useState<ChartTimeframe[]>(
     INITIAL_PANEL_TIMEFRAMES,
   );
+  const [enabledStrategyId, setEnabledStrategyId] = useState<string | null>(
+    null,
+  );
+  const strategyCatalog = useStrategyCatalog();
 
   const changeTimeframe = (
     panelIndex: number,
@@ -65,6 +70,25 @@ export function MarketDataDashboard() {
               </p>
             </div>
             <div className="flex items-end gap-3">
+              {strategyCatalog.strategyIds.map((strategyId) => (
+                <label
+                  className="flex items-center gap-2 pb-2 text-xs font-semibold text-slate-700"
+                  key={strategyId}
+                >
+                  <input
+                    aria-label={`Enable ${formatStrategyName(strategyId)} strategy`}
+                    checked={enabledStrategyId === strategyId}
+                    className="size-4 accent-indigo-600"
+                    onChange={() =>
+                      setEnabledStrategyId((current) =>
+                        current === strategyId ? null : strategyId,
+                      )
+                    }
+                    type="checkbox"
+                  />
+                  <span>Enable {formatStrategyName(strategyId)} strategy</span>
+                </label>
+              ))}
               <div>
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
@@ -99,6 +123,7 @@ export function MarketDataDashboard() {
                 }
                 panelNumber={index + 1}
                 pair={pair}
+                strategyId={enabledStrategyId}
                 timeframe={timeframe}
               />
             ))}
@@ -123,4 +148,8 @@ export function MarketDataDashboard() {
       </div>
     </div>
   );
+}
+
+function formatStrategyName(strategyId: string): string {
+  return strategyId.replaceAll(/[-_]+/g, ' ').toUpperCase();
 }

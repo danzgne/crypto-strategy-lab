@@ -33,6 +33,13 @@ vi.mock(
   }),
 );
 
+vi.mock(
+  '../../../../src/features/market-data/hooks/useStrategyCatalog',
+  () => ({
+    useStrategyCatalog: () => ({ strategyIds: ['ma'] }),
+  }),
+);
+
 import { MarketDataDashboard } from '../../../../src/features/market-data/components/MarketDataDashboard';
 
 describe('MarketDataDashboard', () => {
@@ -45,6 +52,9 @@ describe('MarketDataDashboard', () => {
     });
 
     expect(pairSelector).toHaveValue('BTCUSDT');
+    expect(
+      screen.getByRole('checkbox', { name: 'Enable MA strategy' }),
+    ).not.toBeChecked();
     expect(timeframeSelectors).toHaveLength(4);
     expect(screen.getByText('4 live panels')).toBeInTheDocument();
     expect(

@@ -1,10 +1,15 @@
 'use client';
 
-import type { Candle, Timeframe } from '@crypto-strategy-lab/shared';
+import type {
+  Candle,
+  StrategySignalUpdate,
+  Timeframe,
+} from '@crypto-strategy-lab/shared';
 
 interface CandlestickChartProperties {
   candles: Candle[];
   pair: string;
+  strategySignals?: readonly StrategySignalUpdate[];
   timeframe: Timeframe;
 }
 
@@ -16,6 +21,7 @@ const MAX_VISIBLE_CANDLES = 72;
 export function CandlestickChart({
   candles,
   pair,
+  strategySignals = [],
   timeframe,
 }: CandlestickChartProperties) {
   const visibleCandles = candles.slice(-MAX_VISIBLE_CANDLES);
@@ -32,13 +38,36 @@ export function CandlestickChart({
     );
   }
 
-  const high = Math.max(...visibleCandles.map((candle) => candle.high));
-  const low = Math.min(...visibleCandles.map((candle) => candle.low));
+  const visibleOpenTimes = new Set(
+    visibleCandles.map((candle) => candle.openTime),
+  );
+  const visibleSignals = strategySignals.filter((update) =>
+    visibleOpenTimes.has(update.candle.openTime),
+  );
+  const indicatorValues = visibleSignals.flatMap((update) =>
+    Object.values(update.indicators),
+  );
+  const high = Math.max(
+    ...visibleCandles.map((candle) => candle.high),
+    ...indicatorValues,
+  );
+  const low = Math.min(
+    ...visibleCandles.map((candle) => candle.low),
+    ...indicatorValues,
+  );
   const range = Math.max(high - low, Number.EPSILON);
   const plotWidth = WIDTH - PADDING.left - PADDING.right;
   const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
   const slotWidth = plotWidth / visibleCandles.length;
   const candleWidth = Math.max(3, slotWidth * 0.64);
+  const candleIndexByOpenTime = new Map(
+    visibleCandles.map((candle, index) => [candle.openTime, index]),
+  );
+  const indicatorNames = [
+    ...new Set(
+      visibleSignals.flatMap((update) => Object.keys(update.indicators)),
+    ),
+  ];
 
   return (
     <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-950 p-2 shadow-inner">
@@ -75,6 +104,28 @@ export function CandlestickChart({
               x2={WIDTH - PADDING.right}
               y1={y}
               y2={y}
+            />
+          );
+        })}
+        {indicatorNames.map((indicatorName, indicatorIndex) => {
+          const points = visibleSignals.flatMap((update) => {
+            const index = candleIndexByOpenTime.get(update.candle.openTime);
+            const value = update.indicators[indicatorName];
+            if (index === undefined || value === undefined) return [];
+            const x = PADDING.left + slotWidth * index + slotWidth / 2;
+            const y = priceToY(value, low, range, plotHeight);
+            return [`${x},${y}`];
+          });
+          return (
+            <polyline
+              data-indicator={indicatorName}
+              fill="none"
+              key={indicatorName}
+              points={points.join(' ')}
+              stroke={indicatorColor(indicatorIndex)}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2"
             />
           );
         })}
@@ -120,6 +171,35 @@ export function CandlestickChart({
             </g>
           );
         })}
+        {visibleSignals.map((update) => {
+          if (update.signal.action === 'HOLD') return null;
+          const index = candleIndexByOpenTime.get(update.candle.openTime);
+          if (index === undefined) return null;
+          const x = PADDING.left + slotWidth * index + slotWidth / 2;
+          const isBuy = update.signal.action === 'BUY';
+          const y = priceToY(
+            isBuy ? update.candle.low : update.candle.high,
+            low,
+            range,
+            plotHeight,
+          );
+          return (
+            <g
+              data-signal-action={update.signal.action}
+              key={`${update.candle.openTime}-${update.signal.action}`}
+            >
+              <title>{`${update.signal.action} signal`}</title>
+              <circle
+                cx={x}
+                cy={y}
+                fill={isBuy ? '#22c55e' : '#f43f5e'}
+                r="5"
+                stroke="#f8fafc"
+                strokeWidth="1.5"
+              />
+            </g>
+          );
+        })}
         <text
           fill="#94a3b8"
           fontSize="12"
@@ -150,4 +230,9 @@ function priceToY(
   plotHeight: number,
 ): number {
   return PADDING.top + (1 - (Math.max(low, price) - low) / range) * plotHeight;
+}
+
+function indicatorColor(index: number): string {
+  const colors = ['#818cf8', '#fbbf24', '#38bdf8', '#f472b6'];
+  return colors[index % colors.length] ?? '#818cf8';
 }
