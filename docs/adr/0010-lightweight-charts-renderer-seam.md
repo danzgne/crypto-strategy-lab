@@ -43,6 +43,8 @@ plain data through React props; it does not subscribe to the market stream itsel
 
 - Chart interaction, price scaling, volume panes, and marker placement are delegated to a maintained renderer.
 - A different chart library or a specialized backtest renderer can implement the same interface later.
+- The default chart palette is light to match the dashboard; future theme changes remain localized to renderer
+  presentation tokens and do not affect market-data or strategy contracts.
 - The adapter must preserve the required TradingView attribution in the public application.
 - The adapter explicitly enables the library's TradingView attribution logo; the project also retains the
   `Copyright 2023 TradingView, Inc.` notice in this decision record alongside the dependency's Apache-2.0 license.

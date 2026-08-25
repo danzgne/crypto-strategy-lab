@@ -103,7 +103,7 @@ export function CandlestickChart({
     <div
       ref={chartContainerRef}
       aria-label={`${pair} ${timeframe} live candlestick chart`}
-      className="h-80 overflow-hidden rounded-xl border border-slate-200 bg-slate-950 p-2 shadow-inner"
+      className="h-80 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-inner"
       data-candle-count={chartData.candles.length}
       data-forming={lastCandle?.isClosed ? undefined : 'true'}
       data-testid="candlestick-chart"

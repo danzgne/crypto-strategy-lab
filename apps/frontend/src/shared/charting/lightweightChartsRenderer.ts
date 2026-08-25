@@ -33,12 +33,12 @@ export const lightweightChartsRenderer: FinancialChartRenderer = {
       height: options.height || DEFAULT_HEIGHT,
       layout: {
         attributionLogo: true,
-        background: { color: '#020617', type: ColorType.Solid },
-        textColor: '#cbd5e1',
+        background: { color: '#ffffff', type: ColorType.Solid },
+        textColor: '#334155',
       },
       grid: {
-        horzLines: { color: 'rgba(51, 65, 85, 0.45)' },
-        vertLines: { color: 'rgba(51, 65, 85, 0.25)' },
+        horzLines: { color: 'rgba(148, 163, 184, 0.32)' },
+        vertLines: { color: 'rgba(148, 163, 184, 0.2)' },
       },
       rightPriceScale: { borderVisible: false },
       timeScale: {
