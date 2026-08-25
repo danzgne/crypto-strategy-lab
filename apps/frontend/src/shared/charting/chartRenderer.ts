@@ -56,6 +56,8 @@ export interface FinancialChartData {
 
 export interface FinancialChartRendererOptions {
   height: number;
+  /** Called when the user reaches the renderer's oldest currently loaded data. */
+  onReachedHistoryBoundary?: () => void;
 }
 
 export interface FinancialChartInstance {

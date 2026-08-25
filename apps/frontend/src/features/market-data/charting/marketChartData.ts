@@ -3,6 +3,7 @@ import type {
   SignalAction,
   StrategySignalUpdate,
 } from '@crypto-strategy-lab/shared';
+import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 
 import {
   FINANCIAL_CHART_COLORS,
@@ -11,7 +12,6 @@ import {
   type FinancialChartPoint,
 } from '../../../shared/charting';
 
-const MAX_CHART_CANDLES = 500;
 const INDICATOR_COLORS = [
   '#818cf8',
   '#fbbf24',
@@ -28,7 +28,7 @@ export function toMarketChartData(
   const visibleCandles = candles
     .slice()
     .sort((left, right) => left.openTime - right.openTime)
-    .slice(-MAX_CHART_CANDLES);
+    .slice(-MAX_CANDLE_LIMIT);
   const visibleOpenTimes = new Set(
     visibleCandles.map((candle) => candle.openTime),
   );

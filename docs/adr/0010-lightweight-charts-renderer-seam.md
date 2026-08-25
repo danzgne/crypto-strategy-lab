@@ -28,6 +28,11 @@ Use TradingView **Lightweight Charts** as the default browser renderer behind a 
 The existing frontend Socket.IO hooks remain responsible for subscriptions. The renderer receives their resulting
 plain data through React props; it does not subscribe to the market stream itself.
 
+When the user reaches the oldest currently loaded logical range, the adapter reports that boundary through the
+neutral renderer options. `CandlestickChart` forwards the callback to the market-data hook, which requests a typed
+older-history page through the Market Data Service transport. This keeps history loading outside the renderer while
+allowing any renderer implementation to expose the same interaction.
+
 ## Alternatives considered
 
 - **Keep custom SVG rendering** — rejected for the main chart. It duplicates financial-chart interaction and scale
@@ -43,6 +48,8 @@ plain data through React props; it does not subscribe to the market stream itsel
 
 - Chart interaction, price scaling, volume panes, and marker placement are delegated to a maintained renderer.
 - A different chart library or a specialized backtest renderer can implement the same interface later.
+- Panning left loads additional history pages up to the shared chart-data limit without changing the chart's data
+  mapping or vendor boundary.
 - The default chart palette is light to match the dashboard; future theme changes remain localized to renderer
   presentation tokens and do not affect market-data or strategy contracts.
 - The adapter must preserve the required TradingView attribution in the public application.
@@ -56,6 +63,8 @@ plain data through React props; it does not subscribe to the market stream itsel
 
 - `CandlestickChart` imports the renderer interface and frontend composition root, never `lightweight-charts`.
 - `lightweightChartsRenderer` imports only the chart library and neutral renderer types.
+- The history-boundary callback is notification-only; the renderer never emits transport events or calls the Market
+  Data Service directly.
 - No chart renderer module imports Binance, Socket.IO, backend services, repositories, or strategy execution code.
 - Replacing the chart library is localized to the renderer adapter and its composition root; the transport contracts,
   market hooks, and strategy pipeline remain unchanged.

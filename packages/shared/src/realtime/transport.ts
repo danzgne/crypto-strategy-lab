@@ -30,6 +30,18 @@ export interface MarketSnapshot extends MarketKey {
   candles: Candle[];
 }
 
+export interface MarketHistoryRequest extends MarketKey {
+  chartId: string;
+  beforeOpenTime: number;
+  limit?: number;
+}
+
+export interface MarketHistorySnapshot extends MarketKey {
+  chartId: string;
+  candles: Candle[];
+  hasMore: boolean;
+}
+
 export interface MarketCandleUpdate extends MarketKey {
   candle: Candle;
 }
@@ -59,6 +71,7 @@ export interface StrategySignalUpdate extends MarketKey {
 export interface ServerToClientEvents {
   'market-data:status': (status: MarketDataTransportStatus) => void;
   'market:snapshot': (snapshot: MarketSnapshot) => void;
+  'market:history': (snapshot: MarketHistorySnapshot) => void;
   'market:candle': (update: MarketCandleUpdate) => void;
   'market:status': (status: MarketSubscriptionStatus) => void;
   'strategy:catalog': (catalog: StrategyCatalog) => void;
@@ -71,6 +84,7 @@ export interface ClientToServerEvents {
     acknowledge: (pong: MarketDataPong) => void,
   ) => void;
   'market:subscribe': (request: MarketSubscribeRequest) => void;
+  'market:history:request': (request: MarketHistoryRequest) => void;
   'market:unsubscribe': (request: MarketUnsubscribeRequest) => void;
   'strategy:catalog:request': () => void;
   'strategy:subscribe': (request: StrategySubscribeRequest) => void;

@@ -155,8 +155,9 @@ The chart is a separate frontend rendering module. The market-data feature maps 
 signal contracts into neutral chart data, then passes that data through the `FinancialChartRenderer` interface.
 TradingView Lightweight Charts is the default renderer adapter; it owns only browser chart concerns such as series,
 volume, overlays, markers, resizing, and cleanup. It does not open sockets, call Binance, execute strategies, or
-depend on backend services. Replacing the renderer therefore does not change the Market Data Service or strategy
-pipeline. See [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
+depend on backend services. When the user pans to the oldest loaded candle, the renderer reports a neutral boundary
+callback and the market-data hook asks the Market Data Service for another history page. Replacing the renderer
+therefore does not change the service or strategy pipeline. See [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ### Domain event catalog
 

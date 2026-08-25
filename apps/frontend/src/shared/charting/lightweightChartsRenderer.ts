@@ -7,6 +7,7 @@ import {
   createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
+  type LogicalRange,
   type UTCTimestamp,
 } from 'lightweight-charts';
 
@@ -18,6 +19,7 @@ import type {
 } from './chartRenderer';
 
 const DEFAULT_HEIGHT = 320;
+const HISTORY_BOUNDARY_THRESHOLD = 10;
 
 type ChartLineSeries = ISeriesApi<'Line'>;
 
@@ -71,6 +73,19 @@ export const lightweightChartsRenderer: FinancialChartRenderer = {
     const markers = createSeriesMarkers(candleSeries, []);
     const lineSeriesById = new Map<string, ChartLineSeriesState>();
     let hasFittedContent = false;
+    let historyBoundarySubscribed = false;
+    const handleVisibleLogicalRangeChange = (
+      range: LogicalRange | null,
+    ): void => {
+      if (
+        !hasFittedContent ||
+        range === null ||
+        range.from > HISTORY_BOUNDARY_THRESHOLD
+      ) {
+        return;
+      }
+      options.onReachedHistoryBoundary?.();
+    };
 
     const setData = (data: FinancialChartData): void => {
       candleSeries.setData(
@@ -122,6 +137,14 @@ export const lightweightChartsRenderer: FinancialChartRenderer = {
       if (!hasFittedContent && data.candles.length > 0) {
         chart.timeScale().fitContent();
         hasFittedContent = true;
+        if (options.onReachedHistoryBoundary !== undefined) {
+          chart
+            .timeScale()
+            .subscribeVisibleLogicalRangeChange(
+              handleVisibleLogicalRangeChange,
+            );
+          historyBoundarySubscribed = true;
+        }
       }
     };
 
@@ -130,6 +153,13 @@ export const lightweightChartsRenderer: FinancialChartRenderer = {
     };
 
     const destroy = (): void => {
+      if (historyBoundarySubscribed) {
+        chart
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(
+            handleVisibleLogicalRangeChange,
+          );
+      }
       lineSeriesById.clear();
       chart.remove();
     };

@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 
 import type {
   Candle,
+  CandleQuery,
   ClientToServerEvents,
   ServerToClientEvents,
 } from '@crypto-strategy-lab/shared';
@@ -88,8 +89,16 @@ describe('market-data realtime gateway', () => {
       volume: 10,
       isClosed: false,
     };
+    const olderCandle = {
+      ...initialCandle,
+      openTime: initialCandle.openTime - 60_000,
+      closeTime: initialCandle.closeTime - 60_000,
+      isClosed: true,
+    };
     const exchangeAdapter: ExchangeAdapter = {
-      fetchCandles: async () => [initialCandle],
+      fetchCandles: vi.fn(async (query: CandleQuery) =>
+        query.endTime === undefined ? [initialCandle] : [olderCandle],
+      ),
       openKlineStream: (_keys, handlers) => {
         streamHandlers = handlers;
         void handlers.onCandle({ ...initialCandle, close: 100.75 });
@@ -155,6 +164,24 @@ describe('market-data realtime gateway', () => {
       candles: [{ ...initialCandle, close: 100.75 }],
     });
     expect(receivedMarketEvents).toEqual(['snapshot']);
+
+    const historyPromise = new Promise<
+      Parameters<ServerToClientEvents['market:history']>[0]
+    >((resolve) => client.once('market:history', resolve));
+    client.emit('market:history:request', {
+      chartId: 'chart-a',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      beforeOpenTime: initialCandle.openTime,
+      limit: 10,
+    });
+    await expect(historyPromise).resolves.toEqual({
+      chartId: 'chart-a',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      candles: [olderCandle],
+      hasMore: false,
+    });
 
     const candlePromise = new Promise<
       Parameters<ServerToClientEvents['market:candle']>[0]

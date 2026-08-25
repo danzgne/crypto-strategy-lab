@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
-  MarketSubscriptionState,
+  MarketSubscriptionResult,
   UseMarketSubscriptionOptions,
 } from '../../../../src/features/market-data/hooks/useMarketSubscription';
 import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
@@ -13,10 +13,13 @@ vi.mock(
     useMarketSubscription: ({
       pair,
       timeframe,
-    }: UseMarketSubscriptionOptions): MarketSubscriptionState => ({
+    }: UseMarketSubscriptionOptions): MarketSubscriptionResult => ({
       candles: [],
       phase: 'connecting',
       detail: `Loading ${pair} ${timeframe}`,
+      historyLoading: false,
+      hasMoreHistory: true,
+      requestOlderHistory: vi.fn(),
     }),
   }),
 );

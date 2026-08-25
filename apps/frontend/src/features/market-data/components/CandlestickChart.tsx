@@ -19,6 +19,7 @@ const CHART_HEIGHT = 320;
 
 export interface CandlestickChartProperties {
   candles: Candle[];
+  onRequestOlderHistory?: () => void;
   pair: string;
   renderer?: FinancialChartRenderer;
   strategySignals?: readonly StrategySignalUpdate[];
@@ -27,6 +28,7 @@ export interface CandlestickChartProperties {
 
 export function CandlestickChart({
   candles,
+  onRequestOlderHistory,
   pair,
   renderer = defaultChartRenderer,
   strategySignals = [],
@@ -36,19 +38,28 @@ export function CandlestickChart({
   const chartInstanceRef = useRef<FinancialChartInstance | null>(null);
   const latestChartDataRef = useRef<FinancialChartData | null>(null);
   const renderedChartDataRef = useRef<FinancialChartData | null>(null);
+  const requestOlderHistoryRef = useRef(onRequestOlderHistory);
   const chartData = useMemo(
     () => toMarketChartData(candles, strategySignals),
     [candles, strategySignals],
   );
   const hasData = chartData.candles.length > 0;
   latestChartDataRef.current = chartData;
+  requestOlderHistoryRef.current = onRequestOlderHistory;
 
   useEffect(() => {
     if (!hasData) return;
     const container = chartContainerRef.current;
     if (container === null) return;
 
-    const chartInstance = renderer.mount(container, { height: CHART_HEIGHT });
+    const rendererOptions =
+      onRequestOlderHistory === undefined
+        ? { height: CHART_HEIGHT }
+        : {
+            height: CHART_HEIGHT,
+            onReachedHistoryBoundary: () => requestOlderHistoryRef.current?.(),
+          };
+    const chartInstance = renderer.mount(container, rendererOptions);
     chartInstanceRef.current = chartInstance;
     const initialChartData = latestChartDataRef.current;
     if (initialChartData !== null) {
@@ -74,7 +85,7 @@ export function CandlestickChart({
         chartInstanceRef.current = null;
       }
     };
-  }, [hasData, pair, renderer, timeframe]);
+  }, [hasData, onRequestOlderHistory, pair, renderer, timeframe]);
 
   useEffect(() => {
     const chartInstance = chartInstanceRef.current;

@@ -208,6 +208,50 @@ export class MarketDataService {
     };
   }
 
+  public async loadHistoryBefore(
+    query: CandleQuery,
+    beforeOpenTime: number,
+  ): Promise<Candle[]> {
+    if (!Number.isFinite(beforeOpenTime)) {
+      throw new Error('History boundary must be a finite timestamp');
+    }
+
+    const normalizedBeforeOpenTime = Math.trunc(beforeOpenTime);
+    const normalizedQuery = normalizeQuery({
+      ...query,
+      endTime: normalizedBeforeOpenTime - 1,
+    });
+    const candles = (await this.fetchCandles(normalizedQuery))
+      .filter((candle) => candle.openTime < normalizedBeforeOpenTime)
+      .sort((left, right) => left.openTime - right.openTime);
+    const state = this.activeStates.get(marketKey(normalizedQuery));
+
+    if (state === undefined) {
+      for (const candle of candles) {
+        if (candle.isClosed) {
+          await this.candleRepository.upsertClosed(candle);
+        }
+      }
+      return candles;
+    }
+
+    await this.enqueueUpdate(state, async () => {
+      for (const candle of candles) {
+        assertMatchingKey(state, candle);
+        state.candles.set(candle.openTime, candle);
+      }
+      this.rebuildClosedOpenTimes(state);
+      for (const candle of candles) {
+        if (candle.isClosed) {
+          await this.candleRepository.upsertClosed(candle);
+        }
+      }
+      this.trimState(state);
+    });
+
+    return candles;
+  }
+
   public async close(): Promise<void> {
     const states = [...this.activeStates.values()];
     this.activeStates.clear();

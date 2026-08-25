@@ -94,6 +94,7 @@ export function MarketPanel({
       <div className="mt-5">
         <CandlestickChart
           candles={market.candles}
+          onRequestOlderHistory={market.requestOlderHistory}
           pair={pair}
           {...(chartRenderer === undefined ? {} : { renderer: chartRenderer })}
           strategySignals={strategy.history}

@@ -46,4 +46,25 @@ describe('toMarketChartData', () => {
     expect(data.markers[0]?.position).toBe('aboveBar');
     expect(data.volume[0]?.color).toBe('#10b981');
   });
+
+  it('preserves a prepended history page instead of limiting the chart to the initial snapshot', () => {
+    const firstOpenTime = 1_756_000_000_000;
+    const candles = Array.from({ length: 501 }, (_, index) => ({
+      pair: 'BTCUSDT' as const,
+      timeframe: '1m' as const,
+      openTime: firstOpenTime + index * 60_000,
+      closeTime: firstOpenTime + index * 60_000 + 59_999,
+      open: 100 + index,
+      high: 101 + index,
+      low: 99 + index,
+      close: 100.5 + index,
+      volume: 10,
+      isClosed: true,
+    }));
+
+    const data = toMarketChartData(candles, []);
+
+    expect(data.candles).toHaveLength(501);
+    expect(data.candles[0]?.time).toBe(firstOpenTime / 1_000);
+  });
 });

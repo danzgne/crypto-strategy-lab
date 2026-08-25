@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -130,16 +130,37 @@ describe('CandlestickChart', () => {
     unmount();
     expect(chart.destroy).toHaveBeenCalledTimes(1);
   });
+
+  it('forwards the renderer history boundary to the market-data owner', () => {
+    const chart = createTestRenderer();
+    const onRequestOlderHistory = vi.fn();
+
+    render(
+      <CandlestickChart
+        candles={[createCandle()]}
+        onRequestOlderHistory={onRequestOlderHistory}
+        pair="BTCUSDT"
+        renderer={chart.renderer}
+        timeframe="1m"
+      />,
+    );
+
+    act(() => chart.latestOptions?.onReachedHistoryBoundary?.());
+
+    expect(onRequestOlderHistory).toHaveBeenCalledOnce();
+  });
 });
 
 function createTestRenderer(): {
   destroy: ReturnType<typeof vi.fn>;
   latestData: FinancialChartData | null;
+  latestOptions: FinancialChartRendererOptions | null;
   mount: ReturnType<typeof vi.fn>;
   renderer: FinancialChartRenderer;
   setData: ReturnType<typeof vi.fn>;
 } {
   let latestData: FinancialChartData | null = null;
+  let latestOptions: FinancialChartRendererOptions | null = null;
   const setData = vi.fn((data: FinancialChartData) => {
     latestData = data;
   });
@@ -147,14 +168,19 @@ function createTestRenderer(): {
   const destroy = vi.fn();
   const instance: FinancialChartInstance = { destroy, resize, setData };
   const mount = vi.fn(
-    (_container: HTMLElement, _options: FinancialChartRendererOptions) =>
-      instance,
+    (_container: HTMLElement, options: FinancialChartRendererOptions) => {
+      latestOptions = options;
+      return instance;
+    },
   );
 
   return {
     destroy,
     get latestData() {
       return latestData;
+    },
+    get latestOptions() {
+      return latestOptions;
     },
     mount,
     renderer: { mount },

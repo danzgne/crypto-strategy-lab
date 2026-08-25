@@ -59,7 +59,9 @@ Binance, backend-service, repository, or Strategy Registry dependency and perfor
 
 `MarketDataDashboard`, `MarketPanel`, and `CandlestickChart` accept an optional renderer for future product areas
 and tests. This keeps chart lifecycle and vendor-specific series configuration behind one deep interface while
-leaving market subscriptions and strategy execution in their existing modules. See
+leaving market subscriptions and strategy execution in their existing modules. When the renderer reaches the oldest
+loaded logical range, it reports a neutral boundary callback; the market-data hook then requests older candles through
+the typed Market Data Service transport. See
 [`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ## Route composition

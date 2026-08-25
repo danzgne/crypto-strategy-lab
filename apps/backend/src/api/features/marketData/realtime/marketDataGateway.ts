@@ -1,6 +1,7 @@
 import type {
   ClientToServerEvents,
   InterServerEvents,
+  MarketHistoryRequest,
   MarketSubscribeRequest,
   MarketUnsubscribeRequest,
   ServerToClientEvents,
@@ -88,6 +89,10 @@ export function registerMarketDataGateway(
       );
     });
 
+    socket.on('market:history:request', (request) => {
+      void requestHistorySocket(socket, request, marketDataService, logger);
+    });
+
     socket.on('market:unsubscribe', (request) => {
       void unsubscribeSocket(
         socket,
@@ -106,6 +111,62 @@ export function registerMarketDataGateway(
       );
     });
   });
+}
+
+async function requestHistorySocket(
+  socket: MarketDataSocket,
+  request: MarketHistoryRequest,
+  marketDataService: MarketDataService | undefined,
+  logger: AppLogger,
+): Promise<void> {
+  const normalizedRequest = normalizeHistoryRequest(request);
+  if (normalizedRequest === null || marketDataService === undefined) {
+    if (normalizedRequest !== null) {
+      socket.emit('market:history', {
+        chartId: normalizedRequest.chartId,
+        pair: normalizedRequest.pair,
+        timeframe: normalizedRequest.timeframe,
+        candles: [],
+        hasMore: false,
+      });
+    }
+    return;
+  }
+
+  try {
+    const candles = await marketDataService.loadHistoryBefore(
+      {
+        pair: normalizedRequest.pair,
+        timeframe: normalizedRequest.timeframe,
+        limit: normalizeCandleLimit(normalizedRequest.limit),
+      },
+      normalizedRequest.beforeOpenTime,
+    );
+    socket.emit('market:history', {
+      chartId: normalizedRequest.chartId,
+      pair: normalizedRequest.pair,
+      timeframe: normalizedRequest.timeframe,
+      candles,
+      hasMore: candles.length === normalizedRequest.limit,
+    });
+  } catch (error) {
+    logger.error(
+      {
+        err: error,
+        pair: normalizedRequest.pair,
+        timeframe: normalizedRequest.timeframe,
+        beforeOpenTime: normalizedRequest.beforeOpenTime,
+      },
+      'Market history request failed',
+    );
+    socket.emit('market:history', {
+      chartId: normalizedRequest.chartId,
+      pair: normalizedRequest.pair,
+      timeframe: normalizedRequest.timeframe,
+      candles: [],
+      hasMore: false,
+    });
+  }
 }
 
 async function subscribeSocket(
@@ -322,6 +383,29 @@ function normalizeSubscribeRequest(
     normalized.limit = normalizeCandleLimit(request.limit);
   }
   return normalized;
+}
+
+function normalizeHistoryRequest(
+  request: MarketHistoryRequest,
+): MarketHistoryRequest | null {
+  if (
+    typeof request.chartId !== 'string' ||
+    request.chartId.length === 0 ||
+    typeof request.pair !== 'string' ||
+    request.pair.length === 0 ||
+    !isTimeframe(request.timeframe) ||
+    typeof request.beforeOpenTime !== 'number' ||
+    !Number.isFinite(request.beforeOpenTime)
+  ) {
+    return null;
+  }
+  return {
+    chartId: request.chartId,
+    pair: request.pair.toUpperCase(),
+    timeframe: request.timeframe,
+    beforeOpenTime: Math.trunc(request.beforeOpenTime),
+    limit: normalizeCandleLimit(request.limit),
+  };
 }
 
 function isTimeframe(value: string): value is Timeframe {

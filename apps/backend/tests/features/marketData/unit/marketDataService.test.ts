@@ -364,4 +364,63 @@ describe('MarketDataService', () => {
 
     await subscription.unsubscribe();
   });
+
+  it('loads candles before a chart boundary and merges them into the active market state', async () => {
+    const olderCandle: Candle = {
+      ...historyCandle,
+      openTime: historyCandle.openTime - 60_000,
+      closeTime: historyCandle.closeTime - 60_000,
+      open: 99,
+      high: 100,
+      low: 98,
+      close: 99.5,
+      volume: 9,
+    };
+    const fetchCandles = vi
+      .fn<ExchangeAdapter['fetchCandles']>()
+      .mockResolvedValueOnce([historyCandle])
+      .mockResolvedValueOnce([olderCandle]);
+    const candleRepository = {
+      upsertClosed: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles,
+        openKlineStream: vi.fn(() => () => undefined),
+      },
+      candleRepository,
+    });
+
+    const subscription = await service.subscribe({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+    });
+    const loaded = await service.loadHistoryBefore(
+      {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      },
+      historyCandle.openTime,
+    );
+
+    expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+      endTime: historyCandle.openTime - 1,
+    });
+    expect(loaded).toEqual([olderCandle]);
+    const merged = await service.subscribe({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+    });
+    expect(merged.candles).toEqual([olderCandle, historyCandle]);
+    expect(candleRepository.upsertClosed).toHaveBeenCalledWith(olderCandle);
+
+    await merged.unsubscribe();
+    await subscription.unsubscribe();
+  });
 });
