@@ -44,8 +44,14 @@ export function CandlestickChart({
     [candles, strategySignals],
   );
   const hasData = chartData.candles.length > 0;
-  latestChartDataRef.current = chartData;
-  requestOlderHistoryRef.current = onRequestOlderHistory;
+
+  useEffect(() => {
+    latestChartDataRef.current = chartData;
+  }, [chartData]);
+
+  useEffect(() => {
+    requestOlderHistoryRef.current = onRequestOlderHistory;
+  }, [onRequestOlderHistory]);
 
   useEffect(() => {
     if (!hasData) return;

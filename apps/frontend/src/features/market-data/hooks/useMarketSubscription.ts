@@ -34,6 +34,10 @@ export interface MarketSubscriptionResult extends MarketSubscriptionState {
   requestOlderHistory(): void;
 }
 
+interface InternalMarketSubscriptionState extends MarketSubscriptionState {
+  key: string;
+}
+
 const HISTORY_PAGE_LIMIT = 250;
 
 export interface UseMarketSubscriptionOptions {
@@ -59,7 +63,11 @@ export function useMarketSubscription({
   chartId,
   socketFactory = getRealtimeSocket,
 }: UseMarketSubscriptionOptions): MarketSubscriptionResult {
-  const [state, setState] = useState<MarketSubscriptionState>(INITIAL_STATE);
+  const subscriptionKey = createSubscriptionKey(pair, timeframe, limit);
+  const [state, setState] = useState<InternalMarketSubscriptionState>(() => ({
+    ...INITIAL_STATE,
+    key: subscriptionKey,
+  }));
   const chartIdRef = useRef(chartId ?? createChartId());
   const socketFactoryRef = useRef(socketFactory);
   const candlesRef = useRef<Candle[]>([]);
@@ -77,7 +85,14 @@ export function useMarketSubscription({
     candlesRef.current = [];
     historyLoadingRef.current = false;
     hasMoreHistoryRef.current = true;
-    setState(INITIAL_STATE);
+    const updateState = (
+      update: (current: MarketSubscriptionState) => MarketSubscriptionState,
+    ): void => {
+      setState((current) => ({
+        ...update(current),
+        key: subscriptionKey,
+      }));
+    };
     const request: MarketSubscribeRequest = {
       chartId: activeChartId,
       pair,
@@ -87,7 +102,7 @@ export function useMarketSubscription({
 
     const handleConnect = (): void => {
       if (!active) return;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         phase: 'connecting',
         detail: 'Loading the latest market candles',
@@ -96,7 +111,7 @@ export function useMarketSubscription({
     };
     const handleDisconnect = (): void => {
       if (!active) return;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         phase: 'reconnecting',
         detail: 'Market stream disconnected; reconnecting',
@@ -106,7 +121,7 @@ export function useMarketSubscription({
     };
     const handleConnectError = (): void => {
       if (!active) return;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         phase: 'reconnecting',
         detail: 'Market stream unavailable; retrying',
@@ -127,13 +142,13 @@ export function useMarketSubscription({
       candlesRef.current = nextCandles;
       historyLoadingRef.current = false;
       hasMoreHistoryRef.current = true;
-      setState({
+      updateState(() => ({
         candles: nextCandles,
         phase: 'connecting',
         detail: 'Fresh market snapshot received; checking stream status',
         historyLoading: false,
         hasMoreHistory: true,
-      });
+      }));
     };
     const handleHistory = (snapshot: MarketHistorySnapshot): void => {
       if (
@@ -150,7 +165,7 @@ export function useMarketSubscription({
       candlesRef.current = nextCandles;
       historyLoadingRef.current = false;
       hasMoreHistoryRef.current = hasMoreHistory;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         candles: nextCandles,
         detail:
@@ -170,7 +185,7 @@ export function useMarketSubscription({
         MAX_CANDLE_LIMIT,
       );
       candlesRef.current = nextCandles;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         candles: nextCandles,
         detail: update.candle.isClosed
@@ -182,7 +197,7 @@ export function useMarketSubscription({
       if (!active || status.pair !== pair || status.timeframe !== timeframe) {
         return;
       }
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         phase: statusToPhase(status),
         detail: status.detail ?? statusDetail(status.status),
@@ -202,7 +217,7 @@ export function useMarketSubscription({
       if (oldestCandle === undefined) return;
 
       historyLoadingRef.current = true;
-      setState((current) => ({
+      updateState((current) => ({
         ...current,
         detail: 'Loading older market history',
         historyLoading: true,
@@ -249,9 +264,20 @@ export function useMarketSubscription({
         });
       }
     };
-  }, [limit, pair, timeframe]);
+  }, [limit, pair, subscriptionKey, timeframe]);
 
+  if (state.key !== subscriptionKey) {
+    return { ...INITIAL_STATE, requestOlderHistory };
+  }
   return { ...state, requestOlderHistory };
+}
+
+function createSubscriptionKey(
+  pair: string,
+  timeframe: Timeframe,
+  limit: number,
+): string {
+  return `${pair}:${timeframe}:${limit}`;
 }
 
 function replaceCandle(candles: Candle[], update: Candle): Candle[] {

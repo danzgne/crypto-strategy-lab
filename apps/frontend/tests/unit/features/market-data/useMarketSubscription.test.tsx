@@ -163,7 +163,10 @@ describe('useMarketSubscription', () => {
 
   it('requests and merges older candles when the chart reaches its history boundary', async () => {
     const listeners = new Map<string, (...arguments_: unknown[]) => void>();
-    const emit = vi.fn((..._arguments: unknown[]) => undefined);
+    const emit = vi.fn((...arguments_: unknown[]) => {
+      void arguments_;
+      return undefined;
+    });
     const socket = {
       connected: false,
       on: vi.fn(
