@@ -227,6 +227,12 @@ describe('market-data realtime gateway', () => {
     const httpServer = createServer();
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
+      sessionMiddleware: (req, _res, next) => {
+        Object.assign(req, {
+          session: { userId: 'mock-user-id' },
+        });
+        next();
+      },
       marketDataService,
     });
 
