@@ -13,6 +13,11 @@ import {
   StrategyRegistry,
   type Strategy,
 } from '@crypto-strategy-lab/strategy-engine';
+import {
+  DEFAULT_CANDLE_LIMIT,
+  MAX_CANDLE_LIMIT,
+  normalizeCandleLimit,
+} from '@crypto-strategy-lab/shared/market-data';
 
 import type {
   MarketDataService,
@@ -38,11 +43,13 @@ export interface StrategySubscriptionRequest {
   strategyId: string;
   pair: Pair;
   timeframe: Timeframe;
+  limit?: number;
 }
 
 export type StrategySignalListener = (update: StrategySignalUpdate) => void;
 
 export interface StrategySubscription {
+  history: StrategySignalUpdate[];
   unsubscribe(): Promise<void>;
 }
 
@@ -50,9 +57,11 @@ interface ActiveStrategyState {
   strategyId: string;
   pair: Pair;
   timeframe: Timeframe;
+  historyLimit: number;
   key: string;
   strategy: Strategy;
   candles: Candle[];
+  signalHistory: StrategySignalUpdate[];
   listeners: Set<StrategySignalListener>;
   evaluatedOpenTimes: Set<number>;
   pendingClosedOpenTimes: Set<number>;
@@ -95,7 +104,20 @@ export class StrategyLiveService {
 
     if (state === undefined) {
       const strategy = StrategyRegistry.create(strategyId);
-      state = this.createState(strategyId, pair, request.timeframe, strategy);
+      const historyLimit = Math.min(
+        MAX_CANDLE_LIMIT,
+        Math.max(
+          strategy.requiredHistory,
+          normalizeCandleLimit(request.limit ?? DEFAULT_CANDLE_LIMIT),
+        ),
+      );
+      state = this.createState(
+        strategyId,
+        pair,
+        request.timeframe,
+        strategy,
+        historyLimit,
+      );
       this.activeStrategies.set(key, state);
       state.initialization = this.initializeState(state);
     }
@@ -113,6 +135,7 @@ export class StrategyLiveService {
 
     let active = true;
     return {
+      history: state.signalHistory.slice(),
       unsubscribe: async () => {
         if (!active) return;
         active = false;
@@ -140,14 +163,17 @@ export class StrategyLiveService {
     pair: Pair,
     timeframe: Timeframe,
     strategy: Strategy,
+    historyLimit: number,
   ): ActiveStrategyState {
     return {
       strategyId,
       pair,
       timeframe,
+      historyLimit,
       key: strategyKey(strategyId, pair, timeframe),
       strategy,
       candles: [],
+      signalHistory: [],
       listeners: new Set(),
       evaluatedOpenTimes: new Set(),
       pendingClosedOpenTimes: new Set(),
@@ -160,18 +186,24 @@ export class StrategyLiveService {
     const query: CandleQuery = {
       pair: state.pair,
       timeframe: state.timeframe,
-      limit: state.strategy.requiredHistory,
+      limit: state.historyLimit,
     };
     const subscription = await this.marketDataService.subscribe(query, {
       onCandle: (candle) => this.recordClosedCandle(state, candle),
     });
     state.marketSubscription = subscription;
-    state.candles = mergeCandles(
-      state.candles,
+    const initialCandles = await this.loadInitialCandles(
+      state,
       subscription.candles.filter((candle) => candle.isClosed),
-      state.strategy.requiredHistory,
     );
+    state.candles = mergeCandles([], initialCandles, state.historyLimit);
     state.ready = true;
+
+    for (const candle of state.candles) {
+      if (candle.isClosed) {
+        this.evaluateClosedCandle(state, candle.openTime, false);
+      }
+    }
 
     const pendingOpenTimes = [...state.pendingClosedOpenTimes].sort(
       (left, right) => left - right,
@@ -182,13 +214,38 @@ export class StrategyLiveService {
     }
   }
 
+  private async loadInitialCandles(
+    state: ActiveStrategyState,
+    initialCandles: Candle[],
+  ): Promise<Candle[]> {
+    let candles = mergeCandles([], initialCandles, state.historyLimit);
+    while (candles.length > 0 && candles.length < state.historyLimit) {
+      const oldestCandle = candles.at(0);
+      if (oldestCandle === undefined) break;
+      const olderCandles = await this.marketDataService.loadHistoryBefore(
+        {
+          pair: state.pair,
+          timeframe: state.timeframe,
+          limit: state.historyLimit,
+        },
+        oldestCandle.openTime,
+      );
+      if (olderCandles.length === 0) break;
+      const nextCandles = mergeCandles(
+        candles,
+        olderCandles,
+        state.historyLimit,
+      );
+      if (nextCandles.length === candles.length) break;
+      candles = nextCandles;
+      if (olderCandles.length < state.historyLimit) break;
+    }
+    return candles;
+  }
+
   private recordClosedCandle(state: ActiveStrategyState, candle: Candle): void {
     if (!candle.isClosed) return;
-    state.candles = mergeCandles(
-      state.candles,
-      [candle],
-      state.strategy.requiredHistory,
-    );
+    state.candles = mergeCandles(state.candles, [candle], state.historyLimit);
   }
 
   private handleCandleClosed(event: DomainEventEnvelope<'CandleClosed'>): void {
@@ -207,15 +264,20 @@ export class StrategyLiveService {
   private evaluateClosedCandle(
     state: ActiveStrategyState,
     openTime: number,
-  ): void {
+    notifyListeners = true,
+  ): StrategySignalUpdate | undefined {
     if (state.evaluatedOpenTimes.has(openTime)) return;
-    const candle = state.candles.find(
+    const candleIndex = state.candles.findIndex(
       (candidate) => candidate.openTime === openTime,
     );
+    if (candleIndex < 0) return;
+    const candle = state.candles[candleIndex];
     if (candle === undefined) return;
 
     const context: StrategyContext = {
-      candles: state.candles.slice(-state.strategy.requiredHistory),
+      candles: state.candles
+        .slice(0, candleIndex + 1)
+        .slice(-state.strategy.requiredHistory),
       pair: state.pair,
       timeframe: state.timeframe,
       sentiment: EMPTY_SENTIMENT,
@@ -229,7 +291,15 @@ export class StrategyLiveService {
       indicators: signal.indicators ?? {},
       signal,
     };
-    for (const listener of state.listeners) listener(update);
+    state.signalHistory = upsertSignalHistory(
+      state.signalHistory,
+      update,
+      Math.min(MAX_CANDLE_LIMIT, state.historyLimit),
+    );
+    if (notifyListeners) {
+      for (const listener of state.listeners) listener(update);
+    }
+    return update;
   }
 }
 
@@ -253,4 +323,18 @@ function mergeCandles(
   return [...byOpenTime.values()]
     .sort((left, right) => left.openTime - right.openTime)
     .slice(-limit);
+}
+
+function upsertSignalHistory(
+  history: StrategySignalUpdate[],
+  update: StrategySignalUpdate,
+  limit: number,
+): StrategySignalUpdate[] {
+  const byOpenTime = new Map(
+    history.map((signal) => [signal.candle.openTime, signal]),
+  );
+  byOpenTime.set(update.candle.openTime, update);
+  return [...byOpenTime.values()]
+    .sort((left, right) => left.candle.openTime - right.candle.openTime)
+    .slice(-Math.max(1, limit));
 }

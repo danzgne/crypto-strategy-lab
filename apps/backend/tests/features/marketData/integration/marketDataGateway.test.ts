@@ -370,6 +370,9 @@ describe('market-data realtime gateway', () => {
     });
 
     await new Promise<void>((resolve) => client.once('connect', resolve));
+    const strategySnapshotPromise = new Promise<
+      Parameters<ServerToClientEvents['strategy:snapshot']>[0]
+    >((resolve) => client.once('strategy:snapshot', resolve));
     const signalPromise = new Promise<
       Parameters<ServerToClientEvents['strategy:signal']>[0]
     >((resolve) => client.once('strategy:signal', resolve));
@@ -378,6 +381,15 @@ describe('market-data realtime gateway', () => {
       pair: 'BTCUSDT',
       strategyId: 'ma',
       timeframe: '1m',
+      limit: 500,
+    });
+
+    await expect(strategySnapshotPromise).resolves.toMatchObject({
+      chartId: 'chart-ma',
+      strategyId: 'ma',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      signals: expect.any(Array),
     });
 
     await new Promise<void>((resolve) => {

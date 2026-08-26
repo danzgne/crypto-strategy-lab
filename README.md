@@ -157,7 +157,10 @@ TradingView Lightweight Charts is the default renderer adapter; it owns only bro
 volume, overlays, markers, resizing, and cleanup. It does not open sockets, call Binance, execute strategies, or
 depend on backend services. When the user pans to the oldest loaded candle, the renderer reports a neutral boundary
 callback and the market-data hook asks the Market Data Service for another history page. Replacing the renderer
-therefore does not change the service or strategy pipeline. See [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
+therefore does not change the service or strategy pipeline. Strategy overlays follow the same seam: the backend sends
+historical indicator points in one `strategy:snapshot`, then streams new closed-candle signals through
+`strategy:signal`; the browser never recomputes MA or calls an exchange. See
+[ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ### Domain event catalog
 

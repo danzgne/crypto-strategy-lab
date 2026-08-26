@@ -61,7 +61,9 @@ Binance, backend-service, repository, or Strategy Registry dependency and perfor
 and tests. This keeps chart lifecycle and vendor-specific series configuration behind one deep interface while
 leaving market subscriptions and strategy execution in their existing modules. When the renderer reaches the oldest
 loaded logical range, it reports a neutral boundary callback; the market-data hook then requests older candles through
-the typed Market Data Service transport. See
+the typed Market Data Service transport. Strategy indicator history arrives from the backend as an initial
+`strategy:snapshot`; subsequent closed candles arrive as `strategy:signal`, and both are mapped to the same neutral
+chart data. See
 [`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ## Route composition

@@ -28,6 +28,12 @@ Use TradingView **Lightweight Charts** as the default browser renderer behind a 
 The existing frontend Socket.IO hooks remain responsible for subscriptions. The renderer receives their resulting
 plain data through React props; it does not subscribe to the market stream itself.
 
+Strategy overlays use the same boundary. The backend evaluates the selected strategy against the existing closed
+candle history and emits one `strategy:snapshot` containing the historical `StrategySignalUpdate` values, followed by
+`strategy:signal` for each newly closed candle. The frontend hook merges those transport updates into the same plain
+signal history before mapping indicators to chart lines. This keeps indicator computation out of the renderer and
+prevents a newly enabled strategy from showing only the few candles observed after subscription.
+
 When the user reaches the oldest currently loaded logical range, the adapter reports that boundary through the
 neutral renderer options. `CandlestickChart` forwards the callback to the market-data hook, which requests a typed
 older-history page through the Market Data Service transport. This keeps history loading outside the renderer while
@@ -65,6 +71,8 @@ allowing any renderer implementation to expose the same interaction.
 - `lightweightChartsRenderer` imports only the chart library and neutral renderer types.
 - The history-boundary callback is notification-only; the renderer never emits transport events or calls the Market
   Data Service directly.
+- Historical indicator values are produced by the backend Strategy Live Service and delivered through a typed
+  snapshot; the chart feature does not recalculate MA or any other strategy indicator.
 - No chart renderer module imports Binance, Socket.IO, backend services, repositories, or strategy execution code.
 - Replacing the chart library is localized to the renderer adapter and its composition root; the transport contracts,
   market hooks, and strategy pipeline remain unchanged.

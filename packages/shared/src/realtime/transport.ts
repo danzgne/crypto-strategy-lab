@@ -54,6 +54,7 @@ export interface MarketSubscriptionStatus extends MarketKey {
 export interface StrategySubscribeRequest extends MarketKey {
   chartId: string;
   strategyId: string;
+  limit?: number;
 }
 
 export type StrategyUnsubscribeRequest = StrategySubscribeRequest;
@@ -68,6 +69,12 @@ export interface StrategySignalUpdate extends MarketKey {
   signal: Signal;
 }
 
+export interface StrategySignalSnapshot extends MarketKey {
+  chartId: string;
+  strategyId: string;
+  signals: StrategySignalUpdate[];
+}
+
 export interface ServerToClientEvents {
   'market-data:status': (status: MarketDataTransportStatus) => void;
   'market:snapshot': (snapshot: MarketSnapshot) => void;
@@ -75,6 +82,7 @@ export interface ServerToClientEvents {
   'market:candle': (update: MarketCandleUpdate) => void;
   'market:status': (status: MarketSubscriptionStatus) => void;
   'strategy:catalog': (catalog: StrategyCatalog) => void;
+  'strategy:snapshot': (snapshot: StrategySignalSnapshot) => void;
   'strategy:signal': (update: StrategySignalUpdate) => void;
 }
 

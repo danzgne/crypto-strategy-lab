@@ -44,6 +44,7 @@ describe('useStrategySignal', () => {
       pair: 'BTCUSDT',
       strategyId: 'ma',
       timeframe: '1m',
+      limit: 500,
     });
 
     const candle = {
@@ -68,10 +69,34 @@ describe('useStrategySignal', () => {
         indicators: { MA_20: 100.5, MA_50: 100.25 },
       },
     };
+    const historicalUpdate = {
+      ...update,
+      candle: {
+        ...candle,
+        openTime: candle.openTime - 60_000,
+        closeTime: candle.closeTime - 60_000,
+      },
+      signal: {
+        action: 'HOLD' as const,
+        indicators: { MA_20: 99.5, MA_50: 99.25 },
+      },
+    };
+    act(() =>
+      listeners.get('strategy:snapshot')?.({
+        chartId: 'chart-ma',
+        strategyId: 'ma',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        signals: [historicalUpdate],
+      }),
+    );
+    await waitFor(() =>
+      expect(result.current.history).toEqual([historicalUpdate]),
+    );
     act(() => listeners.get('strategy:signal')?.(update));
 
     await waitFor(() => expect(result.current.latest).toEqual(update));
-    expect(result.current.history).toEqual([update]);
+    expect(result.current.history).toEqual([historicalUpdate, update]);
 
     unmount();
     expect(socket.emit).toHaveBeenCalledWith('strategy:unsubscribe', {

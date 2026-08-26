@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  StrategySignalSnapshot,
   StrategySignalUpdate,
   StrategySubscribeRequest,
   StrategyUnsubscribeRequest,
@@ -67,6 +68,13 @@ export function useStrategySignal({
       pair,
       timeframe,
       strategyId,
+      limit,
+    };
+    const unsubscribeRequest: StrategyUnsubscribeRequest = {
+      chartId,
+      pair,
+      timeframe,
+      strategyId,
     };
 
     const subscribe = (): void => {
@@ -86,8 +94,29 @@ export function useStrategySignal({
             : [update],
       }));
     };
+    const handleSnapshot = (snapshot: StrategySignalSnapshot): void => {
+      if (
+        !active ||
+        snapshot.chartId !== chartId ||
+        snapshot.strategyId !== strategyId ||
+        snapshot.pair !== pair ||
+        snapshot.timeframe !== timeframe
+      ) {
+        return;
+      }
+      const history = snapshot.signals
+        .slice()
+        .sort((left, right) => left.candle.openTime - right.candle.openTime)
+        .slice(-Math.max(1, Math.trunc(limit)));
+      setState({
+        key: subscriptionKey,
+        latest: history.at(-1) ?? null,
+        history,
+      });
+    };
 
     socket.on('connect', subscribe);
+    socket.on('strategy:snapshot', handleSnapshot);
     socket.on('strategy:signal', handleSignal);
     if (socket.connected) {
       subscribe();
@@ -98,10 +127,10 @@ export function useStrategySignal({
     return () => {
       active = false;
       socket.off('connect', subscribe);
+      socket.off('strategy:snapshot', handleSnapshot);
       socket.off('strategy:signal', handleSignal);
       if (socket.connected) {
-        const unsubscribe: StrategyUnsubscribeRequest = request;
-        socket.emit('strategy:unsubscribe', unsubscribe);
+        socket.emit('strategy:unsubscribe', unsubscribeRequest);
       }
     };
   }, [chartId, enabled, limit, pair, strategyId, subscriptionKey, timeframe]);

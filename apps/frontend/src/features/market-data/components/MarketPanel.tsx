@@ -1,6 +1,7 @@
 'use client';
 
 import { CandlestickChart as CandlestickIcon } from 'lucide-react';
+import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
@@ -45,7 +46,7 @@ export function MarketPanel({
   const strategy = useStrategySignal({
     chartId,
     enabled: strategyId !== null,
-    limit: 500,
+    limit: MAX_CANDLE_LIMIT,
     pair,
     strategyId: strategyId ?? '',
     timeframe,

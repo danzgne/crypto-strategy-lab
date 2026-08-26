@@ -86,9 +86,17 @@ async function subscribeStrategy(
         strategyId: request.strategyId,
         pair: request.pair,
         timeframe: request.timeframe,
+        ...(request.limit === undefined ? {} : { limit: request.limit }),
       },
       (update) => socket.emit('strategy:signal', update),
     );
+    socket.emit('strategy:snapshot', {
+      chartId: request.chartId,
+      strategyId: request.strategyId,
+      pair: request.pair.toUpperCase(),
+      timeframe: request.timeframe,
+      signals: subscription.history,
+    });
     let socketSubscriptions = subscriptions.get(socket.id);
     if (socketSubscriptions === undefined) {
       socketSubscriptions = new Map();
