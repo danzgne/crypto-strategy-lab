@@ -63,6 +63,28 @@ export function registerMarketDataGateway(
 
   socketServer.on('connection', (socket) => {
     logger.info({ socketId: socket.id }, 'Realtime client connected');
+    const subscriptionQueues = new Map<string, Promise<void>>();
+
+    const enqueueSubscriptionOperation = (
+      chartId: string,
+      operation: () => Promise<void>,
+    ): void => {
+      const previous = subscriptionQueues.get(chartId) ?? Promise.resolve();
+      const next = previous
+        .then(operation, operation)
+        .catch((error: unknown) => {
+          logger.error(
+            { err: error, chartId, socketId: socket.id },
+            'Market subscription operation failed',
+          );
+        });
+      subscriptionQueues.set(chartId, next);
+      void next.finally(() => {
+        if (subscriptionQueues.get(chartId) === next) {
+          subscriptionQueues.delete(chartId);
+        }
+      });
+    };
 
     socket.emit('market-data:status', {
       status: 'ready',
@@ -78,14 +100,16 @@ export function registerMarketDataGateway(
     });
 
     socket.on('market:subscribe', (request) => {
-      void subscribeSocket(
-        socket,
-        request,
-        marketDataService,
-        roomStates,
-        clientSubscriptions,
-        logger,
-        socketServer,
+      enqueueSubscriptionOperation(request.chartId, () =>
+        subscribeSocket(
+          socket,
+          request,
+          marketDataService,
+          roomStates,
+          clientSubscriptions,
+          logger,
+          socketServer,
+        ),
       );
     });
 
@@ -94,17 +118,29 @@ export function registerMarketDataGateway(
     });
 
     socket.on('market:unsubscribe', (request) => {
-      void unsubscribeSocket(
-        socket,
-        request,
-        roomStates,
-        clientSubscriptions,
-        logger,
+      enqueueSubscriptionOperation(request.chartId, () =>
+        unsubscribeSocket(
+          socket,
+          request,
+          roomStates,
+          clientSubscriptions,
+          logger,
+        ),
       );
     });
 
     socket.on('disconnect', (reason) => {
-      void unsubscribeAll(socket, roomStates, clientSubscriptions, logger);
+      void Promise.all([...subscriptionQueues.values()])
+        .then(() =>
+          unsubscribeAll(socket, roomStates, clientSubscriptions, logger),
+        )
+        .catch((error: unknown) => {
+          logger.error(
+            { err: error, socketId: socket.id },
+            'Market subscriptions could not be released',
+          );
+        })
+        .finally(() => subscriptionQueues.clear());
       logger.info(
         { socketId: socket.id, reason },
         'Realtime client disconnected',
@@ -220,6 +256,7 @@ async function subscribeSocket(
       roomState,
       normalizedRequest,
       marketDataService,
+      roomStates,
       socketServer,
     );
   }
@@ -282,10 +319,12 @@ async function initializeRoom(
   roomState: RoomState,
   request: MarketSubscribeRequest,
   marketDataService: MarketDataService,
+  roomStates: Map<string, RoomState>,
   socketServer: MarketDataSocketServer,
 ): Promise<void> {
   const subscription = await marketDataService.subscribe(request, {
     onCandle: (candle) => {
+      if (roomStates.get(roomState.room) !== roomState) return;
       if (!roomState.snapshotSent) return;
       socketServer.to(roomState.room).emit('market:candle', {
         pair: roomState.pair,
@@ -294,6 +333,7 @@ async function initializeRoom(
       });
     },
     onStatus: (status) => {
+      if (roomStates.get(roomState.room) !== roomState) return;
       roomState.status = status;
       socketServer.to(roomState.room).emit('market:status', {
         pair: roomState.pair,

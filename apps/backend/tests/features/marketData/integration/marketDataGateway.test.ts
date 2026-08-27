@@ -4,13 +4,18 @@ import type {
   Candle,
   CandleQuery,
   ClientToServerEvents,
+  MarketSubscribeRequest,
+  MarketSubscriptionStatus,
   ServerToClientEvents,
 } from '@crypto-strategy-lab/shared';
 import { io as createClient, type Socket } from 'socket.io-client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ExchangeAdapter } from '@/api/features/marketData/application/interfaces/exchangeAdapter.interface';
-import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import {
+  MarketDataService,
+  type MarketDataSubscriptionHandlers,
+} from '@/api/features/marketData/application/services/marketDataService';
 import { createSocketServer } from '@/realtime/socketServer';
 import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
@@ -422,5 +427,175 @@ describe('market-data realtime gateway', () => {
         indicators: { MA_20: 10.1, MA_50: 10.04 },
       },
     });
+  });
+
+  it('ignores a late status callback from a released timeframe room', async () => {
+    type PendingRoot = {
+      handlers: MarketDataSubscriptionHandlers;
+      request: MarketSubscribeRequest;
+      resolve: () => void;
+      unsubscribe: ReturnType<typeof vi.fn>;
+    };
+
+    const makeCandle = (
+      timeframe: MarketSubscribeRequest['timeframe'],
+    ): Candle => ({
+      pair: 'BTCUSDT',
+      timeframe,
+      openTime: 1_756_000_000_000,
+      closeTime: 1_756_000_059_999,
+      open: 100,
+      high: 101,
+      low: 99,
+      close: 100.5,
+      volume: 10,
+      isClosed: false,
+    });
+    const roots: PendingRoot[] = [];
+    const clientUnsubscribes: Array<ReturnType<typeof vi.fn>> = [];
+    const subscribe = vi.fn(
+      async (
+        request: MarketSubscribeRequest,
+        handlers?: MarketDataSubscriptionHandlers,
+      ) => {
+        const candles = [makeCandle(request.timeframe)];
+        if (handlers !== undefined) {
+          let resolveRoot: () => void = () => undefined;
+          const ready = new Promise<void>((resolve) => {
+            resolveRoot = resolve;
+          });
+          const root: PendingRoot = {
+            handlers,
+            request,
+            resolve: resolveRoot,
+            unsubscribe: vi.fn().mockResolvedValue(undefined),
+          };
+          roots.push(root);
+          await ready;
+          return { candles, unsubscribe: root.unsubscribe };
+        }
+
+        const unsubscribe = vi.fn().mockResolvedValue(undefined);
+        clientUnsubscribes.push(unsubscribe);
+        return { candles, unsubscribe };
+      },
+    );
+    const marketDataService = {
+      loadHistoryBefore: vi.fn(),
+      subscribe,
+    } as unknown as MarketDataService;
+    const httpServer = createServer();
+    const socketServer = createSocketServer(httpServer, {
+      allowedOrigin: 'http://localhost:3000',
+      marketDataService,
+      sessionMiddleware: (req, _res, next) => {
+        Object.assign(req, {
+          session: { userId: 'mock-user-id' },
+        });
+        next();
+      },
+    });
+
+    await new Promise<void>((resolve) => httpServer.listen(0, resolve));
+    const address = httpServer.address();
+    if (address === null || typeof address === 'string') {
+      throw new Error(
+        'Expected the test server to listen on an ephemeral port',
+      );
+    }
+
+    const client: Socket<ServerToClientEvents, ClientToServerEvents> =
+      createClient(`http://127.0.0.1:${address.port}`, {
+        transports: ['websocket'],
+      });
+    const statuses: MarketSubscriptionStatus[] = [];
+    client.on('market:status', (status) => statuses.push(status));
+    closeCallbacks.push(async () => {
+      client.disconnect();
+      await socketServer.close();
+      await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+    });
+
+    await new Promise<void>((resolve) => client.once('connect', resolve));
+
+    const firstSnapshot = new Promise<void>((resolve) =>
+      client.once('market:snapshot', () => resolve()),
+    );
+    client.emit('market:subscribe', {
+      chartId: 'chart-race',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+    });
+    await vi.waitFor(() => expect(roots).toHaveLength(1));
+    roots[0]?.handlers.onStatus?.('LIVE');
+    roots[0]?.resolve();
+    await firstSnapshot;
+    await vi.waitFor(() =>
+      expect(
+        statuses.some(
+          (status) => status.timeframe === '1m' && status.status === 'LIVE',
+        ),
+      ).toBe(true),
+    );
+
+    client.emit('market:unsubscribe', {
+      chartId: 'chart-race',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+    });
+    await vi.waitFor(() => expect(clientUnsubscribes[0]).toHaveBeenCalled());
+    await vi.waitFor(() => expect(roots[0]?.unsubscribe).toHaveBeenCalled());
+
+    const secondSnapshot = new Promise<void>((resolve) =>
+      client.once('market:snapshot', () => resolve()),
+    );
+    client.emit('market:subscribe', {
+      chartId: 'chart-race',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+    await vi.waitFor(() => expect(roots).toHaveLength(2));
+    roots[1]?.handlers.onStatus?.('LIVE');
+    roots[1]?.resolve();
+    await secondSnapshot;
+
+    client.emit('market:unsubscribe', {
+      chartId: 'chart-race',
+      pair: 'BTCUSDT',
+      timeframe: '5m',
+    });
+    await vi.waitFor(() => expect(clientUnsubscribes[1]).toHaveBeenCalled());
+    await vi.waitFor(() => expect(roots[1]?.unsubscribe).toHaveBeenCalled());
+
+    const finalSnapshot = new Promise<void>((resolve) =>
+      client.once('market:snapshot', () => resolve()),
+    );
+    client.emit('market:subscribe', {
+      chartId: 'chart-race',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+    });
+    await vi.waitFor(() => expect(roots).toHaveLength(3));
+    roots[2]?.handlers.onStatus?.('LIVE');
+    roots[2]?.resolve();
+    await finalSnapshot;
+    await vi.waitFor(() =>
+      expect(
+        statuses.filter(
+          (status) => status.timeframe === '1m' && status.status === 'LIVE',
+        ),
+      ).toHaveLength(4),
+    );
+
+    const candlePromise = new Promise<void>((resolve) =>
+      client.once('market:candle', () => resolve()),
+    );
+    roots[0]?.handlers.onStatus?.('RECONNECTING');
+    roots[2]?.handlers.onCandle?.(makeCandle('1m'));
+    await candlePromise;
+
+    expect(
+      statuses.filter((status) => status.timeframe === '1m').at(-1)?.status,
+    ).toBe('LIVE');
   });
 });
