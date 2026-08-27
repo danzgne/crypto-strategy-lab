@@ -12,16 +12,19 @@ COPY apps/backend/package.json apps/backend/package.json
 COPY apps/backtest-worker/package.json apps/backtest-worker/package.json
 COPY apps/frontend/package.json apps/frontend/package.json
 COPY packages/shared/package.json packages/shared/package.json
+COPY packages/strategy-engine/package.json packages/strategy-engine/package.json
 RUN pnpm install --frozen-lockfile
 
 FROM dependencies AS build
 COPY tsconfig.base.json eslint.config.mjs prisma.config.ts ./
 COPY prisma prisma
 COPY packages/shared packages/shared
+COPY packages/strategy-engine packages/strategy-engine
 COPY apps/backend apps/backend
 ENV DATABASE_URL=postgresql://build:build@localhost:5432/build
 RUN pnpm prisma:generate \
     && pnpm --filter @crypto-strategy-lab/shared build \
+    && pnpm --filter @crypto-strategy-lab/strategy-engine build \
     && pnpm --filter @crypto-strategy-lab/backend build \
     && pnpm --filter @crypto-strategy-lab/backend deploy --prod /opt/backend
 
