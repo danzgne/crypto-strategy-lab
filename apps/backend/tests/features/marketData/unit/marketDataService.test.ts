@@ -3,6 +3,7 @@ import type {
   CandleQuery,
   CandleUpdateMetadata,
 } from '@crypto-strategy-lab/shared';
+import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExchangeAdapter } from '../../../../src/api/features/marketData/application/interfaces/exchangeAdapter.interface';
@@ -112,5 +113,356 @@ describe('MarketDataService', () => {
 
     await subscription.unsubscribe();
     expect(closeStream).toHaveBeenCalledOnce();
+  });
+
+  it('reconnects with backoff, backfills from the previous closed candle, and emits overlap once', async () => {
+    vi.useFakeTimers();
+    try {
+      const recoveryClosedCandle: Candle = {
+        ...formingCandle,
+        close: 101.25,
+        isClosed: true,
+      };
+      const recoveryFormingCandle: Candle = {
+        ...recoveryClosedCandle,
+        openTime: recoveryClosedCandle.openTime + 60_000,
+        closeTime: recoveryClosedCandle.closeTime + 60_000,
+        open: 101.25,
+        high: 102,
+        low: 101,
+        close: 101.75,
+        volume: 14,
+        isClosed: false,
+      };
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const closeStream = vi.fn();
+      const fetchCandles = vi
+        .fn<ExchangeAdapter['fetchCandles']>()
+        .mockResolvedValueOnce([historyCandle, formingCandle])
+        .mockResolvedValueOnce([
+          historyCandle,
+          recoveryClosedCandle,
+          recoveryFormingCandle,
+        ]);
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles,
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers.push(handlers);
+          return closeStream;
+        }),
+      };
+      const candleRepository = {
+        upsertClosed: vi.fn().mockResolvedValue(undefined),
+      };
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository,
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 100 },
+        now: () => recoveryFormingCandle.closeTime,
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onCandle, onStatus },
+      );
+
+      streamHandlers[0]?.onStatus?.('RECONNECTING');
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: MAX_CANDLE_LIMIT,
+        startTime: historyCandle.openTime - 60_000,
+        endTime: expect.any(Number),
+      });
+      expect(exchangeAdapter.openKlineStream).toHaveBeenCalledTimes(2);
+      expect(onStatus).toHaveBeenCalledWith('RECONNECTING');
+      expect(onStatus).toHaveBeenLastCalledWith('LIVE');
+      expect(onCandle).toHaveBeenCalledTimes(2);
+      expect(onCandle).toHaveBeenNthCalledWith(1, recoveryClosedCandle);
+      expect(onCandle).toHaveBeenNthCalledWith(2, recoveryFormingCandle);
+
+      const recoveredSnapshot = await service.subscribe({
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      });
+      expect(recoveredSnapshot.candles).toEqual([
+        historyCandle,
+        recoveryClosedCandle,
+        recoveryFormingCandle,
+      ]);
+
+      await recoveredSnapshot.unsubscribe();
+      await subscription.unsubscribe();
+      expect(closeStream).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports live again when the current stream delivers a candle after a transient error', async () => {
+    vi.useFakeTimers();
+    try {
+      let streamHandlers:
+        Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi.fn(async (_query: CandleQuery) => [
+          historyCandle,
+          formingCandle,
+        ]),
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        }),
+      };
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 1_000, maxDelayMs: 1_000 },
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onCandle, onStatus },
+      );
+
+      streamHandlers?.onError?.(new Error('temporary exchange stream error'));
+      await streamHandlers?.onCandle?.(bufferedUpdate);
+
+      expect(onCandle).toHaveBeenCalledWith(bufferedUpdate);
+      expect(onStatus).toHaveBeenLastCalledWith('LIVE');
+
+      await subscription.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps confirmed candles and remains stale when recovery backfill fails', async () => {
+    vi.useFakeTimers();
+    try {
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const closeStream = vi.fn();
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi
+          .fn<ExchangeAdapter['fetchCandles']>()
+          .mockResolvedValueOnce([historyCandle])
+          .mockRejectedValueOnce(new Error('Binance unavailable')),
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers.push(handlers);
+          return closeStream;
+        }),
+      };
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m' },
+        { onCandle, onStatus },
+      );
+      streamHandlers[0]?.onStatus?.('RECONNECTING');
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(subscription.candles).toEqual([historyCandle]);
+      expect(onCandle).not.toHaveBeenCalled();
+      expect(onStatus).toHaveBeenLastCalledWith('STALE');
+
+      await subscription.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps stale status when a non-empty recovery response contains a candle gap', async () => {
+    vi.useFakeTimers();
+    try {
+      const gapCandle: Candle = {
+        ...historyCandle,
+        openTime: historyCandle.openTime + 120_000,
+        closeTime: historyCandle.closeTime + 120_000,
+        open: 102,
+        high: 103,
+        low: 101,
+        close: 102.5,
+        isClosed: true,
+      };
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi
+          .fn<ExchangeAdapter['fetchCandles']>()
+          .mockResolvedValueOnce([historyCandle])
+          .mockResolvedValueOnce([historyCandle, gapCandle]),
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers.push(handlers);
+          return () => undefined;
+        }),
+      };
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+        now: () => historyCandle.openTime + 120_000,
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m' },
+        { onCandle, onStatus },
+      );
+      streamHandlers[0]?.onStatus?.('RECONNECTING');
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(subscription.candles).toEqual([historyCandle]);
+      expect(onCandle).not.toHaveBeenCalled();
+      expect(onStatus).toHaveBeenLastCalledWith('STALE');
+
+      await subscription.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('fetches a requested time range in capped batches and deduplicates the result', async () => {
+    const interval = 60_000;
+    const startTime = 1_756_000_000_000;
+    const makeCandle = (index: number): Candle => ({
+      ...historyCandle,
+      openTime: startTime + index * interval,
+      closeTime: startTime + index * interval + interval - 1,
+      open: 100 + index,
+      high: 101 + index,
+      low: 99 + index,
+      close: 100.5 + index,
+      isClosed: true,
+    });
+    const firstBatch = Array.from({ length: MAX_CANDLE_LIMIT }, (_, index) =>
+      makeCandle(index),
+    );
+    const finalCandle = makeCandle(MAX_CANDLE_LIMIT);
+    const fetchCandles = vi
+      .fn<ExchangeAdapter['fetchCandles']>()
+      .mockResolvedValueOnce(firstBatch)
+      .mockResolvedValueOnce([finalCandle]);
+    const service = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles,
+        openKlineStream: vi.fn(() => () => undefined),
+      },
+      candleRepository: { upsertClosed: vi.fn().mockResolvedValue(undefined) },
+    });
+
+    const subscription = await service.subscribe({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: MAX_CANDLE_LIMIT,
+      startTime,
+      endTime: finalCandle.closeTime,
+    });
+
+    expect(fetchCandles).toHaveBeenCalledTimes(2);
+    expect(fetchCandles).toHaveBeenNthCalledWith(1, {
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: MAX_CANDLE_LIMIT,
+      startTime,
+      endTime: finalCandle.closeTime,
+    });
+    expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: MAX_CANDLE_LIMIT,
+      startTime: startTime + MAX_CANDLE_LIMIT * interval,
+      endTime: finalCandle.closeTime,
+    });
+    expect(subscription.candles).toHaveLength(MAX_CANDLE_LIMIT);
+    expect(subscription.candles.at(-1)).toEqual(finalCandle);
+    expect(
+      new Set(subscription.candles.map(({ openTime }) => openTime)).size,
+    ).toBe(MAX_CANDLE_LIMIT);
+
+    await subscription.unsubscribe();
+  });
+
+  it('loads candles before a chart boundary and merges them into the active market state', async () => {
+    const olderCandle: Candle = {
+      ...historyCandle,
+      openTime: historyCandle.openTime - 60_000,
+      closeTime: historyCandle.closeTime - 60_000,
+      open: 99,
+      high: 100,
+      low: 98,
+      close: 99.5,
+      volume: 9,
+    };
+    const fetchCandles = vi
+      .fn<ExchangeAdapter['fetchCandles']>()
+      .mockResolvedValueOnce([historyCandle])
+      .mockResolvedValueOnce([olderCandle]);
+    const candleRepository = {
+      upsertClosed: vi.fn().mockResolvedValue(undefined),
+    };
+    const service = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles,
+        openKlineStream: vi.fn(() => () => undefined),
+      },
+      candleRepository,
+    });
+
+    const subscription = await service.subscribe({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+    });
+    const loaded = await service.loadHistoryBefore(
+      {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      },
+      historyCandle.openTime,
+    );
+
+    expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+      endTime: historyCandle.openTime - 1,
+    });
+    expect(loaded).toEqual([olderCandle]);
+    const merged = await service.subscribe({
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      limit: 10,
+    });
+    expect(merged.candles).toEqual([olderCandle, historyCandle]);
+    expect(candleRepository.upsertClosed).toHaveBeenCalledWith(olderCandle);
+
+    await merged.unsubscribe();
+    await subscription.unsubscribe();
   });
 });

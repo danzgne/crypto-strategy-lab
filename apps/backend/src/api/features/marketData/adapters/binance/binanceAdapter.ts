@@ -3,6 +3,8 @@ import type {
   CandleQuery,
   CandleUpdateMetadata,
   MarketKey,
+  Pair,
+  Tick,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
 import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
@@ -11,6 +13,7 @@ import type {
   CloseExchangeStream,
   ExchangeAdapter,
   ExchangeStreamHandlers,
+  ExchangeTradeStreamHandlers,
 } from '../../application/interfaces/exchangeAdapter.interface';
 
 const DEFAULT_REST_BASE_URL = 'https://api.binance.com';
@@ -62,6 +65,11 @@ interface BinanceKlineMessage {
     e?: unknown;
     E?: unknown;
     s?: unknown;
+    t?: unknown;
+    p?: unknown;
+    q?: unknown;
+    T?: unknown;
+    m?: unknown;
     k?: {
       t?: unknown;
       T?: unknown;
@@ -180,6 +188,38 @@ export class BinanceAdapter implements ExchangeAdapter {
 
     return () => socket.close();
   }
+
+  public openTradeStream(
+    pairs: readonly Pair[],
+    handlers: ExchangeTradeStreamHandlers,
+  ): CloseExchangeStream {
+    const uniquePairs = uniqueMarketPairs(pairs);
+    if (uniquePairs.length === 0) {
+      return () => undefined;
+    }
+
+    const streams = uniquePairs
+      .map((pair) => `${pair.toLowerCase()}@trade`)
+      .join('/');
+    const separator = this.websocketBaseUrl.includes('?') ? '&' : '?';
+    const socket = this.createWebSocket(
+      `${this.websocketBaseUrl}${separator}streams=${streams}`,
+    );
+
+    socket.onopen = () => handlers.onStatus?.('LIVE');
+    socket.onerror = (error) => handlers.onError?.(error);
+    socket.onclose = () => handlers.onStatus?.('RECONNECTING');
+    socket.onmessage = (event) => {
+      const message = parseMessage(event.data);
+      const data = message?.data;
+      if (data?.e !== 'trade') return;
+
+      const tick = normalizeTrade(data);
+      if (tick !== null) handlers.onTick(tick);
+    };
+
+    return () => socket.close();
+  }
 }
 
 function normalizeRestKline(
@@ -241,6 +281,33 @@ function normalizeUpdateMetadata(
   return { exchangeEventTime: finiteNumber(exchangeEventTime, 'event time') };
 }
 
+function normalizeTrade(
+  data: NonNullable<BinanceKlineMessage['data']>,
+): Tick | null {
+  const pair = stringValue(data.s).toUpperCase();
+  const tradeId = stringValue(data.t);
+  if (
+    pair.length === 0 ||
+    tradeId.length === 0 ||
+    typeof data.m !== 'boolean'
+  ) {
+    return null;
+  }
+
+  try {
+    return {
+      pair,
+      tradeId,
+      time: finiteNumber(data.T ?? data.E, 'trade time'),
+      price: finiteNumber(data.p, 'trade price'),
+      quantity: finiteNumber(data.q, 'trade quantity'),
+      side: data.m === true ? 'SELL' : 'BUY',
+    };
+  } catch {
+    return null;
+  }
+}
+
 function finiteNumber(value: unknown, field: string): number {
   const number = Number(value);
   if (!Number.isFinite(number)) {
@@ -275,6 +342,16 @@ function uniqueMarketKeys(keys: readonly MarketKey[]): MarketKey[] {
   const seen = new Set<string>();
   return keys.filter((key) => {
     const normalized = `${key.pair.toUpperCase()}:${key.timeframe}`;
+    if (seen.has(normalized)) return false;
+    seen.add(normalized);
+    return true;
+  });
+}
+
+function uniqueMarketPairs(pairs: readonly Pair[]): Pair[] {
+  const seen = new Set<string>();
+  return pairs.filter((pair) => {
+    const normalized = pair.toUpperCase();
     if (seen.has(normalized)) return false;
     seen.add(normalized);
     return true;

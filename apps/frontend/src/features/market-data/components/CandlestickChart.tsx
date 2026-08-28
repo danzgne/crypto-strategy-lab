@@ -1,25 +1,108 @@
 'use client';
 
-import type { Candle, Timeframe } from '@crypto-strategy-lab/shared';
+import type {
+  Candle,
+  StrategySignalUpdate,
+  Timeframe,
+} from '@crypto-strategy-lab/shared';
+import { useEffect, useMemo, useRef } from 'react';
 
-interface CandlestickChartProperties {
+import {
+  defaultChartRenderer,
+  type FinancialChartData,
+  type FinancialChartInstance,
+  type FinancialChartRenderer,
+} from '../../../shared/charting';
+import { toMarketChartData } from '../charting/marketChartData';
+
+const CHART_HEIGHT = 320;
+
+export interface CandlestickChartProperties {
   candles: Candle[];
+  onRequestOlderHistory?: () => void;
   pair: string;
+  renderer?: FinancialChartRenderer;
+  strategySignals?: readonly StrategySignalUpdate[];
   timeframe: Timeframe;
 }
 
-const WIDTH = 800;
-const HEIGHT = 320;
-const PADDING = { top: 18, right: 16, bottom: 22, left: 16 };
-const MAX_VISIBLE_CANDLES = 72;
-
 export function CandlestickChart({
   candles,
+  onRequestOlderHistory,
   pair,
+  renderer = defaultChartRenderer,
+  strategySignals = [],
   timeframe,
 }: CandlestickChartProperties) {
-  const visibleCandles = candles.slice(-MAX_VISIBLE_CANDLES);
-  if (visibleCandles.length === 0) {
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const chartInstanceRef = useRef<FinancialChartInstance | null>(null);
+  const latestChartDataRef = useRef<FinancialChartData | null>(null);
+  const renderedChartDataRef = useRef<FinancialChartData | null>(null);
+  const requestOlderHistoryRef = useRef(onRequestOlderHistory);
+  const chartData = useMemo(
+    () => toMarketChartData(candles, strategySignals),
+    [candles, strategySignals],
+  );
+  const hasData = chartData.candles.length > 0;
+
+  useEffect(() => {
+    latestChartDataRef.current = chartData;
+  }, [chartData]);
+
+  useEffect(() => {
+    requestOlderHistoryRef.current = onRequestOlderHistory;
+  }, [onRequestOlderHistory]);
+
+  useEffect(() => {
+    if (!hasData) return;
+    const container = chartContainerRef.current;
+    if (container === null) return;
+
+    const rendererOptions =
+      onRequestOlderHistory === undefined
+        ? { height: CHART_HEIGHT }
+        : {
+            height: CHART_HEIGHT,
+            onReachedHistoryBoundary: () => requestOlderHistoryRef.current?.(),
+          };
+    const chartInstance = renderer.mount(container, rendererOptions);
+    chartInstanceRef.current = chartInstance;
+    const initialChartData = latestChartDataRef.current;
+    if (initialChartData !== null) {
+      chartInstance.setData(initialChartData);
+      renderedChartDataRef.current = initialChartData;
+    }
+    chartInstance.resize();
+
+    const handleResize = (): void => chartInstance.resize();
+    const resizeObserver =
+      typeof ResizeObserver === 'undefined'
+        ? null
+        : new ResizeObserver(handleResize);
+    resizeObserver?.observe(container);
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      resizeObserver?.disconnect();
+      window.removeEventListener('resize', handleResize);
+      chartInstance.destroy();
+      renderedChartDataRef.current = null;
+      if (chartInstanceRef.current === chartInstance) {
+        chartInstanceRef.current = null;
+      }
+    };
+  }, [hasData, onRequestOlderHistory, pair, renderer, timeframe]);
+
+  useEffect(() => {
+    const chartInstance = chartInstanceRef.current;
+    if (chartInstance === null || renderedChartDataRef.current === chartData) {
+      return;
+    }
+    chartInstance.setData(chartData);
+    renderedChartDataRef.current = chartData;
+  }, [chartData]);
+
+  if (chartData.candles.length === 0) {
     return (
       <div
         aria-label={`${pair} ${timeframe} candlestick chart`}
@@ -32,122 +115,16 @@ export function CandlestickChart({
     );
   }
 
-  const high = Math.max(...visibleCandles.map((candle) => candle.high));
-  const low = Math.min(...visibleCandles.map((candle) => candle.low));
-  const range = Math.max(high - low, Number.EPSILON);
-  const plotWidth = WIDTH - PADDING.left - PADDING.right;
-  const plotHeight = HEIGHT - PADDING.top - PADDING.bottom;
-  const slotWidth = plotWidth / visibleCandles.length;
-  const candleWidth = Math.max(3, slotWidth * 0.64);
-
+  const lastCandle = chartData.candles.at(-1);
   return (
-    <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-950 p-2 shadow-inner">
-      <svg
-        aria-label={`${pair} ${timeframe} live candlestick chart`}
-        className="h-80 w-full"
-        data-candle-count={visibleCandles.length}
-        data-testid="candlestick-chart"
-        preserveAspectRatio="none"
-        role="img"
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-      >
-        <defs>
-          <linearGradient id="chart-background" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="#172554" stopOpacity="0.55" />
-            <stop offset="100%" stopColor="#020617" stopOpacity="0.9" />
-          </linearGradient>
-        </defs>
-        <rect
-          fill="url(#chart-background)"
-          height={HEIGHT}
-          rx="12"
-          width={WIDTH}
-        />
-        {[0, 1, 2, 3, 4].map((step) => {
-          const y = PADDING.top + (plotHeight / 4) * step;
-          return (
-            <line
-              key={`horizontal-grid-${step}`}
-              stroke="#334155"
-              strokeDasharray="4 8"
-              strokeOpacity="0.65"
-              x1={PADDING.left}
-              x2={WIDTH - PADDING.right}
-              y1={y}
-              y2={y}
-            />
-          );
-        })}
-        {visibleCandles.map((candle, index) => {
-          const x = PADDING.left + slotWidth * index + slotWidth / 2;
-          const openY = priceToY(candle.open, low, range, plotHeight);
-          const closeY = priceToY(candle.close, low, range, plotHeight);
-          const highY = priceToY(candle.high, low, range, plotHeight);
-          const lowY = priceToY(candle.low, low, range, plotHeight);
-          const rising = candle.close >= candle.open;
-          const color = rising ? '#34d399' : '#fb7185';
-          const bodyTop = Math.min(openY, closeY);
-          const bodyHeight = Math.max(2, Math.abs(closeY - openY));
-
-          return (
-            <g
-              data-forming={candle.isClosed ? undefined : 'true'}
-              data-open-time={candle.openTime}
-              key={`${candle.openTime}-${candle.closeTime}`}
-            >
-              <title>
-                {`${new Date(candle.openTime).toISOString()} close ${candle.close}`}
-              </title>
-              <line
-                stroke={color}
-                strokeLinecap="round"
-                strokeWidth="2"
-                x1={x}
-                x2={x}
-                y1={highY}
-                y2={lowY}
-              />
-              <rect
-                fill={rising ? '#10b981' : '#f43f5e'}
-                height={bodyHeight}
-                rx="1.5"
-                stroke={color}
-                strokeWidth="1"
-                width={candleWidth}
-                x={x - candleWidth / 2}
-                y={bodyTop}
-              />
-            </g>
-          );
-        })}
-        <text
-          fill="#94a3b8"
-          fontSize="12"
-          fontWeight="600"
-          x={PADDING.left}
-          y={HEIGHT - 7}
-        >
-          {pair} · {timeframe}
-        </text>
-        <text
-          fill="#64748b"
-          fontSize="11"
-          textAnchor="end"
-          x={WIDTH - PADDING.right}
-          y={HEIGHT - 7}
-        >
-          {visibleCandles.at(-1)?.isClosed ? 'closed' : 'forming'}
-        </text>
-      </svg>
-    </div>
+    <div
+      ref={chartContainerRef}
+      aria-label={`${pair} ${timeframe} live candlestick chart`}
+      className="h-80 overflow-hidden rounded-xl border border-slate-200 bg-white p-2 shadow-inner"
+      data-candle-count={chartData.candles.length}
+      data-forming={lastCandle?.isClosed ? undefined : 'true'}
+      data-testid="candlestick-chart"
+      role="img"
+    />
   );
-}
-
-function priceToY(
-  price: number,
-  low: number,
-  range: number,
-  plotHeight: number,
-): number {
-  return PADDING.top + (1 - (Math.max(low, price) - low) / range) * plotHeight;
 }

@@ -47,3 +47,4 @@ jobs:
       - run: pnpm prisma:migrate:deploy
       - run: pnpm check
       - run: docker compose config --quiet
+      - run: docker compose build

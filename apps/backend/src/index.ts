@@ -1,9 +1,11 @@
 import { createServer } from 'node:http';
 
 import { config as loadEnvironment } from 'dotenv';
+import '@crypto-strategy-lab/strategy-engine/strategies';
 
 import { BinanceAdapter } from '@/api/features/marketData/adapters/binance/binanceAdapter';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import { MarketTickService } from '@/api/features/marketData/application/services/marketTickService';
 import { PrismaCandleRepository } from '@/api/features/marketData/repositories/prismaCandleRepository';
 import { PrismaHealthRepository } from '@/api/features/health/repositories/prismaHealthRepository';
 import { HealthService } from '@/api/features/health/services/healthService';
@@ -15,6 +17,7 @@ import { createAppLogger } from '@/utils/logger';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
 import { PrismaAuthRepository, PasswordAuthService } from '@/api/features/auth';
+import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -30,13 +33,23 @@ async function startBackend(): Promise<void> {
     level: config.logLevel,
   });
   const prisma = createPrismaClient(config.databaseUrl);
+  const eventBus = new InMemoryDomainEventBus();
   const healthRepository = new PrismaHealthRepository(prisma);
   const healthService = new HealthService(healthRepository);
+  const exchangeAdapter = new BinanceAdapter();
   const marketDataService = new MarketDataService({
-    exchangeAdapter: new BinanceAdapter(),
+    exchangeAdapter,
     candleRepository: new PrismaCandleRepository(prisma),
-    eventPublisher: new InMemoryDomainEventBus(),
+    eventPublisher: eventBus,
     logger,
+  });
+  const marketTickService = new MarketTickService({
+    exchangeAdapter,
+    logger,
+  });
+  const strategyLiveService = new StrategyLiveService({
+    eventBus,
+    marketDataService,
   });
 
   const authRepository = new PrismaAuthRepository(prisma);
@@ -74,6 +87,9 @@ async function startBackend(): Promise<void> {
     sessionMiddleware,
     logger,
     marketDataService,
+    marketDataSource: 'Binance API + WebSocket',
+    marketTickService,
+    strategyLiveService,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -92,7 +108,9 @@ async function startBackend(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Backend shutdown started');
 
+    await strategyLiveService.close();
     await marketDataService.close();
+    await marketTickService.close();
     await socketServer.close();
     if (httpServer.listening) {
       await new Promise<void>((resolve, reject) => {

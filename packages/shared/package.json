@@ -5,7 +5,10 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./market-data": "./src/marketData/candle.ts"
+    "./indicators": "./src/indicators/index.ts",
+    "./market-data": "./src/marketData/candle.ts",
+    "./market-data/tick": "./src/marketData/tick.ts",
+    "./strategy": "./src/strategy/index.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

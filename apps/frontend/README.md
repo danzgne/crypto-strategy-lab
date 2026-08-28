@@ -50,6 +50,26 @@ shared ────────→ packages/shared
   them separately from `server.ts` and protect their implementation with `server-only`.
 - Do not build one wildcard barrel that exports the whole frontend. Keep public feature exports small and explicit.
 
+### Chart renderer seam
+
+The market-data feature owns the mapping from `Candle` and strategy signal contracts to neutral financial chart
+data. It depends on `FinancialChartRenderer`, not on a vendor chart API. The default
+`lightweightChartsRenderer` adapter is the only module that imports `lightweight-charts`; it has no Socket.IO,
+Binance, backend-service, repository, or Strategy Registry dependency and performs no network access.
+
+`MarketDataDashboard`, `MarketPanel`, and `CandlestickChart` accept an optional renderer for future product areas
+and tests. This keeps chart lifecycle and vendor-specific series configuration behind one deep interface while
+leaving market subscriptions and strategy execution in their existing modules. When the renderer reaches the oldest
+loaded logical range, it reports a neutral boundary callback; the market-data hook then requests older candles through
+the typed Market Data Service transport. Strategy indicator history arrives from the backend as an initial
+`strategy:snapshot`; subsequent closed candles arrive as `strategy:signal`, and both are mapped to the same neutral
+chart data. The realtime dashboard's right rail composes the compact connection-status card and a Recent Ticks card.
+The connection card refreshes its round-trip latency and server time through a guarded five-second Socket.IO
+heartbeat, while its last-data timestamp updates when normalized candle or tick events arrive. Its source label is
+provided by the backend composition root, so the frontend remains exchange-agnostic. The Recent Ticks card consumes
+normalized trade events through `useRecentTicks`; it does not derive or synthesize ticks from candle updates. See
+[`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
+
 ## Route composition
 
 Pages stay thin and use feature modules:
@@ -187,12 +207,16 @@ apps/frontend/
 │   │   │   └── server.ts
 │   │   ├── market-data/
 │   │   │   ├── api/
+│   │   │   ├── charting/
+│   │   │   │   └── marketChartData.ts  # Candle/signals → neutral chart data
 │   │   │   ├── components/
 │   │   │   │   ├── MarketDataDashboard.tsx
 │   │   │   │   ├── RealtimeConnectionPanel.tsx
-│   │   │   │   └── candlestickChart.client.tsx
+│   │   │   │   ├── RecentTicksCard.tsx
+│   │   │   │   └── CandlestickChart.tsx
 │   │   │   ├── hooks/
 │   │   │   │   ├── useRealtimeConnection.ts
+│   │   │   │   ├── useRecentTicks.ts
 │   │   │   │   └── useMarketSubscription.ts
 │   │   │   ├── state/
 │   │   │   ├── types/
@@ -205,6 +229,10 @@ apps/frontend/
 │   │   └── news/
 │   │
 │   └── shared/
+│       ├── charting/
+│       │   ├── chartRenderer.ts       # Vendor-neutral renderer interface
+│       │   ├── lightweightChartsRenderer.ts
+│       │   └── defaultChartRenderer.ts
 │       ├── api/
 │       │   ├── apiError.ts
 │       │   ├── browserHttpClient.ts

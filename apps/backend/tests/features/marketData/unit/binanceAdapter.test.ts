@@ -127,4 +127,47 @@ describe('BinanceAdapter', () => {
     close();
     expect(socket.close).toHaveBeenCalledOnce();
   });
+
+  it('normalizes Binance trade stream messages into recent ticks', () => {
+    const socket = new FakeWebSocket();
+    const createWebSocket = vi.fn(() => socket);
+    const onTick = vi.fn();
+    const adapter = new BinanceAdapter({
+      createWebSocket,
+      websocketBaseUrl: 'wss://binance.test/stream',
+    });
+
+    const close = adapter.openTradeStream?.(['btcusdt', 'BTCUSDT'], { onTick });
+
+    socket.onmessage?.({
+      data: JSON.stringify({
+        stream: 'btcusdt@trade',
+        data: {
+          e: 'trade',
+          E: 1_756_000_300_123,
+          s: 'BTCUSDT',
+          t: 12345,
+          p: '81049.99',
+          q: '0.012',
+          T: 1_756_000_300_100,
+          m: true,
+        },
+      }),
+    });
+
+    expect(createWebSocket).toHaveBeenCalledWith(
+      'wss://binance.test/stream?streams=btcusdt@trade',
+    );
+    expect(onTick).toHaveBeenCalledWith({
+      pair: 'BTCUSDT',
+      tradeId: '12345',
+      time: 1_756_000_300_100,
+      price: 81049.99,
+      quantity: 0.012,
+      side: 'SELL',
+    });
+
+    close?.();
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
 });

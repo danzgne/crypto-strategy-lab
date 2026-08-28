@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "build": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/backend build && pnpm --filter @crypto-strategy-lab/backtest-worker build && pnpm --filter @crypto-strategy-lab/frontend build",
+    "build": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/strategy-engine build && pnpm --filter @crypto-strategy-lab/backend build && pnpm --filter @crypto-strategy-lab/backtest-worker build && pnpm --filter @crypto-strategy-lab/frontend build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "dev": "pnpm prisma:generate && pnpm --parallel --stream --filter @crypto-strategy-lab/backend --filter @crypto-strategy-lab/backtest-worker --filter @crypto-strategy-lab/frontend dev",
     "dev:backend": "pnpm --filter @crypto-strategy-lab/backend dev",
@@ -22,7 +22,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
     "test": "pnpm prisma:generate && pnpm --recursive --if-present test",
-    "typecheck": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --recursive --if-present typecheck"
+    "typecheck": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/strategy-engine build && pnpm --recursive --if-present typecheck"
   },
   "dependencies": {
     "@prisma/client": "^7.9.1"

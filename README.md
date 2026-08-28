@@ -45,9 +45,11 @@ pnpm prisma:migrate:deploy
 pnpm dev
 ```
 
-Open <http://localhost:3000>. The connection badge becomes **Transport live** only after the browser receives a
-Socket.IO ping acknowledgement from the backend. `pnpm dev` starts all three applications together; when working
-on one application, use `pnpm dev:backend`, `pnpm dev:worker`, or `pnpm dev:frontend` instead.
+Open <http://localhost:3000>. The connection badge becomes **Connected** only after the browser receives a Socket.IO
+ping acknowledgement from the backend. The card refreshes round-trip latency and server time every five seconds and
+shows the configured market-data source plus the latest received market event. `pnpm dev` starts all three
+applications together; when working on one application, use `pnpm dev:backend`, `pnpm dev:worker`, or
+`pnpm dev:frontend` instead.
 
 ## Full local stack with Docker Compose
 
@@ -133,20 +135,45 @@ Next.js dashboard
   → BinanceAdapter
   → Binance REST history + kline WebSocket
 
+Next.js dashboard
+  → Socket.IO client
+  → marketTickGateway
+  → MarketTickService
+  → BinanceAdapter
+  → Binance trade WebSocket
+
 MarketDataService
   → closed Candle upsert
   → PostgreSQL
 ```
 
-The browser receives only the normalized `Candle` contract. The adapter converts Binance payloads to UTC epoch-
-millisecond timestamps and canonical OHLCV fields. The service opens the upstream stream before fetching REST history,
-buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`, keeps the forming candle in memory,
-and upserts a candle only after it closes. Socket snapshots are private to the requesting chart; live candle updates
-are broadcast through the shared `market:<pair>:<timeframe>` room.
+The browser receives only normalized `Candle` and bounded recent `Tick` contracts. The adapter converts Binance
+payloads to UTC epoch-millisecond timestamps and canonical market-data fields. The candle service opens the upstream
+stream before fetching REST history, buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`,
+keeps the forming candle in memory, and upserts a candle only after it closes. Socket snapshots are private to the
+requesting chart; live candle updates are broadcast through the shared `market:<pair>:<timeframe>` room. Multiple
+panels watching the same key share one reference-counted service state and upstream stream. On stream loss, the
+service reconnects with capped backoff and backfills from the previous closed candle minus one interval before
+reporting `LIVE` again; failed reconciliation keeps confirmed candles and reports `STALE`.
+
+The separate tick service keeps a reference-counted, bounded in-memory window per pair, shares the upstream trade
+stream across clients, deduplicates exchange trade IDs, and broadcasts a private snapshot plus shared live updates to
+the dashboard's Recent Ticks card. Individual ticks are not persisted or synthesized from candles.
 
 ```text
 Frontend → Market Data Service → Exchange Adapter → Binance
 ```
+
+The chart is a separate frontend rendering module. The market-data feature maps normalized `Candle` and strategy
+signal contracts into neutral chart data, then passes that data through the `FinancialChartRenderer` interface.
+TradingView Lightweight Charts is the default renderer adapter; it owns only browser chart concerns such as series,
+volume, overlays, markers, resizing, and cleanup. It does not open sockets, call Binance, execute strategies, or
+depend on backend services. When the user pans to the oldest loaded candle, the renderer reports a neutral boundary
+callback and the market-data hook asks the Market Data Service for another history page. Replacing the renderer
+therefore does not change the service or strategy pipeline. Strategy overlays follow the same seam: the backend sends
+historical indicator points in one `strategy:snapshot`, then streams new closed-candle signals through
+`strategy:signal`; the browser never recomputes MA or calls an exchange. See
+[ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ### Domain event catalog
 
@@ -177,12 +204,18 @@ CI applies the committed Prisma migration to PostgreSQL before running the compl
 use asynchronous structured Pino output; direct `console.*` calls are prohibited by both repository policy and
 ESLint.
 
-## Issue #28 demo
+## Issue #29 demo
 
 1. Start Compose and open the dashboard.
-2. Confirm **Transport live** and a measured round-trip latency.
-3. Confirm the BTCUSDT 1m panel reaches **LIVE** and shows a candlestick snapshot.
-4. Watch the latest forming candle update before its `CandleClosed` event persists it.
-5. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
+2. Confirm **Connected**, a measured round-trip latency, and the right-rail **Recent Ticks** card updating from
+   normalized trade events.
+3. Confirm four BTCUSDT panels reach **LIVE**, with independent 1m/5m/15m/1h timeframe selectors and one global
+   pair selector.
+4. Set two panels to the same timeframe and confirm they continue receiving updates through one shared backend room.
+5. Watch the latest forming candle update before its `CandleClosed` event persists it.
+6. Pan, zoom, and inspect the interactive candlestick/volume chart; confirm strategy overlays and BUY/SELL markers
+   render from the existing normalized contracts.
+7. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
    bars.
-6. Stop and restart the backend to see the dashboard move from **RECONNECTING** back to **LIVE**.
+8. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
+   backfill to **LIVE**; a failed recovery remains **STALE** without inventing candles.
