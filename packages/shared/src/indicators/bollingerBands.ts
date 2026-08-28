@@ -3,7 +3,7 @@ import { simpleMovingAverage } from './simpleMovingAverage';
 export function calculateBollingerBands(
   closes: number[],
   period: number,
-  stdDevMultiplier: number
+  stdDevMultiplier: number,
 ): { upper: number; lower: number; middle: number } | undefined {
   if (closes.length < period || period <= 0) {
     return undefined;

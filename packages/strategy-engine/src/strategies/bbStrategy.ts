@@ -88,8 +88,16 @@ export class BBStrategy implements Strategy<ResolvedBBParams> {
     const currentCloses = currentCandles.map((c) => c.close);
     const previousCloses = currentCloses.slice(0, -1);
 
-    const currentBB = calculateBollingerBands(currentCloses, this.params.period, this.params.stdDev);
-    const previousBB = calculateBollingerBands(previousCloses, this.params.period, this.params.stdDev);
+    const currentBB = calculateBollingerBands(
+      currentCloses,
+      this.params.period,
+      this.params.stdDev,
+    );
+    const previousBB = calculateBollingerBands(
+      previousCloses,
+      this.params.period,
+      this.params.stdDev,
+    );
 
     if (!currentBB || !previousBB) {
       return { action: 'HOLD' as const };
@@ -108,7 +116,10 @@ export class BBStrategy implements Strategy<ResolvedBBParams> {
 
     if (previousClose >= previousBB.lower && currentClose < currentBB.lower) {
       action = 'BUY';
-    } else if (previousClose <= previousBB.upper && currentClose > currentBB.upper) {
+    } else if (
+      previousClose <= previousBB.upper &&
+      currentClose > currentBB.upper
+    ) {
       action = 'SELL';
     }
 
@@ -118,7 +129,7 @@ export class BBStrategy implements Strategy<ResolvedBBParams> {
 
 const createBBStrategy: StrategyFactory = Object.assign(
   (params?: unknown) => new BBStrategy(params as BBParams | undefined),
-  { paramsSchema: BBStrategy.paramsSchema }
+  { paramsSchema: BBStrategy.paramsSchema },
 );
 
 StrategyRegistry.register(BB_STRATEGY_ID, createBBStrategy);

@@ -100,7 +100,7 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
     }
 
     const { n, levelsTracked, tolerance } = this.params;
-    
+
     const supports: number[] = [];
     const resistances: number[] = [];
 
@@ -127,7 +127,10 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
         resistances.push(currentHigh);
       }
 
-      if (supports.length === levelsTracked && resistances.length === levelsTracked) {
+      if (
+        supports.length === levelsTracked &&
+        resistances.length === levelsTracked
+      ) {
         break;
       }
     }
@@ -165,7 +168,7 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
 
 const createSRStrategy: StrategyFactory = Object.assign(
   (params?: unknown) => new SRStrategy(params as SRParams | undefined),
-  { paramsSchema: SRStrategy.paramsSchema }
+  { paramsSchema: SRStrategy.paramsSchema },
 );
 
 StrategyRegistry.register(SR_STRATEGY_ID, createSRStrategy);

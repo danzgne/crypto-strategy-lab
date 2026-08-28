@@ -111,9 +111,15 @@ export class RSIStrategy implements Strategy<ResolvedRSIParams> {
 
     let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
-    if (previousRsi >= this.params.oversold && currentRsi < this.params.oversold) {
+    if (
+      previousRsi >= this.params.oversold &&
+      currentRsi < this.params.oversold
+    ) {
       action = 'BUY';
-    } else if (previousRsi <= this.params.overbought && currentRsi > this.params.overbought) {
+    } else if (
+      previousRsi <= this.params.overbought &&
+      currentRsi > this.params.overbought
+    ) {
       action = 'SELL';
     }
 
@@ -123,7 +129,7 @@ export class RSIStrategy implements Strategy<ResolvedRSIParams> {
 
 const createRSIStrategy: StrategyFactory = Object.assign(
   (params?: unknown) => new RSIStrategy(params as RSIParams | undefined),
-  { paramsSchema: RSIStrategy.paramsSchema }
+  { paramsSchema: RSIStrategy.paramsSchema },
 );
 
 StrategyRegistry.register(RSI_STRATEGY_ID, createRSIStrategy);

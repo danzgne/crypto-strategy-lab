@@ -1,10 +1,7 @@
-
 import { describe, expect, it } from 'vitest';
 
 import { MAStrategy } from '../src/strategies/maStrategy';
 import { makeContext } from './testUtils';
-
-
 
 describe('MAStrategy', () => {
   it('uses dual-SMA defaults and exposes risk parameters in its schema', () => {

@@ -97,21 +97,21 @@ export class WyckoffStrategy implements Strategy<ResolvedWyckoffParams> {
     }
 
     const { length, threshold, volumeRatio } = this.params;
-    
+
     // Window prior to the current candle
     const windowCandles = candles.slice(-(length + 1), -1);
     const currentCandle = candles[candles.length - 1];
 
     let maxHigh = -Infinity;
     let minLow = Infinity;
-    
+
     for (const c of windowCandles) {
       if (c.high > maxHigh) maxHigh = c.high;
       if (c.low < minLow) minLow = c.low;
     }
 
     const rangeWidth = (maxHigh - minLow) / minLow;
-    
+
     // Check volume
     const half = Math.floor(length / 2);
     let firstHalfVolume = 0;
@@ -130,7 +130,7 @@ export class WyckoffStrategy implements Strategy<ResolvedWyckoffParams> {
     }
 
     const currentVolRatio = secondHalfVolume / firstHalfVolume;
-    
+
     const indicators = {
       WYCKOFF_RANGE_TOP: maxHigh,
       WYCKOFF_RANGE_BOTTOM: minLow,
@@ -152,8 +152,9 @@ export class WyckoffStrategy implements Strategy<ResolvedWyckoffParams> {
 }
 
 const createWyckoffStrategy: StrategyFactory = Object.assign(
-  (params?: unknown) => new WyckoffStrategy(params as WyckoffParams | undefined),
-  { paramsSchema: WyckoffStrategy.paramsSchema }
+  (params?: unknown) =>
+    new WyckoffStrategy(params as WyckoffParams | undefined),
+  { paramsSchema: WyckoffStrategy.paramsSchema },
 );
 
 StrategyRegistry.register(WYCKOFF_STRATEGY_ID, createWyckoffStrategy);

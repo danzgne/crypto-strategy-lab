@@ -1,4 +1,7 @@
-export function calculateRSI(closes: number[], period: number): number | undefined {
+export function calculateRSI(
+  closes: number[],
+  period: number,
+): number | undefined {
   if (closes.length <= period || period <= 0) {
     return undefined;
   }
@@ -34,5 +37,5 @@ export function calculateRSI(closes: number[], period: number): number | undefin
   }
 
   const rs = avgGain / avgLoss;
-  return 100 - (100 / (1 + rs));
+  return 100 - 100 / (1 + rs);
 }

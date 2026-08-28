@@ -1,10 +1,7 @@
-
 import { describe, expect, it } from 'vitest';
 
 import { RSIStrategy } from '../src/strategies/rsiStrategy';
 import { makeContext } from './testUtils';
-
-
 
 describe('RSIStrategy', () => {
   it('instantiates with correct defaults', () => {
@@ -23,12 +20,16 @@ describe('RSIStrategy', () => {
   });
 
   it('can emit a signal when given exactly requiredHistory candles', () => {
-    const strategy = new RSIStrategy({ period: 2, oversold: 30, overbought: 70 });
+    const strategy = new RSIStrategy({
+      period: 2,
+      oversold: 30,
+      overbought: 70,
+    });
     // requiredHistory for period=2 is 4.
     // For RSI period=2, we need 4 candles.
     // Candle 0, 1, 2 -> calculate previous RSI.
     // Candle 0, 1, 2, 3 -> calculate current RSI.
-    
+
     // Let's create a drop to trigger BUY (oversold)
     // C0: 100, C1: 105, C2: 100 -> RSI is 50
     // C3: 50 -> RSI drops heavily < 30
@@ -38,7 +39,11 @@ describe('RSIStrategy', () => {
   });
 
   it('emits SELL when crossing above overbought', () => {
-    const strategy = new RSIStrategy({ period: 2, oversold: 30, overbought: 70 });
+    const strategy = new RSIStrategy({
+      period: 2,
+      oversold: 30,
+      overbought: 70,
+    });
     // C0: 100, C1: 100 (RSI 100)
     // C2: 110 (gain=10, loss=0 -> RSI 100)
     // C3: 150 (gain=40, loss=0 -> RSI 100 > 70)

@@ -90,11 +90,11 @@ export class SMCStrategy implements Strategy<ResolvedSMCParams> {
     let latestSwingHighIndex: number | null = null;
     let latestSwingLow: number | null = null;
     let latestSwingLowIndex: number | null = null;
-    
+
     // Order block: { lower: number, upper: number } price range
     let bullishOB: { lower: number; upper: number } | null = null;
     let bearishOB: { lower: number; upper: number } | null = null;
-    
+
     // We only care if the *current* candle is the FIRST retest.
     // So we need to track if it has been retested before the current candle.
     let bullishOBRetested = false;
@@ -127,7 +127,7 @@ export class SMCStrategy implements Strategy<ResolvedSMCParams> {
       }
 
       const currentClose = candles[i]!.close;
-      
+
       if (latestSwingHigh !== null && currentClose > latestSwingHigh) {
         const limitIndex = latestSwingLowIndex ?? 0;
         for (let k = i - 1; k >= limitIndex; k--) {
@@ -151,7 +151,7 @@ export class SMCStrategy implements Strategy<ResolvedSMCParams> {
         }
         latestSwingLow = null;
       }
-      
+
       if (bullishOB && !bullishOBRetested) {
         const candleLow = candles[i]!.low;
         const toleranceValue = bullishOB.upper * tolerance;
@@ -199,7 +199,7 @@ export class SMCStrategy implements Strategy<ResolvedSMCParams> {
 
 const createSMCStrategy: StrategyFactory = Object.assign(
   (params?: unknown) => new SMCStrategy(params as SMCParams | undefined),
-  { paramsSchema: SMCStrategy.paramsSchema }
+  { paramsSchema: SMCStrategy.paramsSchema },
 );
 
 StrategyRegistry.register(SMC_STRATEGY_ID, createSMCStrategy);

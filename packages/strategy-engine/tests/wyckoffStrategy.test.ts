@@ -19,13 +19,17 @@ describe('WyckoffStrategy', () => {
   });
 
   it('emits BUY on breakout from accumulation', () => {
-    const strategy = new WyckoffStrategy({ length: 4, threshold: 0.05, volumeRatio: 1.5 });
-    
+    const strategy = new WyckoffStrategy({
+      length: 4,
+      threshold: 0.05,
+      volumeRatio: 1.5,
+    });
+
     // length = 4. We need a range width <= 0.05.
     // e.g. min 100, max 104 -> width 0.04 <= 0.05.
     // volume ratio >= 1.5 (second half / first half).
     // first half = 2 candles, second half = 2 candles.
-    
+
     const customCandles = [
       { close: 100, volume: 10, high: 102, low: 99, open: 100 },
       { close: 102, volume: 10, high: 103, low: 100, open: 100 },
@@ -38,8 +42,12 @@ describe('WyckoffStrategy', () => {
       // Current candle breaks out (close > 104).
       { close: 110, volume: 50, high: 115, low: 105, open: 105 },
     ].map((c, i) => ({
-      pair: 'BTCUSDT' as const, timeframe: '1m' as const, openTime: i, closeTime: i, isClosed: true,
-      ...c
+      pair: 'BTCUSDT' as const,
+      timeframe: '1m' as const,
+      openTime: i,
+      closeTime: i,
+      isClosed: true,
+      ...c,
     }));
 
     // Fix the tight range
@@ -53,7 +61,18 @@ describe('WyckoffStrategy', () => {
     customCandles[3].high = 102;
     // maxHigh = 102, minLow = 100. Width = 2 / 100 = 0.02 <= 0.05.
 
-    const signal = strategy.analyze({ candles: customCandles, pair: 'BTCUSDT', timeframe: '1m', sentiment: { positive: 0, neutral: 0, negative: 0, score: 0, sampleSize: 0 } });
+    const signal = strategy.analyze({
+      candles: customCandles,
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      sentiment: {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        score: 0,
+        sampleSize: 0,
+      },
+    });
     expect(signal.action).toBe('BUY');
   });
 });

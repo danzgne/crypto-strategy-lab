@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { calculateBollingerBands, calculateRSI, simpleMovingAverage } from '../src/indicators';
+import {
+  calculateBollingerBands,
+  calculateRSI,
+  simpleMovingAverage,
+} from '../src/indicators';
 
 describe('Indicators', () => {
   describe('simpleMovingAverage', () => {
@@ -15,8 +19,8 @@ describe('Indicators', () => {
 
     it('calculates RSI correctly', () => {
       const closes = [
-        44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.10, 45.42,
-        45.84, 46.08, 45.89, 46.03, 45.61, 46.28, 46.28
+        44.34, 44.09, 44.15, 43.61, 44.33, 44.83, 45.1, 45.42, 45.84, 46.08,
+        45.89, 46.03, 45.61, 46.28, 46.28,
       ];
       const rsi = calculateRSI(closes, 14);
       expect(rsi).toBeCloseTo(70.46, 1);
@@ -34,7 +38,7 @@ describe('Indicators', () => {
       expect(bb?.middle).toBe(10);
       expect(bb?.upper).toBe(10);
       expect(bb?.lower).toBe(10);
-      
+
       const closes2 = [2, 4, 4, 4, 5, 5, 7, 9];
       const bb2 = calculateBollingerBands(closes2, 4, 2);
       expect(bb2?.middle).toBe(6.5);
