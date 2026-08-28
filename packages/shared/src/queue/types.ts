@@ -10,6 +10,6 @@ export interface Job {
 export interface IJobQueue {
   enqueue(experimentId: string, ownerId: string): Promise<string>;
   claim(workerId: string): Promise<Job | null>;
-  complete(jobId: string, result?: any): Promise<void>;
+  complete(jobId: string, result?: unknown): Promise<void>;
   fail(jobId: string, error: Error): Promise<void>;
 }

@@ -15,7 +15,7 @@ export class PostgresJobQueue implements IJobQueue {
     return job.id;
   }
 
-  async claim(workerId: string): Promise<Job | null> {
+  async claim(_workerId: string): Promise<Job | null> {
     const jobs = await this.prisma.$queryRaw<Job[]>`
       UPDATE backtest_jobs
       SET status = 'CLAIMED',
@@ -35,7 +35,7 @@ export class PostgresJobQueue implements IJobQueue {
     return jobs[0] || null;
   }
 
-  async complete(jobId: string, result?: any): Promise<void> {
+  async complete(jobId: string, _result?: unknown): Promise<void> {
     await this.prisma.backtestJob.update({
       where: { id: jobId },
       data: {
