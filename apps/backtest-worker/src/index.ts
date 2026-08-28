@@ -35,6 +35,7 @@ async function startWorker(): Promise<void> {
       database: {
         connect: () => prisma.$connect(),
         disconnect: () => prisma.$disconnect(),
+        client: prisma,
       },
       heartbeatRepository,
       logger,

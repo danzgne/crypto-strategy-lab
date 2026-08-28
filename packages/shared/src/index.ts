@@ -5,3 +5,4 @@ export * from './marketData/tick';
 export * from './realtime/transport';
 export * from './auth';
 export * from './strategy';
+export * from './queue';

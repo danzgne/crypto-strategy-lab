@@ -1,9 +1,13 @@
 import type { ServiceHeartbeatRepository } from '../repositories/interfaces/serviceHeartbeatRepository.interface';
 import type { AppLogger } from '../utils/logger';
+import { BacktestWorker } from './BacktestWorker';
+import { PostgresJobQueue } from '../queue/PostgresJobQueue';
+import type { WorkerPrismaClient } from '../database/prismaClient';
 
 export interface DatabaseConnection {
   connect(): Promise<void>;
   disconnect(): Promise<void>;
+  client?: WorkerPrismaClient; // Passed from index
 }
 
 export interface WorkerRuntimeConfig {
@@ -24,6 +28,7 @@ export async function runWorker(
 ): Promise<void> {
   const { database, heartbeatRepository, logger } = dependencies;
   let registered = false;
+  let worker: BacktestWorker | null = null;
 
   await database.connect();
 
@@ -44,10 +49,23 @@ export async function runWorker(
     }, config.heartbeatIntervalMs);
     heartbeatTimer.unref();
 
+    if (database.client) {
+      const queue = new PostgresJobQueue(database.client);
+      worker = new BacktestWorker(config.workerId, queue, logger);
+      worker.start().catch((err) => {
+        logger.error({ err }, 'Worker crashed');
+      });
+    } else {
+      logger.warn('No database client provided, BacktestWorker not started');
+    }
+
     try {
       await waitForAbort(signal);
     } finally {
       clearInterval(heartbeatTimer);
+      if (worker) {
+        worker.stop();
+      }
     }
   } finally {
     try {
