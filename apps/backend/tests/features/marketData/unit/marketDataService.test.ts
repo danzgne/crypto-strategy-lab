@@ -206,6 +206,48 @@ describe('MarketDataService', () => {
     }
   });
 
+  it('reports live again when the current stream delivers a candle after a transient error', async () => {
+    vi.useFakeTimers();
+    try {
+      let streamHandlers:
+        Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi.fn(async (_query: CandleQuery) => [
+          historyCandle,
+          formingCandle,
+        ]),
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        }),
+      };
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 1_000, maxDelayMs: 1_000 },
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onCandle, onStatus },
+      );
+
+      streamHandlers?.onError?.(new Error('temporary exchange stream error'));
+      await streamHandlers?.onCandle?.(bufferedUpdate);
+
+      expect(onCandle).toHaveBeenCalledWith(bufferedUpdate);
+      expect(onStatus).toHaveBeenLastCalledWith('LIVE');
+
+      await subscription.unsubscribe();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('keeps confirmed candles and remains stale when recovery backfill fails', async () => {
     vi.useFakeTimers();
     try {

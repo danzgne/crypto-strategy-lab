@@ -354,6 +354,7 @@ export class MarketDataService {
           state.recoveryBufferedUpdates.push({ candle, metadata });
           return;
         }
+        this.confirmStreamLive(state);
         return this.enqueueUpdate(state, () =>
           this.applyLiveCandle(state, candle, metadata),
         );
@@ -369,6 +370,7 @@ export class MarketDataService {
       },
       onStatus: (status) => {
         if (!this.isCurrentStream(state, generation)) return;
+        if (status !== 'LIVE') state.streamGeneration += 1;
         this.handleStreamStatus(state, status);
       },
     };
@@ -582,6 +584,18 @@ export class MarketDataService {
     state.recoveryRequested = true;
     this.updateStatus(state, status);
     if (state.ready) this.scheduleRecovery(state);
+  }
+
+  private confirmStreamLive(state: ActiveMarketDataState): void {
+    if (state.streamConnected) return;
+    state.streamConnected = true;
+    state.recoveryRequested = false;
+    state.reconnectAttempt = 0;
+    if (state.reconnectTimer !== undefined) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = undefined;
+    }
+    this.updateStatus(state, 'LIVE');
   }
 
   private scheduleRecovery(state: ActiveMarketDataState): void {
