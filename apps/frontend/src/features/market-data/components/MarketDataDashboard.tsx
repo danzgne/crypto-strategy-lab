@@ -6,7 +6,9 @@ import { useState } from 'react';
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
+import { useRecentTicks } from '../hooks/useRecentTicks';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
+import { RecentTicksCard } from './RecentTicksCard';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
 const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
@@ -27,6 +29,7 @@ export function MarketDataDashboard({
     null,
   );
   const strategyCatalog = useStrategyCatalog();
+  const recentTicks = useRecentTicks({ pair, limit: 5 });
 
   const changeTimeframe = (
     panelIndex: number,
@@ -138,11 +141,15 @@ export function MarketDataDashboard({
           </div>
         </section>
 
-        <aside
-          aria-label="Realtime connection details"
-          className="xl:pt-[3.25rem]"
-        >
+        <aside aria-label="Realtime market details" className="xl:pt-[3.25rem]">
           <RealtimeConnectionPanel />
+          <div className="mt-4">
+            <RecentTicksCard
+              loading={recentTicks.loading}
+              pair={pair}
+              ticks={recentTicks.ticks}
+            />
+          </div>
           <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-5">
             <p className="text-sm font-semibold text-blue-950">
               Scope boundary

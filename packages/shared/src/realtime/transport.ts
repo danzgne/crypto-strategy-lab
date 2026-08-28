@@ -1,4 +1,5 @@
 import type { Candle, MarketKey } from '../marketData/candle';
+import type { Tick } from '../marketData/tick';
 import type { Signal } from '../strategy/types';
 
 export interface MarketDataTransportStatus {
@@ -51,6 +52,25 @@ export interface MarketSubscriptionStatus extends MarketKey {
   detail?: string;
 }
 
+export interface MarketTicksSubscribeRequest {
+  pair: string;
+  limit?: number;
+}
+
+export interface MarketTicksUnsubscribeRequest {
+  pair: string;
+}
+
+export interface MarketTicksSnapshot {
+  pair: string;
+  ticks: Tick[];
+}
+
+export interface MarketTickUpdate {
+  pair: string;
+  tick: Tick;
+}
+
 export interface StrategySubscribeRequest extends MarketKey {
   chartId: string;
   strategyId: string;
@@ -81,6 +101,8 @@ export interface ServerToClientEvents {
   'market:history': (snapshot: MarketHistorySnapshot) => void;
   'market:candle': (update: MarketCandleUpdate) => void;
   'market:status': (status: MarketSubscriptionStatus) => void;
+  'market:ticks:snapshot': (snapshot: MarketTicksSnapshot) => void;
+  'market:tick': (update: MarketTickUpdate) => void;
   'strategy:catalog': (catalog: StrategyCatalog) => void;
   'strategy:snapshot': (snapshot: StrategySignalSnapshot) => void;
   'strategy:signal': (update: StrategySignalUpdate) => void;
@@ -94,6 +116,8 @@ export interface ClientToServerEvents {
   'market:subscribe': (request: MarketSubscribeRequest) => void;
   'market:history:request': (request: MarketHistoryRequest) => void;
   'market:unsubscribe': (request: MarketUnsubscribeRequest) => void;
+  'market:ticks:subscribe': (request: MarketTicksSubscribeRequest) => void;
+  'market:ticks:unsubscribe': (request: MarketTicksUnsubscribeRequest) => void;
   'strategy:catalog:request': () => void;
   'strategy:subscribe': (request: StrategySubscribeRequest) => void;
   'strategy:unsubscribe': (request: StrategyUnsubscribeRequest) => void;

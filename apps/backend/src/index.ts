@@ -5,6 +5,7 @@ import '@crypto-strategy-lab/strategy-engine/strategies';
 
 import { BinanceAdapter } from '@/api/features/marketData/adapters/binance/binanceAdapter';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
+import { MarketTickService } from '@/api/features/marketData/application/services/marketTickService';
 import { PrismaCandleRepository } from '@/api/features/marketData/repositories/prismaCandleRepository';
 import { PrismaHealthRepository } from '@/api/features/health/repositories/prismaHealthRepository';
 import { HealthService } from '@/api/features/health/services/healthService';
@@ -35,10 +36,15 @@ async function startBackend(): Promise<void> {
   const eventBus = new InMemoryDomainEventBus();
   const healthRepository = new PrismaHealthRepository(prisma);
   const healthService = new HealthService(healthRepository);
+  const exchangeAdapter = new BinanceAdapter();
   const marketDataService = new MarketDataService({
-    exchangeAdapter: new BinanceAdapter(),
+    exchangeAdapter,
     candleRepository: new PrismaCandleRepository(prisma),
     eventPublisher: eventBus,
+    logger,
+  });
+  const marketTickService = new MarketTickService({
+    exchangeAdapter,
     logger,
   });
   const strategyLiveService = new StrategyLiveService({
@@ -81,6 +87,7 @@ async function startBackend(): Promise<void> {
     sessionMiddleware,
     logger,
     marketDataService,
+    marketTickService,
     strategyLiveService,
   });
 
@@ -102,6 +109,7 @@ async function startBackend(): Promise<void> {
 
     await strategyLiveService.close();
     await marketDataService.close();
+    await marketTickService.close();
     await socketServer.close();
     if (httpServer.listening) {
       await new Promise<void>((resolve, reject) => {

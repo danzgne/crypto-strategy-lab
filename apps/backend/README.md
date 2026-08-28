@@ -118,6 +118,23 @@ closes the replacement stream, discards its unconfirmed updates, retains the las
 The service accepts an injected `ExchangeAdapter`, `CandleRepository`, and domain-event publisher, so unit tests do
 not connect to Binance and a future exchange adapter does not require gateway or frontend changes.
 
+Recent trades follow a separate market-data slice:
+
+```text
+market:ticks:subscribe
+  → marketTickGateway
+  → MarketTickService
+  → ExchangeAdapter.openTradeStream
+  → normalized Tick snapshot/update
+  → market:ticks:snapshot (requesting socket only)
+  → market:tick (market:ticks:<pair> room)
+```
+
+`MarketTickService` keeps a reference-counted, bounded in-memory window per pair. It shares one upstream trade stream
+across clients, reconnects it with capped backoff, deduplicates trade IDs, and never persists individual ticks. The
+gateway and service are independent of the candle subscription, while both consume the same swappable exchange
+adapter boundary.
+
 ## File structure
 
 ```text

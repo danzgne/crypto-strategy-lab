@@ -6,6 +6,7 @@ import type {
   UseMarketSubscriptionOptions,
 } from '../../../../src/features/market-data/hooks/useMarketSubscription';
 import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
+import type { RecentTicksState } from '../../../../src/features/market-data/hooks/useRecentTicks';
 
 vi.mock(
   '../../../../src/features/market-data/hooks/useMarketSubscription',
@@ -36,6 +37,14 @@ vi.mock(
   }),
 );
 
+vi.mock('../../../../src/features/market-data/hooks/useRecentTicks', () => ({
+  useRecentTicks: (): RecentTicksState => ({
+    ticks: [],
+    loading: false,
+    detail: 'Recent trade events updating live',
+  }),
+}));
+
 vi.mock(
   '../../../../src/features/market-data/hooks/useStrategyCatalog',
   () => ({
@@ -60,6 +69,7 @@ describe('MarketDataDashboard', () => {
     ).not.toBeChecked();
     expect(timeframeSelectors).toHaveLength(4);
     expect(screen.getByText('4 live panels')).toBeInTheDocument();
+    expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
     expect(
       screen.queryByRole('option', { name: '1d' }),
     ).not.toBeInTheDocument();

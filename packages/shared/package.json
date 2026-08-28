@@ -7,6 +7,7 @@
     ".": "./src/index.ts",
     "./indicators": "./src/indicators/index.ts",
     "./market-data": "./src/marketData/candle.ts",
+    "./market-data/tick": "./src/marketData/tick.ts",
     "./strategy": "./src/strategy/index.ts"
   },
   "scripts": {

@@ -63,7 +63,9 @@ leaving market subscriptions and strategy execution in their existing modules. W
 loaded logical range, it reports a neutral boundary callback; the market-data hook then requests older candles through
 the typed Market Data Service transport. Strategy indicator history arrives from the backend as an initial
 `strategy:snapshot`; subsequent closed candles arrive as `strategy:signal`, and both are mapped to the same neutral
-chart data. See
+chart data. The realtime dashboard's right rail composes the transport connection card and a Recent Ticks card. The
+latter consumes normalized trade events through `useRecentTicks`; it does not derive or synthesize ticks from candle
+updates. See
 [`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ## Route composition
@@ -208,9 +210,11 @@ apps/frontend/
 │   │   │   ├── components/
 │   │   │   │   ├── MarketDataDashboard.tsx
 │   │   │   │   ├── RealtimeConnectionPanel.tsx
+│   │   │   │   ├── RecentTicksCard.tsx
 │   │   │   │   └── CandlestickChart.tsx
 │   │   │   ├── hooks/
 │   │   │   │   ├── useRealtimeConnection.ts
+│   │   │   │   ├── useRecentTicks.ts
 │   │   │   │   └── useMarketSubscription.ts
 │   │   │   ├── state/
 │   │   │   ├── types/

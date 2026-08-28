@@ -10,6 +10,8 @@ import { Server, type Socket } from 'socket.io';
 
 import type { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
 import { registerMarketDataGateway } from '@/api/features/marketData/realtime/marketDataGateway';
+import type { MarketTickService } from '@/api/features/marketData/application/services/marketTickService';
+import { registerMarketTickGateway } from '@/api/features/marketData/realtime/marketTickGateway';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
 import { registerStrategyGateway } from '@/api/features/strategies/realtime/strategyGateway';
@@ -20,6 +22,7 @@ interface SocketServerOptions {
   sessionMiddleware: RequestHandler;
   logger?: AppLogger;
   marketDataService?: MarketDataService;
+  marketTickService?: MarketTickService;
   strategyLiveService?: StrategyLiveService;
 }
 
@@ -30,6 +33,7 @@ export function createSocketServer(
     sessionMiddleware,
     logger,
     marketDataService,
+    marketTickService,
     strategyLiveService,
   }: SocketServerOptions,
 ): Server<
@@ -82,6 +86,11 @@ export function createSocketServer(
     socketServer,
     logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
     marketDataService,
+  );
+  registerMarketTickGateway(
+    socketServer,
+    logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
+    marketTickService,
   );
   registerStrategyGateway(
     socketServer,

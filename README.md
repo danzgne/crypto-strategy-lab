@@ -133,19 +133,30 @@ Next.js dashboard
   → BinanceAdapter
   → Binance REST history + kline WebSocket
 
+Next.js dashboard
+  → Socket.IO client
+  → marketTickGateway
+  → MarketTickService
+  → BinanceAdapter
+  → Binance trade WebSocket
+
 MarketDataService
   → closed Candle upsert
   → PostgreSQL
 ```
 
-The browser receives only the normalized `Candle` contract. The adapter converts Binance payloads to UTC epoch-
-millisecond timestamps and canonical OHLCV fields. The service opens the upstream stream before fetching REST history,
-buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`, keeps the forming candle in memory,
-and upserts a candle only after it closes. Socket snapshots are private to the requesting chart; live candle updates
-are broadcast through the shared `market:<pair>:<timeframe>` room. Multiple panels watching the same key share one
-reference-counted service state and upstream stream. On stream loss, the service reconnects with capped backoff and
-backfills from the previous closed candle minus one interval before reporting `LIVE` again; failed reconciliation
-keeps confirmed candles and reports `STALE`.
+The browser receives only normalized `Candle` and bounded recent `Tick` contracts. The adapter converts Binance
+payloads to UTC epoch-millisecond timestamps and canonical market-data fields. The candle service opens the upstream
+stream before fetching REST history, buffers updates during the merge, deduplicates by `(pair, timeframe, openTime)`,
+keeps the forming candle in memory, and upserts a candle only after it closes. Socket snapshots are private to the
+requesting chart; live candle updates are broadcast through the shared `market:<pair>:<timeframe>` room. Multiple
+panels watching the same key share one reference-counted service state and upstream stream. On stream loss, the
+service reconnects with capped backoff and backfills from the previous closed candle minus one interval before
+reporting `LIVE` again; failed reconciliation keeps confirmed candles and reports `STALE`.
+
+The separate tick service keeps a reference-counted, bounded in-memory window per pair, shares the upstream trade
+stream across clients, deduplicates exchange trade IDs, and broadcasts a private snapshot plus shared live updates to
+the dashboard's Recent Ticks card. Individual ticks are not persisted or synthesized from candles.
 
 ```text
 Frontend → Market Data Service → Exchange Adapter → Binance
@@ -194,7 +205,8 @@ ESLint.
 ## Issue #29 demo
 
 1. Start Compose and open the dashboard.
-2. Confirm **Transport live** and a measured round-trip latency.
+2. Confirm **Transport live**, a measured round-trip latency, and the right-rail **Recent Ticks** card updating from
+   normalized trade events.
 3. Confirm four BTCUSDT panels reach **LIVE**, with independent 1m/5m/15m/1h timeframe selectors and one global
    pair selector.
 4. Set two panels to the same timeframe and confirm they continue receiving updates through one shared backend room.
