@@ -10,28 +10,37 @@ import {
 
 export type RealtimeSocket = AppSocket;
 
+export const REALTIME_HEARTBEAT_INTERVAL_MS = 5_000;
+
+const DEFAULT_DATA_SOURCE = 'Market Data Service';
+
 export interface RealtimeConnectionState {
   phase: 'connecting' | 'live' | 'reconnecting' | 'stale';
+  dataSource: string;
   latencyMs: number | null;
+  lastDataAt: string | null;
   serverTime: string | null;
   detail: string;
 }
 
 const INITIAL_STATE: RealtimeConnectionState = {
   phase: 'connecting',
+  dataSource: DEFAULT_DATA_SOURCE,
   latencyMs: null,
+  lastDataAt: null,
   serverTime: null,
   detail: 'Opening a secure realtime channel',
 };
 
 function unavailableConnection(
+  current: RealtimeConnectionState,
   phase: 'reconnecting' | 'stale',
   detail: string,
 ): RealtimeConnectionState {
   return {
+    ...current,
     phase,
     latencyMs: null,
-    serverTime: null,
     detail,
   };
 }
@@ -46,13 +55,21 @@ export function useRealtimeConnection(
   useEffect(() => {
     const socket = socketFactoryRef.current();
     let active = true;
+    let heartbeatInFlight = false;
+    let connectionEpoch = 0;
 
     const verifyRoundTrip = async (): Promise<void> => {
+      if (!active || !socket.connected || heartbeatInFlight) return;
+      heartbeatInFlight = true;
+      const heartbeatEpoch = connectionEpoch;
       const startedAt = performance.now();
       setConnection((current) => ({
         ...current,
-        phase: 'connecting',
-        detail: 'Verifying backend round trip',
+        phase: current.phase === 'live' ? 'live' : 'connecting',
+        detail:
+          current.phase === 'live'
+            ? 'Refreshing transport metrics'
+            : 'Verifying backend round trip',
       }));
 
       try {
@@ -63,38 +80,63 @@ export function useRealtimeConnection(
             clientSentAt: new Date().toISOString(),
           });
 
-        if (!active) return;
+        if (
+          !active ||
+          !socket.connected ||
+          heartbeatEpoch !== connectionEpoch
+        ) {
+          return;
+        }
         setConnection((current) => ({
+          ...current,
+          dataSource: pong.source ?? current.dataSource,
           phase: 'live',
           latencyMs: Math.max(0, Math.round(performance.now() - startedAt)),
-          serverTime: current.serverTime ?? pong.serverReceivedAt,
-          detail: 'Round trip verified',
+          serverTime: pong.serverReceivedAt,
+          detail: 'Transport heartbeat verified',
         }));
       } catch {
-        if (!active) return;
-        setConnection(
+        if (
+          !active ||
+          !socket.connected ||
+          heartbeatEpoch !== connectionEpoch
+        ) {
+          return;
+        }
+        setConnection((current) =>
           unavailableConnection(
+            current,
             'stale',
             'Backend did not acknowledge the transport ping',
           ),
         );
+      } finally {
+        heartbeatInFlight = false;
+        if (active && socket.connected && heartbeatEpoch !== connectionEpoch) {
+          void verifyRoundTrip();
+        }
       }
     };
 
     const handleConnect = (): void => {
+      connectionEpoch += 1;
       void verifyRoundTrip();
     };
     const handleDisconnect = (): void => {
-      setConnection(
+      connectionEpoch += 1;
+      setConnection((current) =>
         unavailableConnection(
+          current,
           'reconnecting',
           'Realtime transport disconnected; reconnecting',
         ),
       );
     };
     const handleConnectError = (): void => {
-      setConnection(
+      connectionEpoch += 1;
+      setConnection((current) =>
         unavailableConnection(
+          current,
           'reconnecting',
           'Backend is unavailable; reconnecting automatically',
         ),
@@ -103,7 +145,15 @@ export function useRealtimeConnection(
     const handleStatus = (status: MarketDataTransportStatus): void => {
       setConnection((current) => ({
         ...current,
+        dataSource: status.source ?? current.dataSource,
         serverTime: status.serverTime,
+      }));
+    };
+    const markDataReceived = (): void => {
+      if (!active) return;
+      setConnection((current) => ({
+        ...current,
+        lastDataAt: new Date().toISOString(),
       }));
     };
 
@@ -111,6 +161,12 @@ export function useRealtimeConnection(
     socket.on('disconnect', handleDisconnect);
     socket.on('connect_error', handleConnectError);
     socket.on('market-data:status', handleStatus);
+    socket.on('market:candle', markDataReceived);
+    socket.on('market:tick', markDataReceived);
+
+    const heartbeatTimer = setInterval(() => {
+      void verifyRoundTrip();
+    }, REALTIME_HEARTBEAT_INTERVAL_MS);
 
     if (socket.connected) {
       void verifyRoundTrip();
@@ -120,10 +176,14 @@ export function useRealtimeConnection(
 
     return () => {
       active = false;
+      connectionEpoch += 1;
+      clearInterval(heartbeatTimer);
       socket.off('connect', handleConnect);
       socket.off('disconnect', handleDisconnect);
       socket.off('connect_error', handleConnectError);
       socket.off('market-data:status', handleStatus);
+      socket.off('market:candle', markDataReceived);
+      socket.off('market:tick', markDataReceived);
       socket.disconnect();
     };
   }, []);

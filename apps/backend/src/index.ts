@@ -87,6 +87,7 @@ async function startBackend(): Promise<void> {
     sessionMiddleware,
     logger,
     marketDataService,
+    marketDataSource: 'Binance API + WebSocket',
     marketTickService,
     strategyLiveService,
   });

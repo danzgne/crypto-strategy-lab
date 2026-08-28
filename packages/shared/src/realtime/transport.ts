@@ -5,6 +5,7 @@ import type { Signal } from '../strategy/types';
 export interface MarketDataTransportStatus {
   status: 'ready';
   service: 'market-data-transport';
+  source?: string;
   serverTime: string;
 }
 
@@ -15,6 +16,7 @@ export interface MarketDataPing {
 
 export interface MarketDataPong extends MarketDataPing {
   serverReceivedAt: string;
+  source?: string;
 }
 
 export interface MarketSubscribeRequest extends MarketKey {

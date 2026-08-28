@@ -22,6 +22,7 @@ interface SocketServerOptions {
   sessionMiddleware: RequestHandler;
   logger?: AppLogger;
   marketDataService?: MarketDataService;
+  marketDataSource?: string;
   marketTickService?: MarketTickService;
   strategyLiveService?: StrategyLiveService;
 }
@@ -33,6 +34,7 @@ export function createSocketServer(
     sessionMiddleware,
     logger,
     marketDataService,
+    marketDataSource,
     marketTickService,
     strategyLiveService,
   }: SocketServerOptions,
@@ -86,6 +88,7 @@ export function createSocketServer(
     socketServer,
     logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
     marketDataService,
+    marketDataSource,
   );
   registerMarketTickGateway(
     socketServer,

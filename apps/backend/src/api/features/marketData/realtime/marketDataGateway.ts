@@ -17,6 +17,8 @@ import type {
   MarketDataSubscription,
 } from '../application/services/marketDataService';
 
+const DEFAULT_MARKET_DATA_SOURCE = 'Market Data Service';
+
 type MarketDataSocketServer = Server<
   ClientToServerEvents,
   ServerToClientEvents,
@@ -54,6 +56,7 @@ export function registerMarketDataGateway(
   socketServer: MarketDataSocketServer,
   logger: AppLogger,
   marketDataService?: MarketDataService,
+  marketDataSource = DEFAULT_MARKET_DATA_SOURCE,
 ): void {
   const roomStates = new Map<string, RoomState>();
   const clientSubscriptions = new Map<
@@ -89,12 +92,14 @@ export function registerMarketDataGateway(
     socket.emit('market-data:status', {
       status: 'ready',
       service: 'market-data-transport',
+      source: marketDataSource,
       serverTime: new Date().toISOString(),
     });
 
     socket.on('market-data:ping', (ping, acknowledge) => {
       acknowledge({
         ...ping,
+        source: marketDataSource,
         serverReceivedAt: new Date().toISOString(),
       });
     });

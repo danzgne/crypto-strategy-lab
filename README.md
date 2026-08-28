@@ -45,9 +45,11 @@ pnpm prisma:migrate:deploy
 pnpm dev
 ```
 
-Open <http://localhost:3000>. The connection badge becomes **Transport live** only after the browser receives a
-Socket.IO ping acknowledgement from the backend. `pnpm dev` starts all three applications together; when working
-on one application, use `pnpm dev:backend`, `pnpm dev:worker`, or `pnpm dev:frontend` instead.
+Open <http://localhost:3000>. The connection badge becomes **Connected** only after the browser receives a Socket.IO
+ping acknowledgement from the backend. The card refreshes round-trip latency and server time every five seconds and
+shows the configured market-data source plus the latest received market event. `pnpm dev` starts all three
+applications together; when working on one application, use `pnpm dev:backend`, `pnpm dev:worker`, or
+`pnpm dev:frontend` instead.
 
 ## Full local stack with Docker Compose
 
@@ -205,7 +207,7 @@ ESLint.
 ## Issue #29 demo
 
 1. Start Compose and open the dashboard.
-2. Confirm **Transport live**, a measured round-trip latency, and the right-rail **Recent Ticks** card updating from
+2. Confirm **Connected**, a measured round-trip latency, and the right-rail **Recent Ticks** card updating from
    normalized trade events.
 3. Confirm four BTCUSDT panels reach **LIVE**, with independent 1m/5m/15m/1h timeframe selectors and one global
    pair selector.

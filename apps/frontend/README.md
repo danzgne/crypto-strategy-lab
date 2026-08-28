@@ -63,9 +63,11 @@ leaving market subscriptions and strategy execution in their existing modules. W
 loaded logical range, it reports a neutral boundary callback; the market-data hook then requests older candles through
 the typed Market Data Service transport. Strategy indicator history arrives from the backend as an initial
 `strategy:snapshot`; subsequent closed candles arrive as `strategy:signal`, and both are mapped to the same neutral
-chart data. The realtime dashboard's right rail composes the transport connection card and a Recent Ticks card. The
-latter consumes normalized trade events through `useRecentTicks`; it does not derive or synthesize ticks from candle
-updates. See
+chart data. The realtime dashboard's right rail composes the compact connection-status card and a Recent Ticks card.
+The connection card refreshes its round-trip latency and server time through a guarded five-second Socket.IO
+heartbeat, while its last-data timestamp updates when normalized candle or tick events arrive. Its source label is
+provided by the backend composition root, so the frontend remains exchange-agnostic. The Recent Ticks card consumes
+normalized trade events through `useRecentTicks`; it does not derive or synthesize ticks from candle updates. See
 [`ADR-0010`](../../docs/adr/0010-lightweight-charts-renderer-seam.md).
 
 ## Route composition

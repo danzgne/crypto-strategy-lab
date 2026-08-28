@@ -30,6 +30,7 @@ describe('market-data realtime gateway', () => {
     const httpServer = createServer();
     const socketServer = createSocketServer(httpServer, {
       allowedOrigin: 'http://localhost:3000',
+      marketDataSource: 'Binance API + WebSocket',
       sessionMiddleware: (req, _res, next) => {
         Object.assign(req, {
           session: { userId: 'mock-user-id' },
@@ -69,12 +70,14 @@ describe('market-data realtime gateway', () => {
 
     expect(status).toMatchObject({
       service: 'market-data-transport',
+      source: 'Binance API + WebSocket',
       status: 'ready',
     });
     expect(Date.parse(status.serverTime)).not.toBeNaN();
     expect(pong).toMatchObject({
       requestId: 'ping-27',
       clientSentAt: '2026-08-21T10:00:00.000Z',
+      source: 'Binance API + WebSocket',
     });
     expect(Date.parse(pong.serverReceivedAt)).not.toBeNaN();
   });

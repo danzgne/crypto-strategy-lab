@@ -30,7 +30,9 @@ vi.mock(
   () => ({
     useRealtimeConnection: (): RealtimeConnectionState => ({
       phase: 'live',
+      dataSource: 'Binance API + WebSocket',
       latencyMs: 12,
+      lastDataAt: '2026-08-24T00:00:00.000Z',
       serverTime: '2026-08-24T00:00:00.000Z',
       detail: 'Round trip verified',
     }),

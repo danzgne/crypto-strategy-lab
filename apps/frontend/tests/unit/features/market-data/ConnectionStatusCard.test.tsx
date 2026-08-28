@@ -9,7 +9,9 @@ describe('ConnectionStatusCard', () => {
       <ConnectionStatusCard
         connection={{
           phase: 'live',
+          dataSource: 'Binance API + WebSocket',
           latencyMs: 18,
+          lastDataAt: '2026-08-21T10:00:00.000Z',
           serverTime: '2026-08-21T10:00:00.000Z',
           detail: 'Round trip verified',
         }}
@@ -17,10 +19,11 @@ describe('ConnectionStatusCard', () => {
     );
 
     expect(screen.getByTestId('connection-indicator')).toHaveTextContent(
-      'Transport live',
+      'Connected',
     );
+    expect(screen.getByText('Binance API + WebSocket')).toBeInTheDocument();
     expect(screen.getByText('18 ms')).toBeInTheDocument();
-    expect(screen.getByText('Socket.IO')).toBeInTheDocument();
+    expect(screen.getByText('Stable')).toBeInTheDocument();
   });
 
   it('renders disconnects as an active reconnection state', () => {
@@ -28,7 +31,9 @@ describe('ConnectionStatusCard', () => {
       <ConnectionStatusCard
         connection={{
           phase: 'reconnecting',
+          dataSource: 'Market Data Service',
           latencyMs: null,
+          lastDataAt: null,
           serverTime: null,
           detail: 'Realtime transport disconnected; reconnecting',
         }}
@@ -36,7 +41,7 @@ describe('ConnectionStatusCard', () => {
     );
 
     expect(screen.getByTestId('connection-indicator')).toHaveTextContent(
-      'Transport reconnecting',
+      'Reconnecting',
     );
   });
 });
