@@ -7,6 +7,7 @@ import {
 } from '@crypto-strategy-lab/shared';
 
 import { StrategyRegistry } from '../registry';
+import { resolveRiskParams } from './utils';
 
 export const SR_STRATEGY_ID = 'sr';
 
@@ -14,12 +15,16 @@ export interface SRParams {
   n?: number;
   levelsTracked?: number;
   tolerance?: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 interface ResolvedSRParams {
   n: number;
   levelsTracked: number;
   tolerance: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 export const SR_PARAMS_SCHEMA: StrategyParamsSchema = {
@@ -42,6 +47,16 @@ export const SR_PARAMS_SCHEMA: StrategyParamsSchema = {
       default: 0.005,
       minimum: 0.0001,
       description: 'Tolerance percentage to trigger signal',
+    },
+    stopLoss: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level stop loss ratio',
+    },
+    takeProfit: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level take profit ratio',
     },
   },
 };
@@ -68,8 +83,14 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
       throw new Error('SR tolerance must be positive');
     }
 
-    this.params = { n, levelsTracked, tolerance };
-    this.requiredHistory = n * 2 + 1;
+    const resolved: ResolvedSRParams = { n, levelsTracked, tolerance };
+    resolveRiskParams(params, resolved, 'SR');
+
+    this.params = resolved;
+    // We need enough history to find multiple non-overlapping pivots.
+    // 2n+1 only allows finding 1 pivot if the engine supplies exactly requiredHistory candles.
+    // We multiply by 10 to ensure a large enough window to find the required levelsTracked pivots.
+    this.requiredHistory = n * 10;
   }
 
   public analyze(context: StrategyContext): Signal {

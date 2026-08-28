@@ -8,6 +8,7 @@ import {
 } from '@crypto-strategy-lab/shared';
 
 import { StrategyRegistry } from '../registry';
+import { resolveRiskParams } from './utils';
 
 export const RSI_STRATEGY_ID = 'rsi';
 
@@ -15,12 +16,16 @@ export interface RSIParams {
   period?: number;
   oversold?: number;
   overbought?: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 interface ResolvedRSIParams {
   period: number;
   oversold: number;
   overbought: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 export const RSI_PARAMS_SCHEMA: StrategyParamsSchema = {
@@ -46,6 +51,16 @@ export const RSI_PARAMS_SCHEMA: StrategyParamsSchema = {
       maximum: 99,
       description: 'RSI overbought threshold',
     },
+    stopLoss: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level stop loss ratio',
+    },
+    takeProfit: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level take profit ratio',
+    },
   },
 };
 
@@ -68,8 +83,10 @@ export class RSIStrategy implements Strategy<ResolvedRSIParams> {
       throw new Error('RSI oversold must be less than overbought');
     }
 
-    this.params = { period, oversold, overbought };
-    this.requiredHistory = period + 1;
+    const resolved: ResolvedRSIParams = { period, oversold, overbought };
+    resolveRiskParams(params, resolved, 'RSI');
+    this.params = resolved;
+    this.requiredHistory = period + 2;
   }
 
   public analyze(context: StrategyContext): Signal {

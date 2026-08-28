@@ -1,38 +1,10 @@
-import type { Candle } from '@crypto-strategy-lab/shared';
+
 import { describe, expect, it } from 'vitest';
 
 import { RSIStrategy } from '../src/strategies/rsiStrategy';
-import type { StrategyContext } from '../src/types';
+import { makeContext } from './testUtils';
 
-const EMPTY_SENTIMENT = {
-  positive: 0,
-  neutral: 0,
-  negative: 0,
-  score: 0,
-  sampleSize: 0,
-} as const;
 
-function makeContext(closes: number[]): StrategyContext {
-  const candles: Candle[] = closes.map((close, index) => ({
-    pair: 'BTCUSDT',
-    timeframe: '1m',
-    openTime: 1_756_000_000_000 + index * 60_000,
-    closeTime: 1_756_000_059_999 + index * 60_000,
-    open: close,
-    high: close + 1,
-    low: close - 1,
-    close,
-    volume: 10 + index,
-    isClosed: true,
-  }));
-
-  return {
-    candles,
-    pair: 'BTCUSDT',
-    timeframe: '1m',
-    sentiment: EMPTY_SENTIMENT,
-  };
-}
 
 describe('RSIStrategy', () => {
   it('instantiates with correct defaults', () => {
@@ -40,21 +12,43 @@ describe('RSIStrategy', () => {
     expect(strategy.params.period).toBe(14);
     expect(strategy.params.oversold).toBe(30);
     expect(strategy.params.overbought).toBe(70);
-    expect(strategy.requiredHistory).toBe(15);
+    // period + 2 = 16
+    expect(strategy.requiredHistory).toBe(16);
   });
 
   it('returns HOLD when not enough history', () => {
     const strategy = new RSIStrategy({ period: 14 });
-    const context = makeContext([100, 101, 102]);
+    const context = makeContext(Array(15).fill(100)); // One less than requiredHistory
     expect(strategy.analyze(context).action).toBe('HOLD');
   });
 
-  // Mocking or supplying real data for RSI can be tedious.
-  // We can just verify it doesn't crash on normal data.
-  it('analyzes safely with enough history', () => {
-    const strategy = new RSIStrategy({ period: 2 });
-    const closes = [10, 12, 15, 14, 13, 11]; // length 6, req = 3
-    const signal = strategy.analyze(makeContext(closes));
-    expect(['BUY', 'SELL', 'HOLD']).toContain(signal.action);
+  it('can emit a signal when given exactly requiredHistory candles', () => {
+    const strategy = new RSIStrategy({ period: 2, oversold: 30, overbought: 70 });
+    // requiredHistory for period=2 is 4.
+    // For RSI period=2, we need 4 candles.
+    // Candle 0, 1, 2 -> calculate previous RSI.
+    // Candle 0, 1, 2, 3 -> calculate current RSI.
+    
+    // Let's create a drop to trigger BUY (oversold)
+    // C0: 100, C1: 105, C2: 100 -> RSI is 50
+    // C3: 50 -> RSI drops heavily < 30
+    const context = makeContext([100, 105, 100, 50]);
+    const signal = strategy.analyze(context);
+    expect(signal.action).toBe('BUY');
+  });
+
+  it('emits SELL when crossing above overbought', () => {
+    const strategy = new RSIStrategy({ period: 2, oversold: 30, overbought: 70 });
+    // C0: 100, C1: 100 (RSI 100)
+    // C2: 110 (gain=10, loss=0 -> RSI 100)
+    // C3: 150 (gain=40, loss=0 -> RSI 100 > 70)
+    // Wait, if previous is 100, and current is 100, it's not a cross.
+    // We need previous <= 70, current > 70.
+    // Let's make previous RSI around 50.
+    // C0: 100, C1: 105 (gain=5), C2: 100 (loss=5). RSI(2) on [100, 105, 100] is roughly 50.
+    // C3: 120 (gain=20). RSI goes up.
+    const context = makeContext([100, 105, 100, 120]);
+    const signal = strategy.analyze(context);
+    expect(signal.action).toBe('SELL');
   });
 });

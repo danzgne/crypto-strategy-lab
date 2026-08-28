@@ -7,6 +7,7 @@ import {
 } from '@crypto-strategy-lab/shared';
 
 import { StrategyRegistry } from '../registry';
+import { resolveRiskParams } from './utils';
 
 export const WYCKOFF_STRATEGY_ID = 'wyckoff';
 
@@ -14,12 +15,16 @@ export interface WyckoffParams {
   length?: number;
   threshold?: number;
   volumeRatio?: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 interface ResolvedWyckoffParams {
   length: number;
   threshold: number;
   volumeRatio: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 export const WYCKOFF_PARAMS_SCHEMA: StrategyParamsSchema = {
@@ -42,6 +47,16 @@ export const WYCKOFF_PARAMS_SCHEMA: StrategyParamsSchema = {
       default: 1.5,
       minimum: 0.1,
       description: 'Required volume ratio (second half / first half)',
+    },
+    stopLoss: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level stop loss ratio',
+    },
+    takeProfit: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level take profit ratio',
     },
   },
 };
@@ -68,7 +83,10 @@ export class WyckoffStrategy implements Strategy<ResolvedWyckoffParams> {
       throw new Error('Wyckoff volume ratio must be positive');
     }
 
-    this.params = { length, threshold, volumeRatio };
+    const resolved: ResolvedWyckoffParams = { length, threshold, volumeRatio };
+    resolveRiskParams(params, resolved, 'Wyckoff');
+
+    this.params = resolved;
     this.requiredHistory = length + 1; // +1 to check breakout of previous window
   }
 

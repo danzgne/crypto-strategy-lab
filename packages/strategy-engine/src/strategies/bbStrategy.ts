@@ -8,17 +8,22 @@ import {
 } from '@crypto-strategy-lab/shared';
 
 import { StrategyRegistry } from '../registry';
+import { resolveRiskParams } from './utils';
 
 export const BB_STRATEGY_ID = 'bb';
 
 export interface BBParams {
   period?: number;
   stdDev?: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 interface ResolvedBBParams {
   period: number;
   stdDev: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 export const BB_PARAMS_SCHEMA: StrategyParamsSchema = {
@@ -35,6 +40,16 @@ export const BB_PARAMS_SCHEMA: StrategyParamsSchema = {
       default: 2,
       minimum: 0.1,
       description: 'Standard deviation multiplier',
+    },
+    stopLoss: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level stop loss ratio',
+    },
+    takeProfit: {
+      type: 'number',
+      minimum: 0,
+      description: 'Optional strategy-level take profit ratio',
     },
   },
 };
@@ -57,7 +72,10 @@ export class BBStrategy implements Strategy<ResolvedBBParams> {
       throw new Error('BB stdDev must be positive');
     }
 
-    this.params = { period, stdDev };
+    const resolved: ResolvedBBParams = { period, stdDev };
+    resolveRiskParams(params, resolved, 'BB');
+
+    this.params = resolved;
     this.requiredHistory = period + 1;
   }
 

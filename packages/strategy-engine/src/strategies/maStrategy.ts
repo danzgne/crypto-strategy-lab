@@ -8,6 +8,7 @@ import {
 } from '@crypto-strategy-lab/shared';
 
 import { StrategyRegistry } from '../registry';
+import { resolveRiskParams } from './utils';
 
 export const MA_STRATEGY_ID = 'ma';
 
@@ -72,14 +73,7 @@ export class MAStrategy implements Strategy<ResolvedMAParams> {
     }
 
     const resolved: ResolvedMAParams = { fast, slow };
-    if (params.stopLoss !== undefined) {
-      validateRiskParameter('stopLoss', params.stopLoss);
-      resolved.stopLoss = params.stopLoss;
-    }
-    if (params.takeProfit !== undefined) {
-      validateRiskParameter('takeProfit', params.takeProfit);
-      resolved.takeProfit = params.takeProfit;
-    }
+    resolveRiskParams(params, resolved, 'MA');
 
     this.params = resolved;
     this.requiredHistory = slow + 1;
@@ -143,11 +137,5 @@ StrategyRegistry.register(MA_STRATEGY_ID, createMAStrategy);
 function validatePeriod(name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1) {
     throw new Error(`MA ${name} period must be a positive integer`);
-  }
-}
-
-function validateRiskParameter(name: string, value: number): void {
-  if (!Number.isFinite(value) || value < 0) {
-    throw new Error(`MA ${name} must be a non-negative number`);
   }
 }
