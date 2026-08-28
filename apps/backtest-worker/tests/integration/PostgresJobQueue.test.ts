@@ -16,9 +16,15 @@ describe('PostgresJobQueue Integration', () => {
     prisma = createPrismaClient(process.env.DATABASE_URL!);
     queue = new PostgresJobQueue(prisma);
 
-    // Lookup the seeded dev user
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { email: 'dev@example.com' },
+    // Create a dedicated test user
+    const user = await prisma.user.upsert({
+      where: { email: 'test-queue@example.com' },
+      update: {},
+      create: {
+        email: 'test-queue@example.com',
+        passwordHash: 'dummy',
+        role: 'USER',
+      },
     });
     ownerId = user.id;
 
