@@ -114,15 +114,20 @@ describe('PostgresJobQueue Integration', () => {
     expect(c3!.retryCount).toBe(2);
     await queue.fail(c3!.id, new Error('error 3'));
 
-    // 4th claim should be null (failed)
+    // 4th fail
     const c4 = await queue.claim('worker-1');
-    expect(c4).toBeNull();
+    expect(c4!.retryCount).toBe(3);
+    await queue.fail(c4!.id, new Error('error 4'));
+
+    // 5th claim should be null (failed)
+    const c5 = await queue.claim('worker-1');
+    expect(c5).toBeNull();
 
     const jobInDb = await prisma.backtestJob.findUnique({
       where: { id: jobId },
     });
     expect(jobInDb!.status).toBe('FAILED');
-    expect(jobInDb!.retryCount).toBe(3);
+    expect(jobInDb!.retryCount).toBe(4);
   });
 
   it('should reclaim a job that has been stuck in CLAIMED for >5 mins', async () => {

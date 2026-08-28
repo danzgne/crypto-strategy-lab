@@ -51,7 +51,7 @@ export class PostgresJobQueue implements IJobQueue {
     if (!job) return;
 
     const nextRetry = job.retryCount + 1;
-    const status = nextRetry >= 3 ? 'FAILED' : 'PENDING';
+    const status = nextRetry >= 4 ? 'FAILED' : 'PENDING';
 
     await this.prisma.backtestJob.update({
       where: { id: jobId },
