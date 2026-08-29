@@ -76,34 +76,86 @@ model Session {
 }
 
 model StrategyDefinition {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @db.Uuid
+  owner       User     @relation(fields: [ownerId], references: [id])
+  name        String
+  description String?
+  type        String
+
+  versions    StrategyVersion[]
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
 
   @@map("strategy_definitions")
 }
 
 model StrategyVersion {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+  id                   String             @id @default(uuid()) @db.Uuid
+  ownerId              String             @db.Uuid
+  owner                User               @relation(fields: [ownerId], references: [id])
+  strategyDefinitionId String             @db.Uuid
+  strategyDefinition   StrategyDefinition @relation(fields: [strategyDefinitionId], references: [id])
+  params               Json
+
+  experiments          Experiment[]
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
 
   @@map("strategy_versions")
 }
 
 model Experiment {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+  id                String          @id @default(uuid()) @db.Uuid
+  ownerId           String          @db.Uuid
+  owner             User            @relation(fields: [ownerId], references: [id])
+  strategyVersionId String          @db.Uuid
+  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id])
+  
+  pair              String
+  startTime         BigInt
+  endTime           BigInt
+  initialInvestment Decimal         @db.Decimal(38, 18)
+  transactionCost   Decimal         @db.Decimal(38, 18)
+  slippage          Decimal         @db.Decimal(38, 18)
+  
+  score             Decimal?        @db.Decimal(38, 18)
+  return            Decimal?        @db.Decimal(38, 18)
+  maxDrawdown       Decimal?        @db.Decimal(38, 18)
+  winRate           Decimal?        @db.Decimal(38, 18)
+
+  trades            Trade[]
+  backtestJob       BacktestJob?
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
 
   @@map("experiments")
 }
 
 model Trade {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+  id              String     @id @default(uuid()) @db.Uuid
+  ownerId         String     @db.Uuid
+  owner           User       @relation(fields: [ownerId], references: [id])
+  experimentId    String     @db.Uuid
+  experiment      Experiment @relation(fields: [experimentId], references: [id])
+  
+  pair            String
+  entryTime       BigInt
+  exitTime        BigInt?
+  direction       String
+  investment      Decimal    @db.Decimal(38, 18)
+  entryPrice      Decimal    @db.Decimal(38, 18)
+  stopLoss        Decimal?   @db.Decimal(38, 18)
+  takeProfit      Decimal?   @db.Decimal(38, 18)
+  exitPrice       Decimal?   @db.Decimal(38, 18)
+  transactionCost Decimal    @db.Decimal(38, 18)
+  slippage        Decimal    @db.Decimal(38, 18)
+  profit          Decimal?   @db.Decimal(38, 18)
+  
+  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime   @updatedAt @db.Timestamptz(3)
 
+  @@index([experimentId])
   @@map("trades")
 }
 
@@ -115,11 +167,28 @@ model SearchRun {
   @@map("search_runs")
 }
 
-model BacktestJob {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+enum JobStatus {
+  PENDING
+  CLAIMED
+  COMPLETED
+  FAILED
+}
 
+model BacktestJob {
+  id           String     @id @default(uuid()) @db.Uuid
+  ownerId      String     @db.Uuid
+  owner        User       @relation(fields: [ownerId], references: [id])
+  experimentId String     @unique @db.Uuid
+  experiment   Experiment @relation(fields: [experimentId], references: [id])
+  status       JobStatus  @default(PENDING)
+  claimedAt    DateTime?  @db.Timestamptz(3)
+  retryCount   Int        @default(0)
+  error        String?    @db.Text
+
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+
+  @@index([status, claimedAt])
   @@map("backtest_jobs")
 }
 
