@@ -66,12 +66,6 @@ describe('AdminService', () => {
 
     expect(service.getCrawlInterval()).toEqual({ intervalMinutes: 3 });
     expect(service.updateCrawlInterval(5)).toEqual({ intervalMinutes: 5 });
-
-    const driftRes = service.toggleDriftDetection();
-    expect(driftRes.message).toBe('Drift detection toggled');
-
-    const templateRes = service.applyTemplate();
-    expect(templateRes.message).toBe('Template applied');
   });
 
   it('can be initialized with dependencies object', async () => {

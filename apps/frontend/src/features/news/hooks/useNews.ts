@@ -60,7 +60,6 @@ export interface UseNewsOptions {
 }
 
 export function useNews(options: UseNewsOptions = {}) {
-  void options;
   const [items, setItems] = useState<NewsItem[]>([]);
   const [total, setTotal] = useState(0);
   const [sources, setSources] = useState<NewsSource[]>([]);
@@ -161,6 +160,12 @@ export function useNews(options: UseNewsOptions = {}) {
   }, [intervalMinutes, loadNews]);
 
   const handleTriggerCrawl = async () => {
+    if (options.isAdmin === false) {
+      setErrorMessage(
+        'Yêu cầu quyền ADMIN để kích hoạt crawl. Bạn hãy đăng xuất và đăng nhập lại bằng tài khoản ADMIN (admin@example.com / admin123).',
+      );
+      return;
+    }
     setIsCrawling(true);
     setErrorMessage(null);
     try {
@@ -186,6 +191,12 @@ export function useNews(options: UseNewsOptions = {}) {
   };
 
   const handleIntervalChange = async (minutes: number) => {
+    if (options.isAdmin === false) {
+      setErrorMessage(
+        'Yêu cầu quyền ADMIN để đổi chu kỳ crawl. Bạn hãy đăng nhập với tài khoản ADMIN.',
+      );
+      return;
+    }
     setIntervalMinutesState(minutes);
     setErrorMessage(null);
     try {

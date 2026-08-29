@@ -22,8 +22,6 @@ describe('AdminController', () => {
       startCrawl: vi.fn(),
       getCrawlInterval: vi.fn().mockReturnValue({ intervalMinutes: 3 }),
       updateCrawlInterval: vi.fn().mockReturnValue({ intervalMinutes: 3 }),
-      toggleDriftDetection: vi.fn().mockReturnValue({ message: 'Toggled' }),
-      applyTemplate: vi.fn().mockReturnValue({ message: 'Applied' }),
       ingestHtml: vi.fn(),
     };
 

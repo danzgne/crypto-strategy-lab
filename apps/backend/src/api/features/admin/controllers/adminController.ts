@@ -161,32 +161,6 @@ export class AdminController {
     }
   };
 
-  public toggleDriftDetection = (
-    _req: Request,
-    res: Response,
-    next: NextFunction,
-  ): void => {
-    try {
-      const result = this.adminService.toggleDriftDetection();
-      sendSuccess(res, result, 200);
-    } catch (error) {
-      next(error);
-    }
-  };
-
-  public applyTemplate = (
-    _req: Request,
-    res: Response,
-    next: NextFunction,
-  ): void => {
-    try {
-      const result = this.adminService.applyTemplate();
-      sendSuccess(res, result, 200);
-    } catch (error) {
-      next(error);
-    }
-  };
-
   public ingestHtml = async (
     req: Request,
     res: Response,

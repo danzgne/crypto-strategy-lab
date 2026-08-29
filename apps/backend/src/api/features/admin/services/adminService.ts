@@ -58,14 +58,6 @@ export class AdminService implements AdminServiceInterface {
     return this.newsService.updateCrawlInterval(intervalMinutes);
   }
 
-  public toggleDriftDetection(): { message: string } {
-    return { message: 'Drift detection toggled' };
-  }
-
-  public applyTemplate(): { message: string } {
-    return { message: 'Template applied' };
-  }
-
   public async ingestHtml(dto: IngestHtmlDto): Promise<NewsItem> {
     return this.newsService.ingestHtml(dto);
   }

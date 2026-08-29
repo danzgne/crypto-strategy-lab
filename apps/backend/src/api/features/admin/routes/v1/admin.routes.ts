@@ -24,16 +24,7 @@ export function createAdminFeatureRouter(
   router.get('/crawl/interval', adminController.getCrawlInterval);
   router.put('/crawl/interval', adminController.updateCrawlInterval);
 
-  // 4. Toggling extraction-template drift detection (Seam for #46)
-  router.post(
-    '/templates/drift-detection',
-    adminController.toggleDriftDetection,
-  );
-
-  // 5. Applying a proposed template version (Seam for #46)
-  router.post('/templates/apply', adminController.applyTemplate);
-
-  // 6. HTML paste ingest
+  // 4. HTML paste ingest
   router.post('/ingest/html', adminController.ingestHtml);
 
   return router;

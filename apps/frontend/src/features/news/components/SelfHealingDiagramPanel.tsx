@@ -195,7 +195,7 @@ export function SelfHealingDiagramPanel({
               </button>
             ) : (
               <div className="mt-2 rounded-lg bg-slate-50 py-1 text-center text-[10px] font-medium text-slate-500 border border-slate-200">
-                Tự động kích hoạt
+                Chờ phê duyệt
               </div>
             )}
           </div>

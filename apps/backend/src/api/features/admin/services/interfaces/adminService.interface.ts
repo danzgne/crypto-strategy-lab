@@ -14,7 +14,5 @@ export interface AdminServiceInterface {
   startCrawl(): Promise<CrawlSummary>;
   getCrawlInterval(): { intervalMinutes: number };
   updateCrawlInterval(intervalMinutes: number): { intervalMinutes: number };
-  toggleDriftDetection(): { message: string };
-  applyTemplate(): { message: string };
   ingestHtml(dto: IngestHtmlDto): Promise<NewsItem>;
 }
