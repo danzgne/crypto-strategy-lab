@@ -2,7 +2,11 @@
 
 import { CheckCircle2, ChevronRight } from 'lucide-react';
 
-export function ExtractionDiagramPanel() {
+export function ExtractionDiagramPanel({
+  isAdmin = false,
+}: {
+  isAdmin?: boolean;
+}) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       {/* Header */}
@@ -200,12 +204,18 @@ export function ExtractionDiagramPanel() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="mt-2 text-center text-[10px] font-semibold text-blue-600 hover:text-blue-700"
-            >
-              Xem tất cả
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="mt-2 text-center text-[10px] font-semibold text-blue-600 hover:text-blue-700"
+              >
+                Xem tất cả
+              </button>
+            ) : (
+              <span className="mt-2 text-center text-[10px] font-medium text-slate-400">
+                Lịch sử phiên bản
+              </span>
+            )}
           </div>
         </div>
       </div>

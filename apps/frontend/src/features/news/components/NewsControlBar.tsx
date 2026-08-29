@@ -14,6 +14,7 @@ interface NewsControlBarProps {
   onOpenHtmlModal: () => void;
   onTriggerCrawl: () => void;
   isCrawling: boolean;
+  isAdmin?: boolean;
 }
 
 export function NewsControlBar({
@@ -27,6 +28,7 @@ export function NewsControlBar({
   onOpenHtmlModal,
   onTriggerCrawl,
   isCrawling,
+  isAdmin = false,
 }: NewsControlBarProps) {
   const intervals = [1, 2, 3, 4, 5];
 
@@ -63,21 +65,23 @@ export function NewsControlBar({
               <Radio className="size-3.5" />
               RSS
             </button>
-            <button
-              type="button"
-              onClick={() => {
-                onSelectTab('HTML');
-                onOpenHtmlModal();
-              }}
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                selectedTab === 'HTML'
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <Code2 className="size-3.5" />
-              {'</> HTML'}
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  onSelectTab('HTML');
+                  onOpenHtmlModal();
+                }}
+                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                  selectedTab === 'HTML'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Code2 className="size-3.5" />
+                {'</> HTML'}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => onSelectTab('ALL')}
@@ -114,50 +118,58 @@ export function NewsControlBar({
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
             Auto refresh
           </span>
-          <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
-            {intervals.map((min) => (
-              <button
-                key={min}
-                type="button"
-                onClick={() => onIntervalChange(min)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                  intervalMinutes === min
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {min} phút
-              </button>
-            ))}
-          </div>
+          {isAdmin ? (
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              {intervals.map((min) => (
+                <button
+                  key={min}
+                  type="button"
+                  onClick={() => onIntervalChange(min)}
+                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
+                    intervalMinutes === min
+                      ? 'bg-blue-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {min} phút
+                </button>
+              ))}
+            </div>
+          ) : (
+            <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+              {intervalMinutes} phút
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onOpenSourceModal}
-          className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
-        >
-          <Settings className="size-4 text-slate-500" />
-          Cấu hình nguồn
-        </button>
+      {/* Admin Action Buttons */}
+      {isAdmin && (
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSourceModal}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
+          >
+            <Settings className="size-4 text-slate-500" />
+            Cấu hình nguồn
+          </button>
 
-        <button
-          type="button"
-          disabled={isCrawling}
-          onClick={onTriggerCrawl}
-          className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50 transition"
-        >
-          {isCrawling ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Play className="size-4 fill-white" />
-          )}
-          {isCrawling ? 'Đang crawl...' : 'Bắt đầu crawl'}
-        </button>
-      </div>
+          <button
+            type="button"
+            disabled={isCrawling}
+            onClick={onTriggerCrawl}
+            className="flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-md shadow-blue-500/20 hover:bg-blue-700 disabled:opacity-50 transition"
+          >
+            {isCrawling ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Play className="size-4 fill-white" />
+            )}
+            {isCrawling ? 'Đang crawl...' : 'Bắt đầu crawl'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

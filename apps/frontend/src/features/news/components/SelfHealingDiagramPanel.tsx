@@ -2,7 +2,11 @@
 
 import { useState } from 'react';
 
-export function SelfHealingDiagramPanel() {
+export function SelfHealingDiagramPanel({
+  isAdmin = false,
+}: {
+  isAdmin?: boolean;
+}) {
   const [autoEnabled, setAutoEnabled] = useState(true);
 
   return (
@@ -16,21 +20,27 @@ export function SelfHealingDiagramPanel() {
           <span className="text-xs font-semibold text-slate-600">
             Tự động bật
           </span>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={autoEnabled}
-            onClick={() => setAutoEnabled(!autoEnabled)}
-            className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-              autoEnabled ? 'bg-emerald-500' : 'bg-slate-300'
-            }`}
-          >
-            <span
-              className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                autoEnabled ? 'translate-x-4' : 'translate-x-0'
+          {isAdmin ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoEnabled}
+              onClick={() => setAutoEnabled(!autoEnabled)}
+              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                autoEnabled ? 'bg-emerald-500' : 'bg-slate-300'
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                  autoEnabled ? 'translate-x-4' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          ) : (
+            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 border border-emerald-200">
+              Đang bật
+            </span>
+          )}
         </div>
       </div>
 
@@ -176,12 +186,18 @@ export function SelfHealingDiagramPanel() {
               </div>
             </div>
 
-            <button
-              type="button"
-              className="mt-2 rounded-lg bg-blue-600 py-1.5 text-center text-[10px] font-semibold text-white shadow-sm hover:bg-blue-700 transition"
-            >
-              Áp dụng ngay
-            </button>
+            {isAdmin ? (
+              <button
+                type="button"
+                className="mt-2 rounded-lg bg-blue-600 py-1.5 text-center text-[10px] font-semibold text-white shadow-sm hover:bg-blue-700 transition"
+              >
+                Áp dụng ngay
+              </button>
+            ) : (
+              <div className="mt-2 rounded-lg bg-slate-50 py-1 text-center text-[10px] font-medium text-slate-500 border border-slate-200">
+                Tự động kích hoạt
+              </div>
+            )}
           </div>
         </div>
       </div>

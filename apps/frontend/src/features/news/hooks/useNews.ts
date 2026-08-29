@@ -17,7 +17,7 @@ import {
   ingestHtml,
 } from '../api/newsClient';
 
-export function useNews() {
+export function useNews({ isAdmin = false }: { isAdmin?: boolean } = {}) {
   const [items, setItems] = useState<NewsItem[]>([]);
   const [total, setTotal] = useState(0);
   const [sources, setSources] = useState<NewsSource[]>([]);
@@ -89,7 +89,9 @@ export function useNews() {
               activeSources: 0,
               coveragePercent: 0,
             })),
-            fetchCrawlInterval().catch(() => ({ intervalMinutes: 3 })),
+            isAdmin
+              ? fetchCrawlInterval().catch(() => ({ intervalMinutes: 3 }))
+              : Promise.resolve({ intervalMinutes: 3 }),
           ]);
 
         if (!active) return;
@@ -114,7 +116,7 @@ export function useNews() {
     return () => {
       active = false;
     };
-  }, [page, limit, selectedTab, selectedCoin]);
+  }, [page, limit, selectedTab, selectedCoin, isAdmin]);
 
   // Auto-refresh interval timer
   useEffect(() => {

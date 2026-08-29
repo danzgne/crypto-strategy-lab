@@ -14,8 +14,10 @@ import {
   AdminHtmlPasteModal,
   useNews,
 } from '../../../features/news';
+import { useAuth } from '../../../features/auth';
 
 export default function NewsPage() {
+  const { isAdmin } = useAuth();
   const {
     items,
     sources,
@@ -34,7 +36,7 @@ export default function NewsPage() {
     loadNews,
     handleTriggerCrawl,
     handleIngestHtml,
-  } = useNews();
+  } = useNews({ isAdmin });
 
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [isHtmlModalOpen, setIsHtmlModalOpen] = useState(false);
@@ -73,6 +75,7 @@ export default function NewsPage() {
         onOpenHtmlModal={() => setIsHtmlModalOpen(true)}
         onTriggerCrawl={handleTriggerCrawl}
         isCrawling={isCrawling}
+        isAdmin={isAdmin}
       />
 
       {/* Main 3-Column Grid */}
@@ -89,8 +92,8 @@ export default function NewsPage() {
 
         {/* Middle Column: LLM Extraction & Self-Healing */}
         <div className="lg:col-span-5 space-y-6">
-          <ExtractionDiagramPanel />
-          <SelfHealingDiagramPanel />
+          <ExtractionDiagramPanel isAdmin={isAdmin} />
+          <SelfHealingDiagramPanel isAdmin={isAdmin} />
         </div>
 
         {/* Right Column: Analytics Output & Strategy Integration */}
@@ -101,18 +104,22 @@ export default function NewsPage() {
       </div>
 
       {/* Admin Modals */}
-      <AdminSourceModal
-        isOpen={isSourceModalOpen}
-        onClose={() => setIsSourceModalOpen(false)}
-        sources={sources}
-        onRefresh={loadNews}
-      />
+      {isAdmin && (
+        <>
+          <AdminSourceModal
+            isOpen={isSourceModalOpen}
+            onClose={() => setIsSourceModalOpen(false)}
+            sources={sources}
+            onRefresh={loadNews}
+          />
 
-      <AdminHtmlPasteModal
-        isOpen={isHtmlModalOpen}
-        onClose={() => setIsHtmlModalOpen(false)}
-        onIngest={handleIngestHtml}
-      />
+          <AdminHtmlPasteModal
+            isOpen={isHtmlModalOpen}
+            onClose={() => setIsHtmlModalOpen(false)}
+            onIngest={handleIngestHtml}
+          />
+        </>
+      )}
     </div>
   );
 }

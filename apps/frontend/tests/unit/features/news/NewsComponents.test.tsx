@@ -77,6 +77,7 @@ describe('News Frontend Components', () => {
         onOpenHtmlModal={onOpenHtmlModal}
         onTriggerCrawl={onTriggerCrawl}
         isCrawling={false}
+        isAdmin={true}
       />,
     );
 
@@ -122,5 +123,75 @@ describe('News Frontend Components', () => {
     expect(screen.getByText('Template: v1.4.2')).toBeInTheDocument();
     expect(screen.getByText('Self-healing extraction')).toBeInTheDocument();
     expect(screen.getByText('Validate kết quả')).toBeInTheDocument();
+  });
+
+  it('NewsControlBar hides admin buttons and HTML tab when isAdmin is false', () => {
+    const onSelectTab = vi.fn();
+    const onSelectCoin = vi.fn();
+    const onIntervalChange = vi.fn();
+    const onOpenSourceModal = vi.fn();
+    const onOpenHtmlModal = vi.fn();
+    const onTriggerCrawl = vi.fn();
+
+    render(
+      <NewsControlBar
+        selectedTab="ALL"
+        onSelectTab={onSelectTab}
+        selectedCoin="ALL"
+        onSelectCoin={onSelectCoin}
+        intervalMinutes={3}
+        onIntervalChange={onIntervalChange}
+        onOpenSourceModal={onOpenSourceModal}
+        onOpenHtmlModal={onOpenHtmlModal}
+        onTriggerCrawl={onTriggerCrawl}
+        isCrawling={false}
+        isAdmin={false}
+      />,
+    );
+
+    // Regular user sees Website and RSS, but NOT HTML tab
+    expect(screen.getByText('Website')).toBeInTheDocument();
+    expect(screen.getByText('RSS')).toBeInTheDocument();
+    expect(screen.queryByText('</> HTML')).not.toBeInTheDocument();
+
+    // Regular user does NOT see admin action buttons
+    expect(screen.queryByText('Cấu hình nguồn')).not.toBeInTheDocument();
+    expect(screen.queryByText('Bắt đầu crawl')).not.toBeInTheDocument();
+
+    // Auto refresh interval is displayed as read-only badge
+    expect(screen.getByText('3 phút')).toBeInTheDocument();
+    // Buttons for other intervals (1, 2, 4, 5 phút) should not exist
+    expect(screen.queryByText('1 phút')).not.toBeInTheDocument();
+  });
+
+  it('NewsControlBar shows admin buttons and HTML tab when isAdmin is true', () => {
+    const onSelectTab = vi.fn();
+    const onSelectCoin = vi.fn();
+    const onIntervalChange = vi.fn();
+    const onOpenSourceModal = vi.fn();
+    const onOpenHtmlModal = vi.fn();
+    const onTriggerCrawl = vi.fn();
+
+    render(
+      <NewsControlBar
+        selectedTab="ALL"
+        onSelectTab={onSelectTab}
+        selectedCoin="ALL"
+        onSelectCoin={onSelectCoin}
+        intervalMinutes={3}
+        onIntervalChange={onIntervalChange}
+        onOpenSourceModal={onOpenSourceModal}
+        onOpenHtmlModal={onOpenHtmlModal}
+        onTriggerCrawl={onTriggerCrawl}
+        isCrawling={false}
+        isAdmin={true}
+      />,
+    );
+
+    expect(screen.getByText('</> HTML')).toBeInTheDocument();
+    expect(screen.getByText('Cấu hình nguồn')).toBeInTheDocument();
+    expect(screen.getByText('Bắt đầu crawl')).toBeInTheDocument();
+    expect(screen.getByText('1 phút')).toBeInTheDocument();
+    expect(screen.getByText('5 phút')).toBeInTheDocument();
   });
 });

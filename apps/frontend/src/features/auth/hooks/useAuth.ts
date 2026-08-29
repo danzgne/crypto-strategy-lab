@@ -8,16 +8,20 @@ import type {
   RegisterCredentials,
 } from '../schemas/authSchemas';
 
+import { useCurrentUser } from '../context/AuthContext';
+
 export function useAuth() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
+  const { user, role, isAdmin, setUser } = useCurrentUser();
 
   const login = async (credentials: LoginCredentials) => {
     try {
       setIsLoading(true);
       setError(null);
-      await authClient.login(credentials);
+      const loggedInUser = await authClient.login(credentials);
+      setUser(loggedInUser);
       router.push('/'); // Default authenticated route
       router.refresh(); // Refresh the layout to trigger session check
     } catch (err: unknown) {
@@ -31,7 +35,8 @@ export function useAuth() {
     try {
       setIsLoading(true);
       setError(null);
-      await authClient.register(credentials);
+      const registeredUser = await authClient.register(credentials);
+      setUser(registeredUser);
       router.push('/');
       router.refresh();
     } catch (err: unknown) {
@@ -45,6 +50,7 @@ export function useAuth() {
     try {
       setIsLoading(true);
       await authClient.logout();
+      setUser(null);
       router.push('/login');
       router.refresh();
     } catch {
@@ -55,6 +61,9 @@ export function useAuth() {
   };
 
   return {
+    user,
+    role,
+    isAdmin,
     login,
     register,
     logout,
