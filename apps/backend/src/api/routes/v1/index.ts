@@ -6,15 +6,24 @@ import {
 } from '@/api/features/health';
 import { createAuthFeatureRouter, AuthController } from '@/api/features/auth';
 import { createAdminFeatureRouter } from '@/api/features/admin';
+import { createNewsFeatureRouter, NewsController } from '@/api/features/news';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
+import type { NewsServiceInterface } from '@/api/features/news';
 
 export function createV1Router(
   healthRepository: HealthRepository,
   authService: PasswordAuthServiceInterface,
+  newsService?: NewsServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
   router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
-  router.use('/admin', createAdminFeatureRouter());
+  router.use('/admin', createAdminFeatureRouter(newsService));
+
+  if (newsService) {
+    const newsController = new NewsController(newsService);
+    router.use('/news', createNewsFeatureRouter(newsController));
+  }
+
   return router;
 }

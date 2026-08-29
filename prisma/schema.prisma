@@ -25,19 +25,19 @@ model ServiceHeartbeat {
 }
 
 model Candle {
-  id         String   @id @default(uuid()) @db.Uuid
-  pair       String
-  timeframe  String
-  openTime   BigInt
-  closeTime  BigInt
-  open       Decimal  @db.Decimal(38, 18)
-  high       Decimal  @db.Decimal(38, 18)
-  low        Decimal  @db.Decimal(38, 18)
-  close      Decimal  @db.Decimal(38, 18)
-  volume     Decimal  @db.Decimal(38, 18)
-  isClosed   Boolean  @default(true)
-  createdAt  DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt  DateTime @updatedAt @db.Timestamptz(3)
+  id        String   @id @default(uuid()) @db.Uuid
+  pair      String
+  timeframe String
+  openTime  BigInt
+  closeTime BigInt
+  open      Decimal  @db.Decimal(38, 18)
+  high      Decimal  @db.Decimal(38, 18)
+  low       Decimal  @db.Decimal(38, 18)
+  close     Decimal  @db.Decimal(38, 18)
+  volume    Decimal  @db.Decimal(38, 18)
+  isClosed  Boolean  @default(true)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@unique([pair, timeframe, openTime])
   @@index([pair, timeframe, closeTime])
@@ -50,10 +50,10 @@ enum Role {
 }
 
 model User {
-  id           String    @id @default(uuid()) @db.Uuid
-  email        String    @unique
+  id           String @id @default(uuid()) @db.Uuid
+  email        String @unique
   passwordHash String
-  role         Role      @default(USER)
+  role         Role   @default(USER)
 
   strategyDefinitions StrategyDefinition[]
   strategyVersions    StrategyVersion[]
@@ -76,16 +76,16 @@ model Session {
 }
 
 model StrategyDefinition {
-  id          String   @id @default(uuid()) @db.Uuid
-  ownerId     String   @db.Uuid
-  owner       User     @relation(fields: [ownerId], references: [id])
+  id          String  @id @default(uuid()) @db.Uuid
+  ownerId     String  @db.Uuid
+  owner       User    @relation(fields: [ownerId], references: [id])
   name        String
   description String?
   type        String
 
-  versions    StrategyVersion[]
-  createdAt   DateTime @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  versions  StrategyVersion[]
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
 
   @@map("strategy_definitions")
 }
@@ -98,9 +98,9 @@ model StrategyVersion {
   strategyDefinition   StrategyDefinition @relation(fields: [strategyDefinitionId], references: [id])
   params               Json
 
-  experiments          Experiment[]
-  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  experiments Experiment[]
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
   @@map("strategy_versions")
 }
@@ -111,49 +111,49 @@ model Experiment {
   owner             User            @relation(fields: [ownerId], references: [id])
   strategyVersionId String          @db.Uuid
   strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id])
-  
+
   pair              String
   startTime         BigInt
   endTime           BigInt
-  initialInvestment Decimal         @db.Decimal(38, 18)
-  transactionCost   Decimal         @db.Decimal(38, 18)
-  slippage          Decimal         @db.Decimal(38, 18)
-  
-  score             Decimal?        @db.Decimal(38, 18)
-  return            Decimal?        @db.Decimal(38, 18)
-  maxDrawdown       Decimal?        @db.Decimal(38, 18)
-  winRate           Decimal?        @db.Decimal(38, 18)
+  initialInvestment Decimal @db.Decimal(38, 18)
+  transactionCost   Decimal @db.Decimal(38, 18)
+  slippage          Decimal @db.Decimal(38, 18)
 
-  trades            Trade[]
-  backtestJob       BacktestJob?
-  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  score       Decimal? @db.Decimal(38, 18)
+  return      Decimal? @db.Decimal(38, 18)
+  maxDrawdown Decimal? @db.Decimal(38, 18)
+  winRate     Decimal? @db.Decimal(38, 18)
+
+  trades      Trade[]
+  backtestJob BacktestJob?
+  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
   @@map("experiments")
 }
 
 model Trade {
-  id              String     @id @default(uuid()) @db.Uuid
-  ownerId         String     @db.Uuid
-  owner           User       @relation(fields: [ownerId], references: [id])
-  experimentId    String     @db.Uuid
-  experiment      Experiment @relation(fields: [experimentId], references: [id])
-  
+  id           String     @id @default(uuid()) @db.Uuid
+  ownerId      String     @db.Uuid
+  owner        User       @relation(fields: [ownerId], references: [id])
+  experimentId String     @db.Uuid
+  experiment   Experiment @relation(fields: [experimentId], references: [id])
+
   pair            String
   entryTime       BigInt
   exitTime        BigInt?
   direction       String
-  investment      Decimal    @db.Decimal(38, 18)
-  entryPrice      Decimal    @db.Decimal(38, 18)
-  stopLoss        Decimal?   @db.Decimal(38, 18)
-  takeProfit      Decimal?   @db.Decimal(38, 18)
-  exitPrice       Decimal?   @db.Decimal(38, 18)
-  transactionCost Decimal    @db.Decimal(38, 18)
-  slippage        Decimal    @db.Decimal(38, 18)
-  profit          Decimal?   @db.Decimal(38, 18)
-  
-  createdAt       DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @db.Timestamptz(3)
+  investment      Decimal  @db.Decimal(38, 18)
+  entryPrice      Decimal  @db.Decimal(38, 18)
+  stopLoss        Decimal? @db.Decimal(38, 18)
+  takeProfit      Decimal? @db.Decimal(38, 18)
+  exitPrice       Decimal? @db.Decimal(38, 18)
+  transactionCost Decimal  @db.Decimal(38, 18)
+  slippage        Decimal  @db.Decimal(38, 18)
+  profit          Decimal? @db.Decimal(38, 18)
+
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([experimentId])
   @@map("trades")
@@ -185,8 +185,8 @@ model BacktestJob {
   retryCount   Int        @default(0)
   error        String?    @db.Text
 
-  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([status, claimedAt])
   @@map("backtest_jobs")
@@ -198,4 +198,62 @@ model Leaderboard {
   owner   User   @relation(fields: [ownerId], references: [id])
 
   @@map("leaderboard")
+}
+
+enum NewsProviderType {
+  RSS
+  WEBSITE
+  HTML
+}
+
+enum CrawlStatus {
+  SUCCESS
+  FAILURE
+}
+
+model NewsSource {
+  id           String             @id @default(uuid()) @db.Uuid
+  name         String
+  url          String
+  providerType NewsProviderType
+  isActive     Boolean            @default(true)
+  config       Json?
+  newsItems    NewsItem[]
+  crawlLogs    NewsCrawlAttempt[]
+  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+
+  @@map("news_sources")
+}
+
+model NewsItem {
+  id           String      @id @default(uuid()) @db.Uuid
+  title        String
+  content      String      @db.Text
+  source       String
+  url          String      @unique
+  publishedAt  DateTime    @db.Timestamptz(3)
+  relatedCoins String[]    @default([])
+  newsSourceId String?     @db.Uuid
+  newsSource   NewsSource? @relation(fields: [newsSourceId], references: [id], onDelete: SetNull)
+  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@index([publishedAt(sort: Desc)])
+  @@index([newsSourceId])
+  @@map("news_items")
+}
+
+model NewsCrawlAttempt {
+  id             String      @id @default(uuid()) @db.Uuid
+  newsSourceId   String      @db.Uuid
+  newsSource     NewsSource  @relation(fields: [newsSourceId], references: [id], onDelete: Cascade)
+  status         CrawlStatus
+  itemsFound     Int         @default(0)
+  itemsPersisted Int         @default(0)
+  errorMessage   String?     @db.Text
+  crawledAt      DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([newsSourceId, crawledAt])
+  @@map("news_crawl_attempts")
 }
