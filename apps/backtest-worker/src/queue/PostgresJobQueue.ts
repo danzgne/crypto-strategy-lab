@@ -30,7 +30,7 @@ export class PostgresJobQueue implements IJobQueue {
       error.message,
       nextRetry,
       nextStatus,
-      nextClaimedAt
+      nextClaimedAt,
     );
   }
 }

@@ -10,6 +10,6 @@ export interface JobRepository {
     error: string,
     retryCount: number,
     status: Job['status'],
-    claimedAt: Date | null
+    claimedAt: Date | null,
   ): Promise<void>;
 }
