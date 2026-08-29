@@ -59,3 +59,36 @@ export interface NewsStats {
   activeSources: number;
   coveragePercent: number;
 }
+
+export const DEFAULT_NEWS_SOURCES = [
+  {
+    name: 'CoinDesk',
+    url: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
+    providerType: 'RSS' as const,
+    isActive: true,
+  },
+  {
+    name: 'Cointelegraph',
+    url: 'https://cointelegraph.com/rss',
+    providerType: 'RSS' as const,
+    isActive: true,
+  },
+  {
+    name: 'Decrypt',
+    url: 'https://decrypt.co/feed',
+    providerType: 'RSS' as const,
+    isActive: true,
+  },
+  {
+    name: 'The Block',
+    url: 'https://www.theblock.co/rss.xml',
+    providerType: 'RSS' as const,
+    isActive: true,
+  },
+  {
+    name: 'Bankless',
+    url: 'https://www.bankless.com/rss/feed',
+    providerType: 'RSS' as const,
+    isActive: true,
+  },
+];

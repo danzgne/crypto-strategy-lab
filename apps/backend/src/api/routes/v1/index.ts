@@ -23,11 +23,11 @@ export function createV1Router(
   router.use('/health', createHealthFeatureRouter(healthRepository));
   router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
 
-  const adminService = new AdminService(newsService);
-  const adminController = new AdminController(adminService);
-  router.use('/admin', createAdminFeatureRouter(adminController));
-
   if (newsService) {
+    const adminService = new AdminService(newsService);
+    const adminController = new AdminController(adminService);
+    router.use('/admin', createAdminFeatureRouter(adminController));
+
     const newsController = new NewsController(newsService);
     router.use('/news', createNewsFeatureRouter(newsController));
   }

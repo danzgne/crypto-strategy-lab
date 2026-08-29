@@ -1,5 +1,6 @@
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../generated/prisma/client.ts';
+import { DEFAULT_NEWS_SOURCES } from '@crypto-strategy-lab/shared';
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
@@ -19,40 +20,7 @@ async function main() {
 
   console.log('Seeded development user:', user.email);
 
-  const defaultSources = [
-    {
-      name: 'CoinDesk',
-      url: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
-      providerType: 'RSS' as const,
-      isActive: true,
-    },
-    {
-      name: 'Cointelegraph',
-      url: 'https://cointelegraph.com/rss',
-      providerType: 'RSS' as const,
-      isActive: true,
-    },
-    {
-      name: 'Decrypt',
-      url: 'https://decrypt.co/feed',
-      providerType: 'RSS' as const,
-      isActive: true,
-    },
-    {
-      name: 'The Block',
-      url: 'https://www.theblock.co/rss.xml',
-      providerType: 'RSS' as const,
-      isActive: true,
-    },
-    {
-      name: 'Bankless',
-      url: 'https://www.bankless.com/rss/feed',
-      providerType: 'RSS' as const,
-      isActive: true,
-    },
-  ];
-
-  for (const source of defaultSources) {
+  for (const source of DEFAULT_NEWS_SOURCES) {
     const existing = await prisma.newsSource.findFirst({
       where: { url: source.url },
     });

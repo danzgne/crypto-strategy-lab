@@ -32,15 +32,31 @@ function extractTitle(html: string): string {
 }
 
 function extractDescription(html: string): string {
-  const ogDesc = extractMetaTag(html, 'description');
-  if (ogDesc) return ogDesc;
-
-  const metaDesc = extractMetaTag(html, 'description');
-  return metaDesc || '';
+  return extractMetaTag(html, 'description') ?? '';
 }
 
 export class WebsiteNewsProvider implements NewsProvider {
   public readonly providerType: NewsProviderType = 'WEBSITE';
+
+  public parseHtml(html: string, source: NewsSource): RawNewsItem[] {
+    const title = extractTitle(html);
+    const description = extractDescription(html);
+
+    if (!title) {
+      return [];
+    }
+
+    return [
+      {
+        title,
+        content: description || title,
+        url: source.url,
+        publishedAt: new Date(),
+        source: source.name,
+        relatedCoins: [],
+      },
+    ];
+  }
 
   public async fetchNews(source: NewsSource): Promise<RawNewsItem[]> {
     try {
@@ -61,23 +77,7 @@ export class WebsiteNewsProvider implements NewsProvider {
       }
 
       const html = await response.text();
-      const title = extractTitle(html);
-      const description = extractDescription(html);
-
-      if (!title) {
-        return [];
-      }
-
-      return [
-        {
-          title,
-          content: description || title,
-          url: source.url,
-          publishedAt: new Date(),
-          source: source.name,
-          relatedCoins: [],
-        },
-      ];
+      return this.parseHtml(html, source);
     } catch (error) {
       throw new Error(
         `WebsiteProvider error fetching ${source.url}: ${error instanceof Error ? error.message : String(error)}`,

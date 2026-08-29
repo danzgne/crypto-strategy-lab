@@ -74,13 +74,14 @@ describe('AdminService', () => {
     expect(templateRes.message).toBe('Template applied');
   });
 
-  it('provides safe fallbacks when NewsService is not provided', async () => {
-    const service = new AdminService();
+  it('can be initialized with dependencies object', async () => {
+    const mockNewsService = {
+      getSources: vi.fn().mockResolvedValue([]),
+    } as unknown as NewsServiceInterface;
 
+    const service = new AdminService({ newsService: mockNewsService });
     const sources = await service.getNewsSources();
     expect(sources).toEqual([]);
-
-    const interval = service.getCrawlInterval();
-    expect(interval).toEqual({ intervalMinutes: 3 });
+    expect(mockNewsService.getSources).toHaveBeenCalled();
   });
 });

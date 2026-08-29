@@ -39,10 +39,24 @@ describe('Auth & Admin API', () => {
       data: { role: 'ADMIN' },
     });
 
+    const mockNewsService = {
+      getSources: async () => [],
+      createSource: async () => ({
+        id: 'mock-source-id',
+        name: 'Mock',
+        url: 'https://example.com',
+        providerType: 'RSS' as const,
+        isActive: true,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+    } as unknown as import('@/api/features/news').NewsServiceInterface;
+
     app = createApp({
       healthRepository:
         {} as unknown as import('@/api/features/health').HealthRepository,
       authService,
+      newsService: mockNewsService,
       sessionMiddleware,
     });
   });

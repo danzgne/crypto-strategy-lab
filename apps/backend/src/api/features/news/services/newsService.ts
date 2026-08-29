@@ -1,8 +1,9 @@
-import type {
-  NewsItem,
-  NewsSource,
-  NewsStats,
-  NewsListFilterQuery,
+import {
+  DEFAULT_NEWS_SOURCES,
+  type NewsItem,
+  type NewsSource,
+  type NewsStats,
+  type NewsListFilterQuery,
 } from '@crypto-strategy-lab/shared';
 import type { NewsRepository } from '../repositories/interfaces/newsRepository.interface';
 import type {
@@ -138,40 +139,7 @@ export class NewsService implements NewsServiceInterface {
     const existing = await this.newsRepository.findSources();
     if (existing.length > 0) return;
 
-    const defaultSources = [
-      {
-        name: 'CoinDesk',
-        url: 'https://www.coindesk.com/arc/outboundfeeds/rss/',
-        providerType: 'RSS' as const,
-        isActive: true,
-      },
-      {
-        name: 'Cointelegraph',
-        url: 'https://cointelegraph.com/rss',
-        providerType: 'RSS' as const,
-        isActive: true,
-      },
-      {
-        name: 'Decrypt',
-        url: 'https://decrypt.co/feed',
-        providerType: 'RSS' as const,
-        isActive: true,
-      },
-      {
-        name: 'The Block',
-        url: 'https://www.theblock.co/rss.xml',
-        providerType: 'RSS' as const,
-        isActive: true,
-      },
-      {
-        name: 'Bankless',
-        url: 'https://www.bankless.com/rss/feed',
-        providerType: 'RSS' as const,
-        isActive: true,
-      },
-    ];
-
-    for (const src of defaultSources) {
+    for (const src of DEFAULT_NEWS_SOURCES) {
       await this.newsRepository.createSource(src);
     }
   }
