@@ -154,7 +154,8 @@ describe('Auth & Admin API', () => {
       .post('/api/v1/admin/news-sources')
       .set('Cookie', adminCookie);
     expect(res.status).toBe(200);
-    expect(res.body.message).toBe('News sources configured');
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.message).toBe('News sources configured');
   });
 
   it('should logout user successfully', async () => {

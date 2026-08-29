@@ -45,15 +45,11 @@ export class AdminController {
         }
 
         const created = await this.adminService.createNewsSource(parsed.data);
-        res.json({
-          success: true,
-          message: 'News sources configured',
-          data: created,
-        });
+        sendSuccess(res, created, 200);
         return;
       }
 
-      res.json({ success: true, message: 'News sources configured' });
+      sendSuccess(res, { message: 'News sources configured' }, 200);
     } catch (error) {
       next(error);
     }
@@ -118,53 +114,77 @@ export class AdminController {
   ): Promise<void> => {
     try {
       const summary = await this.adminService.startCrawl();
-      res.json({
-        success: true,
-        message: 'Crawl started',
-        data: summary,
-      });
+      sendSuccess(res, summary, 200);
     } catch (error) {
       next(error);
     }
   };
 
-  public getCrawlInterval = (_req: Request, res: Response): void => {
-    const result = this.adminService.getCrawlInterval();
-    sendSuccess(res, result);
-  };
-
-  public updateCrawlInterval = (req: Request, res: Response): void => {
-    const parsed = updateCrawlIntervalSchema.safeParse(req.body);
-    if (!parsed.success) {
-      sendError(
-        res,
-        {
-          code: 'VALIDATION_ERROR',
-          message: parsed.error.issues.map((i) => i.message).join(', '),
-        },
-        400,
-      );
-      return;
+  public getCrawlInterval = (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    try {
+      const result = this.adminService.getCrawlInterval();
+      sendSuccess(res, result);
+    } catch (error) {
+      next(error);
     }
-
-    const result = this.adminService.updateCrawlInterval(
-      parsed.data.intervalMinutes,
-    );
-    res.json({
-      success: true,
-      message: 'Crawl interval updated',
-      data: result,
-    });
   };
 
-  public toggleDriftDetection = (_req: Request, res: Response): void => {
-    const result = this.adminService.toggleDriftDetection();
-    res.json(result);
+  public updateCrawlInterval = (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    try {
+      const parsed = updateCrawlIntervalSchema.safeParse(req.body);
+      if (!parsed.success) {
+        sendError(
+          res,
+          {
+            code: 'VALIDATION_ERROR',
+            message: parsed.error.issues.map((i) => i.message).join(', '),
+          },
+          400,
+        );
+        return;
+      }
+
+      const result = this.adminService.updateCrawlInterval(
+        parsed.data.intervalMinutes,
+      );
+      sendSuccess(res, result, 200);
+    } catch (error) {
+      next(error);
+    }
   };
 
-  public applyTemplate = (_req: Request, res: Response): void => {
-    const result = this.adminService.applyTemplate();
-    res.json(result);
+  public toggleDriftDetection = (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    try {
+      const result = this.adminService.toggleDriftDetection();
+      sendSuccess(res, result, 200);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public applyTemplate = (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    try {
+      const result = this.adminService.applyTemplate();
+      sendSuccess(res, result, 200);
+    } catch (error) {
+      next(error);
+    }
   };
 
   public ingestHtml = async (
@@ -187,11 +207,7 @@ export class AdminController {
       }
 
       const item = await this.adminService.ingestHtml(parsed.data);
-      res.json({
-        success: true,
-        message: 'HTML ingested',
-        data: item,
-      });
+      sendSuccess(res, item, 200);
     } catch (error) {
       next(error);
     }

@@ -47,7 +47,7 @@ export async function fetchCrawlInterval(): Promise<{
   intervalMinutes: number;
 }> {
   return browserHttpClient<{ intervalMinutes: number }>(
-    '/api/v1/admin/crawl/interval',
+    '/api/v1/news/interval',
   );
 }
 

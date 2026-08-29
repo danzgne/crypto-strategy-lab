@@ -17,7 +17,50 @@ import {
   ingestHtml,
 } from '../api/newsClient';
 
-export function useNews({ isAdmin = false }: { isAdmin?: boolean } = {}) {
+async function fetchNewsBundle(params: {
+  page: number;
+  limit: number;
+  selectedTab: NewsProviderType | 'ALL';
+  selectedCoin: string;
+}) {
+  const providerType =
+    params.selectedTab === 'ALL' ? undefined : params.selectedTab;
+  const coin = params.selectedCoin === 'ALL' ? undefined : params.selectedCoin;
+
+  const [newsData, sourcesData, statsData, intervalData] = await Promise.all([
+    fetchNewsItems({
+      page: params.page,
+      limit: params.limit,
+      providerType,
+      coin,
+    }),
+    fetchNewsSources().catch(() => []),
+    fetchNewsStats().catch(() => ({
+      totalItems: 0,
+      totalSources: 0,
+      activeSources: 0,
+      coveragePercent: 0,
+    })),
+    fetchCrawlInterval().catch(() => ({ intervalMinutes: 3 })),
+  ]);
+
+  const now = new Date();
+  return {
+    items: newsData.items,
+    total: newsData.total,
+    sources: sourcesData,
+    stats: statsData,
+    intervalMinutes: intervalData?.intervalMinutes,
+    lastUpdated: now.toLocaleTimeString('vi-VN', { hour12: false }),
+  };
+}
+
+export interface UseNewsOptions {
+  isAdmin?: boolean;
+}
+
+export function useNews(options: UseNewsOptions = {}) {
+  void options;
   const [items, setItems] = useState<NewsItem[]>([]);
   const [total, setTotal] = useState(0);
   const [sources, setSources] = useState<NewsSource[]>([]);
@@ -41,69 +84,27 @@ export function useNews({ isAdmin = false }: { isAdmin?: boolean } = {}) {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const loadNews = useCallback(async () => {
-    try {
-      const providerType = selectedTab === 'ALL' ? undefined : selectedTab;
-      const coin = selectedCoin === 'ALL' ? undefined : selectedCoin;
-
-      const [newsData, sourcesData, statsData] = await Promise.all([
-        fetchNewsItems({ page, limit, providerType, coin }),
-        fetchNewsSources().catch(() => []),
-        fetchNewsStats().catch(() => ({
-          totalItems: 0,
-          totalSources: 0,
-          activeSources: 0,
-          coveragePercent: 0,
-        })),
-      ]);
-
-      setItems(newsData.items);
-      setTotal(newsData.total);
-      setSources(sourcesData);
-      setStats(statsData);
-
-      const now = new Date();
-      setLastUpdated(now.toLocaleTimeString('vi-VN', { hour12: false }));
-    } catch {
-      // ignore
-    } finally {
-      setIsLoading(false);
-    }
-  }, [page, limit, selectedTab, selectedCoin]);
-
   useEffect(() => {
     let active = true;
 
     async function fetchInitial() {
       try {
-        const providerType = selectedTab === 'ALL' ? undefined : selectedTab;
-        const coin = selectedCoin === 'ALL' ? undefined : selectedCoin;
-
-        const [newsData, sourcesData, statsData, intervalData] =
-          await Promise.all([
-            fetchNewsItems({ page, limit, providerType, coin }),
-            fetchNewsSources().catch(() => []),
-            fetchNewsStats().catch(() => ({
-              totalItems: 0,
-              totalSources: 0,
-              activeSources: 0,
-              coveragePercent: 0,
-            })),
-            isAdmin
-              ? fetchCrawlInterval().catch(() => ({ intervalMinutes: 3 }))
-              : Promise.resolve({ intervalMinutes: 3 }),
-          ]);
+        const bundle = await fetchNewsBundle({
+          page,
+          limit,
+          selectedTab,
+          selectedCoin,
+        });
 
         if (!active) return;
-        setItems(newsData.items);
-        setTotal(newsData.total);
-        setSources(sourcesData);
-        setStats(statsData);
-        if (intervalData?.intervalMinutes) {
-          setIntervalMinutesState(intervalData.intervalMinutes);
+        setItems(bundle.items);
+        setTotal(bundle.total);
+        setSources(bundle.sources);
+        setStats(bundle.stats);
+        if (bundle.intervalMinutes) {
+          setIntervalMinutesState(bundle.intervalMinutes);
         }
-        const now = new Date();
-        setLastUpdated(now.toLocaleTimeString('vi-VN', { hour12: false }));
+        setLastUpdated(bundle.lastUpdated);
       } finally {
         if (active) {
           setIsLoading(false);
@@ -116,7 +117,30 @@ export function useNews({ isAdmin = false }: { isAdmin?: boolean } = {}) {
     return () => {
       active = false;
     };
-  }, [page, limit, selectedTab, selectedCoin, isAdmin]);
+  }, [page, limit, selectedTab, selectedCoin]);
+
+  const loadNews = useCallback(async () => {
+    try {
+      const bundle = await fetchNewsBundle({
+        page,
+        limit,
+        selectedTab,
+        selectedCoin,
+      });
+      setItems(bundle.items);
+      setTotal(bundle.total);
+      setSources(bundle.sources);
+      setStats(bundle.stats);
+      if (bundle.intervalMinutes) {
+        setIntervalMinutesState(bundle.intervalMinutes);
+      }
+      setLastUpdated(bundle.lastUpdated);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, limit, selectedTab, selectedCoin]);
 
   // Auto-refresh interval timer
   useEffect(() => {

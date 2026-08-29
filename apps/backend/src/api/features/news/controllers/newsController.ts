@@ -87,4 +87,17 @@ export class NewsController {
       next(error);
     }
   };
+
+  public getCrawlInterval = (
+    _req: Request,
+    res: Response,
+    next: NextFunction,
+  ): void => {
+    try {
+      const result = this.newsService.getCrawlInterval();
+      sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  };
 }

@@ -9,6 +9,7 @@ export function createNewsFeatureRouter(
   router.get('/', newsController.getNewsList);
   router.get('/stats', newsController.getStats);
   router.get('/sources', newsController.getSources);
+  router.get('/interval', newsController.getCrawlInterval);
   router.get('/:id', newsController.getNewsById);
 
   return router;
