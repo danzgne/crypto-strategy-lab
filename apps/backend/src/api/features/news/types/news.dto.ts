@@ -4,7 +4,7 @@ export const createNewsSourceSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   url: z.string().url('Must be a valid URL'),
   providerType: z.enum(['RSS', 'WEBSITE', 'HTML']),
-  isActive: z.boolean().optional().default(true),
+  isActive: z.boolean().optional(),
   config: z.record(z.string(), z.unknown()).optional(),
 });
 
