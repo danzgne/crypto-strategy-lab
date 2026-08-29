@@ -4,6 +4,7 @@ import {
   createPrismaClient,
   WorkerPrismaClient,
 } from '../../src/database/prismaClient';
+import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
 
 describe('PostgresJobQueue Integration', () => {
   let prisma: WorkerPrismaClient;
@@ -14,7 +15,8 @@ describe('PostgresJobQueue Integration', () => {
 
   beforeAll(async () => {
     prisma = createPrismaClient(process.env.DATABASE_URL!);
-    queue = new PostgresJobQueue(prisma);
+    const repo = new PrismaJobRepository(prisma);
+    queue = new PostgresJobQueue(repo);
 
     // Create a dedicated test user
     const user = await prisma.user.upsert({

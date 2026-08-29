@@ -3,6 +3,7 @@ import type { AppLogger } from '../utils/logger';
 import { BacktestWorker } from './BacktestWorker';
 import { PostgresJobQueue } from '../queue/PostgresJobQueue';
 import type { WorkerPrismaClient } from '../database/prismaClient';
+import { PrismaJobRepository } from '../repositories/prisma/prismaJobRepository';
 
 export interface DatabaseConnection {
   connect(): Promise<void>;
@@ -50,7 +51,8 @@ export async function runWorker(
     heartbeatTimer.unref();
 
     if (database.client) {
-      const queue = new PostgresJobQueue(database.client);
+      const jobRepository = new PrismaJobRepository(database.client);
+      const queue = new PostgresJobQueue(jobRepository);
       worker = new BacktestWorker(config.workerId, queue, logger);
       worker.start().catch((err) => {
         logger.error({ err }, 'Worker crashed');

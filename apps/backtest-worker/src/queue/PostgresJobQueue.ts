@@ -1,66 +1,36 @@
 import type { IJobQueue, Job } from '@crypto-strategy-lab/shared';
-import type { WorkerPrismaClient } from '../database/prismaClient';
+import type { JobRepository } from '../repositories/interfaces/jobRepository.interface';
 
 export class PostgresJobQueue implements IJobQueue {
-  constructor(private prisma: WorkerPrismaClient) {}
+  constructor(private repository: JobRepository) {}
 
   async enqueue(experimentId: string, ownerId: string): Promise<string> {
-    const job = await this.prisma.backtestJob.create({
-      data: {
-        experimentId,
-        ownerId,
-        status: 'PENDING',
-      },
-    });
-    return job.id;
+    return this.repository.createJob(experimentId, ownerId);
   }
 
-  async claim(_workerId: string): Promise<Job | null> {
-    const jobs = await this.prisma.$queryRaw<Job[]>`
-      UPDATE backtest_jobs
-      SET status = 'CLAIMED',
-          "claimedAt" = NOW(),
-          "updatedAt" = NOW()
-      WHERE id = (
-        SELECT id
-        FROM backtest_jobs
-        WHERE status = 'PENDING'
-           OR (status = 'CLAIMED' AND "claimedAt" < NOW() - INTERVAL '5 minutes')
-        FOR UPDATE SKIP LOCKED
-        LIMIT 1
-      )
-      RETURNING *;
-    `;
-
-    return jobs[0] || null;
+  async claim(workerId: string): Promise<Job | null> {
+    return this.repository.claimNextJob(workerId);
   }
 
   async complete(jobId: string, _result?: unknown): Promise<void> {
-    await this.prisma.backtestJob.update({
-      where: { id: jobId },
-      data: {
-        status: 'COMPLETED',
-      },
-    });
+    await this.repository.updateJobStatus(jobId, 'COMPLETED');
   }
 
   async fail(jobId: string, error: Error): Promise<void> {
-    const job = await this.prisma.backtestJob.findUnique({
-      where: { id: jobId },
-    });
+    const job = await this.repository.findById(jobId);
     if (!job) return;
 
     const nextRetry = job.retryCount + 1;
-    const status = nextRetry >= 4 ? 'FAILED' : 'PENDING';
+    const isPermFailed = nextRetry >= 4;
+    const nextStatus = isPermFailed ? 'FAILED' : 'PENDING';
+    const nextClaimedAt = nextStatus === 'PENDING' ? null : job.claimedAt;
 
-    await this.prisma.backtestJob.update({
-      where: { id: jobId },
-      data: {
-        status,
-        retryCount: nextRetry,
-        error: error.message,
-        claimedAt: status === 'PENDING' ? null : job.claimedAt,
-      },
-    });
+    await this.repository.updateJobFailure(
+      jobId,
+      error.message,
+      nextRetry,
+      nextStatus,
+      nextClaimedAt
+    );
   }
 }
