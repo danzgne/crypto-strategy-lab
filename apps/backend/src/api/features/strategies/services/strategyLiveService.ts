@@ -1,6 +1,7 @@
 import type {
   Candle,
   CandleQuery,
+  CompositeStrategyRequest,
   DomainEventEnvelope,
   DomainEventName,
   Pair,
@@ -8,14 +9,12 @@ import type {
   StrategySignalUpdate,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
+import { marketKey } from '@crypto-strategy-lab/shared';
 import {
-  marketKey,
-  pairMatchesRuleApplicability,
-} from '@crypto-strategy-lab/shared';
-import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
-import {
+  assertStrategyApplicable,
+  CombinationEngine,
   StrategyRegistry,
-  isRuleStrategy,
+  strategyVersionIdentity,
   type Strategy,
 } from '@crypto-strategy-lab/strategy-engine';
 import {
@@ -50,9 +49,12 @@ export interface StrategySubscriptionRequest {
   timeframe: Timeframe;
   limit?: number;
   params?: unknown;
+  composite?: CompositeStrategyRequest;
 }
 
 export type StrategySignalListener = (update: StrategySignalUpdate) => void;
+
+export type StrategyErrorListener = (error: Error) => void;
 
 export interface StrategySubscription {
   history: StrategySignalUpdate[];
@@ -65,12 +67,14 @@ interface ActiveStrategyState {
   timeframe: Timeframe;
   historyLimit: number;
   key: string;
+  versionId: string;
   strategy: Strategy;
   candles: Candle[];
   signalHistory: StrategySignalUpdate[];
   listeners: Set<StrategySignalListener>;
   evaluatedOpenTimes: Set<number>;
   pendingClosedOpenTimes: Set<number>;
+  errorListeners: Set<StrategyErrorListener>;
   ready: boolean;
   marketSubscription?: MarketDataSubscription;
   initialization: Promise<void>;
@@ -79,10 +83,13 @@ interface ActiveStrategyState {
 export interface StrategyLiveServiceDependencies {
   marketDataService: MarketDataService;
   eventBus: StrategyDomainEventBus;
+  combinationEngine?: CombinationEngine;
 }
 
 export class StrategyLiveService {
   private readonly marketDataService: MarketDataService;
+
+  private readonly combinationEngine: CombinationEngine;
 
   private readonly activeStrategies = new Map<string, ActiveStrategyState>();
 
@@ -91,8 +98,10 @@ export class StrategyLiveService {
   public constructor({
     marketDataService,
     eventBus,
+    combinationEngine = new CombinationEngine(),
   }: StrategyLiveServiceDependencies) {
     this.marketDataService = marketDataService;
+    this.combinationEngine = combinationEngine;
     this.unsubscribeFromCandleClosed = eventBus.subscribe(
       'CandleClosed',
       (event) => this.handleCandleClosed(event),
@@ -102,13 +111,16 @@ export class StrategyLiveService {
   public async subscribe(
     request: StrategySubscriptionRequest,
     listener: StrategySignalListener,
+    errorListener?: StrategyErrorListener,
   ): Promise<StrategySubscription> {
     const strategyId = request.strategyId;
     const pair = request.pair.toUpperCase();
-    const strategy = StrategyRegistry.create(strategyId, request.params);
-    assertApplicable(strategy, pair, request.timeframe);
-    const versionTag = computeStrategyVersionTag(strategyId, strategy.params);
-    const key = strategyKey(strategyId, versionTag, pair, request.timeframe);
+    const { strategy, versionId } = this.createStrategy(
+      request,
+      pair,
+      request.timeframe,
+    );
+    const key = strategyKey(strategyId, versionId, pair, request.timeframe);
     let state = this.activeStrategies.get(key);
 
     if (state === undefined) {
@@ -125,17 +137,21 @@ export class StrategyLiveService {
         request.timeframe,
         strategy,
         historyLimit,
-        key,
+        versionId,
       );
       this.activeStrategies.set(key, state);
       state.initialization = this.initializeState(state);
     }
 
     state.listeners.add(listener);
+    if (errorListener !== undefined) state.errorListeners.add(errorListener);
     try {
       await state.initialization;
     } catch (error) {
       state.listeners.delete(listener);
+      if (errorListener !== undefined) {
+        state.errorListeners.delete(errorListener);
+      }
       if (this.activeStrategies.get(key) === state) {
         this.activeStrategies.delete(key);
       }
@@ -149,6 +165,9 @@ export class StrategyLiveService {
         if (!active) return;
         active = false;
         state?.listeners.delete(listener);
+        if (errorListener !== undefined) {
+          state?.errorListeners.delete(errorListener);
+        }
         if (state?.listeners.size !== 0) return;
         if (this.activeStrategies.get(key) === state) {
           this.activeStrategies.delete(key);
@@ -173,20 +192,22 @@ export class StrategyLiveService {
     timeframe: Timeframe,
     strategy: Strategy,
     historyLimit: number,
-    key: string,
+    versionId: string,
   ): ActiveStrategyState {
     return {
       strategyId,
       pair,
       timeframe,
       historyLimit,
-      key,
+      key: strategyKey(strategyId, versionId, pair, timeframe),
+      versionId,
       strategy,
       candles: [],
       signalHistory: [],
       listeners: new Set(),
       evaluatedOpenTimes: new Set(),
       pendingClosedOpenTimes: new Set(),
+      errorListeners: new Set(),
       ready: false,
       initialization: Promise.resolve(),
     };
@@ -211,7 +232,7 @@ export class StrategyLiveService {
 
     for (const candle of state.candles) {
       if (candle.isClosed) {
-        this.evaluateClosedCandle(state, candle.openTime, false);
+        this.evaluateClosedCandleSafely(state, candle.openTime, false);
       }
     }
 
@@ -220,7 +241,20 @@ export class StrategyLiveService {
     );
     state.pendingClosedOpenTimes.clear();
     for (const openTime of pendingOpenTimes) {
-      this.evaluateClosedCandle(state, openTime);
+      this.evaluateClosedCandleSafely(state, openTime);
+    }
+  }
+
+  private evaluateClosedCandleSafely(
+    state: ActiveStrategyState,
+    openTime: number,
+    notifyListeners = true,
+  ): StrategySignalUpdate | undefined {
+    try {
+      return this.evaluateClosedCandle(state, openTime, notifyListeners);
+    } catch (error) {
+      this.notifyEvaluationFailure(state, error);
+      return undefined;
     }
   }
 
@@ -267,7 +301,11 @@ export class StrategyLiveService {
         state.pendingClosedOpenTimes.add(openTime);
         continue;
       }
-      this.evaluateClosedCandle(state, openTime);
+      try {
+        this.evaluateClosedCandle(state, openTime);
+      } catch (error) {
+        this.notifyEvaluationFailure(state, error);
+      }
     }
   }
 
@@ -292,8 +330,8 @@ export class StrategyLiveService {
       timeframe: state.timeframe,
       sentiment: EMPTY_SENTIMENT,
     };
-    const signal = state.strategy.analyze(context);
     state.evaluatedOpenTimes.add(openTime);
+    const signal = state.strategy.analyze(context);
     const update: StrategySignalUpdate = {
       pair: state.pair,
       timeframe: state.timeframe,
@@ -311,33 +349,61 @@ export class StrategyLiveService {
     }
     return update;
   }
+
+  private createStrategy(
+    request: StrategySubscriptionRequest,
+    pair: Pair,
+    timeframe: Timeframe,
+  ): {
+    strategy: Strategy;
+    versionId: string;
+  } {
+    if (request.composite !== undefined) {
+      const members = request.composite.members.map((member) => {
+        const strategy = StrategyRegistry.create(
+          member.strategyId,
+          member.params,
+        );
+        assertStrategyApplicable(strategy, pair, timeframe);
+        return member.weight === undefined
+          ? { strategy }
+          : { strategy, weight: member.weight };
+      });
+      const composite = this.combinationEngine.assemble({
+        members,
+        mode: request.composite.mode,
+        ...(request.composite.threshold === undefined
+          ? {}
+          : { threshold: request.composite.threshold }),
+      });
+      return { strategy: composite, versionId: composite.versionId };
+    }
+
+    const strategy = StrategyRegistry.create(
+      request.strategyId,
+      request.params,
+    );
+    assertStrategyApplicable(strategy, pair, timeframe);
+    return { strategy, versionId: strategyVersionIdentity(strategy) };
+  }
+
+  private notifyEvaluationFailure(
+    state: ActiveStrategyState,
+    error: unknown,
+  ): void {
+    const failure =
+      error instanceof Error ? error : new Error('Strategy evaluation failed');
+    for (const listener of state.errorListeners) listener(failure);
+  }
 }
 
 function strategyKey(
   strategyId: string,
-  versionTag: string,
+  versionId: string,
   pair: Pair,
   timeframe: Timeframe,
 ): string {
-  return `${strategyId}:${versionTag}:${marketKey({ pair, timeframe })}`;
-}
-
-function assertApplicable(
-  strategy: Strategy,
-  pair: Pair,
-  timeframe: Timeframe,
-): void {
-  if (!isRuleStrategy(strategy)) return;
-  if (strategy.params.timeframe !== timeframe) {
-    throw new Error(
-      `Strategy ${strategy.id} only applies to timeframe ${strategy.params.timeframe}, not ${timeframe}`,
-    );
-  }
-  if (!pairMatchesRuleApplicability(pair, strategy.params.applicability)) {
-    throw new Error(
-      `Strategy ${strategy.id} is not applicable to pair ${pair}`,
-    );
-  }
+  return `${strategyId}:${versionId}:${marketKey({ pair, timeframe })}`;
 }
 
 function mergeCandles(

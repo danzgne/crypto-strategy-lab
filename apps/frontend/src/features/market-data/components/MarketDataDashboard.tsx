@@ -1,10 +1,13 @@
 'use client';
 
 import { RadioTower } from 'lucide-react';
-import { useState } from 'react';
+import type { CompositeStrategyRequest } from '@crypto-strategy-lab/shared';
+import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
+import { useCallback, useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
+import { ManualCompositeBuilder } from '../../combinations';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
 import { useRecentTicks } from '../hooks/useRecentTicks';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
@@ -28,12 +31,24 @@ export function MarketDataDashboard({
   const [enabledStrategyId, setEnabledStrategyId] = useState<string | null>(
     null,
   );
+  const [compositeDefinition, setCompositeDefinition] =
+    useState<CompositeStrategyRequest | null>(null);
   const strategyCatalog = useStrategyCatalog();
   const recentTicks = useRecentTicks({ pair, limit: 5 });
 
-  const runnableStrategies = strategyCatalog.strategies.filter(
-    (entry) => !entry.requiresParams,
+  const handleCompositeChange = useCallback(
+    (nextDefinition: CompositeStrategyRequest | null): void => {
+      setCompositeDefinition(nextDefinition);
+      if (nextDefinition !== null) setEnabledStrategyId(null);
+    },
+    [],
   );
+
+  const runnableStrategies = strategyCatalog.strategies.filter((entry) => {
+    const requiresParams =
+      entry.requiresParams ?? (entry.paramsSchema.required?.length ?? 0) > 0;
+    return !requiresParams;
+  });
 
   const changeTimeframe = (
     panelIndex: number,
@@ -94,15 +109,16 @@ export function MarketDataDashboard({
                 <select
                   className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="strategy-overlay"
-                  onChange={(event) =>
-                    setEnabledStrategyId(event.target.value || null)
-                  }
+                  onChange={(event) => {
+                    setEnabledStrategyId(event.target.value || null);
+                    setCompositeDefinition(null);
+                  }}
                   value={enabledStrategyId ?? ''}
                 >
                   <option value="">None (No overlay)</option>
                   {runnableStrategies.map(({ id: strategyId }) => (
                     <option key={strategyId} value={strategyId}>
-                      {formatStrategyName(strategyId)}
+                      {formatStrategyType(strategyId)}
                     </option>
                   ))}
                 </select>
@@ -132,7 +148,10 @@ export function MarketDataDashboard({
               </span>
             </div>
           </div>
-
+          <ManualCompositeBuilder
+            catalog={strategyCatalog}
+            onCompositeChange={handleCompositeChange}
+          />
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
@@ -143,6 +162,7 @@ export function MarketDataDashboard({
                 }
                 panelNumber={index + 1}
                 pair={pair}
+                composite={compositeDefinition}
                 strategyId={enabledStrategyId}
                 timeframe={timeframe}
               />
@@ -172,8 +192,4 @@ export function MarketDataDashboard({
       </div>
     </div>
   );
-}
-
-function formatStrategyName(strategyId: string): string {
-  return strategyId.replaceAll(/[-_]+/g, ' ').toUpperCase();
 }

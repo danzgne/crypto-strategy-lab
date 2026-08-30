@@ -1,6 +1,7 @@
 'use client';
 
 import { CandlestickChart as CandlestickIcon } from 'lucide-react';
+import type { CompositeStrategyRequest } from '@crypto-strategy-lab/shared';
 import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
@@ -27,6 +28,7 @@ interface MarketPanelProperties {
   onTimeframeChange: (timeframe: ChartTimeframe) => void;
   strategyId: string | null;
   strategyParams?: unknown;
+  composite?: CompositeStrategyRequest | null;
 }
 
 export function MarketPanel({
@@ -37,6 +39,7 @@ export function MarketPanel({
   onTimeframeChange,
   strategyId,
   strategyParams,
+  composite = null,
 }: MarketPanelProperties) {
   const chartId = `market-panel-${panelNumber}`;
   const market = useMarketSubscription({
@@ -47,11 +50,12 @@ export function MarketPanel({
   });
   const strategy = useStrategySignal({
     chartId,
-    enabled: strategyId !== null,
+    ...(composite === null ? {} : { composite }),
+    enabled: composite !== null || strategyId !== null,
     limit: MAX_CANDLE_LIMIT,
     pair,
     ...(strategyParams === undefined ? {} : { params: strategyParams }),
-    strategyId: strategyId ?? '',
+    strategyId: composite === null ? (strategyId ?? '') : 'composite',
     timeframe,
   });
   const phase = PHASE_COPY[market.phase];
@@ -115,6 +119,16 @@ export function MarketPanel({
         />
       </div>
 
+      {strategy.error !== null && (
+        <div
+          className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2.5 text-xs text-rose-800"
+          role="alert"
+        >
+          <p className="font-semibold">Strategy evaluation failed</p>
+          <p className="mt-1">{strategy.error}</p>
+        </div>
+      )}
+
       <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <CandlestickIcon
@@ -124,6 +138,22 @@ export function MarketPanel({
           <span>{market.detail}</span>
         </div>
         <div className="text-left sm:text-right">
+          {strategy.latest !== null && (
+            <div
+              className="mb-2 flex items-baseline justify-start gap-2 sm:justify-end"
+              data-testid={`strategy-signal-${panelNumber}`}
+            >
+              <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
+                Signal
+              </span>
+              <span className="text-sm font-bold text-slate-900">
+                {strategy.latest.signal.action}
+              </span>
+              <span className="text-xs text-slate-500">
+                {formatStrength(strategy.latest.signal.strength)}
+              </span>
+            </div>
+          )}
           <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
             Latest close
           </p>
@@ -134,4 +164,10 @@ export function MarketPanel({
       </div>
     </article>
   );
+}
+
+function formatStrength(strength: number | undefined): string {
+  return strength === undefined
+    ? '—'
+    : `${Math.round(strength * 100)}% strength`;
 }

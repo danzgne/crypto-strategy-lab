@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -60,9 +60,18 @@ vi.mock(
   '../../../../src/features/market-data/hooks/useStrategyCatalog',
   () => ({
     useStrategyCatalog: () => ({
+      strategyIds: ['ma', 'rule'],
       strategies: [
-        { id: 'ma', requiresParams: false },
-        { id: 'rule', requiresParams: true },
+        {
+          id: 'ma',
+          requiresParams: false,
+          paramsSchema: { type: 'object', properties: {} },
+        },
+        {
+          id: 'rule',
+          requiresParams: true,
+          paramsSchema: { type: 'object', properties: {} },
+        },
       ],
     }),
   }),
@@ -78,7 +87,6 @@ describe('MarketDataDashboard', () => {
     const timeframeSelectors = screen.getAllByRole('combobox', {
       name: /Timeframe for panel/,
     });
-
     const strategySelector = screen.getByRole('combobox', {
       name: 'Strategy overlay',
     });
@@ -86,10 +94,16 @@ describe('MarketDataDashboard', () => {
     expect(pairSelector).toHaveValue('BTCUSDT');
     expect(strategySelector).toHaveValue('');
     expect(
-      screen.getByRole('option', { name: 'None (No overlay)' }),
+      within(strategySelector).getByRole('option', {
+        name: 'None (No overlay)',
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
-
+    expect(
+      within(strategySelector).getByRole('option', { name: 'MA' }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: /Enable .* strategy/ }),
+    ).not.toBeInTheDocument();
     fireEvent.change(strategySelector, { target: { value: 'ma' } });
     expect(strategySelector).toHaveValue('ma');
     expect(timeframeSelectors).toHaveLength(4);

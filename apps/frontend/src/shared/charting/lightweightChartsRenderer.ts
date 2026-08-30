@@ -20,6 +20,8 @@ import type {
 
 const DEFAULT_HEIGHT = 320;
 const HISTORY_BOUNDARY_THRESHOLD = 10;
+const FIRST_INDICATOR_PANE = 2;
+const INDICATOR_PANE_HEIGHT = 88;
 
 type ChartLineSeries = ISeriesApi<'Line'>;
 
@@ -194,6 +196,12 @@ function getOrCreateLineSeries(
     pane,
   );
   lineSeriesById.set(line.id, { pane, series: created });
+  if (pane >= FIRST_INDICATOR_PANE) {
+    created.priceScale().applyOptions({
+      scaleMargins: { bottom: 0.1, top: 0.1 },
+    });
+    chart.panes()[pane]?.setHeight(INDICATOR_PANE_HEIGHT);
+  }
   return created;
 }
 

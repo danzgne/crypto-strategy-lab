@@ -1,6 +1,6 @@
 import type { Candle, MarketKey } from '../marketData/candle';
 import type { Tick } from '../marketData/tick';
-import type { Signal } from '../strategy/types';
+import type { Signal, StrategyParamsSchema } from '../strategy/types';
 
 export interface MarketDataTransportStatus {
   status: 'ready';
@@ -73,22 +73,61 @@ export interface MarketTickUpdate {
   tick: Tick;
 }
 
-export interface StrategySubscribeRequest extends MarketKey {
+interface StrategySubscribeRequestBase extends MarketKey {
   chartId: string;
-  strategyId: string;
   limit?: number;
   params?: unknown;
 }
 
-export type StrategyUnsubscribeRequest = StrategySubscribeRequest;
+export interface SingleStrategySubscribeRequest extends StrategySubscribeRequestBase {
+  strategyId: string;
+  params?: unknown;
+  composite?: never;
+}
+
+export interface CompositeStrategySubscribeRequest extends StrategySubscribeRequestBase {
+  strategyId: 'composite';
+  composite: CompositeStrategyRequest;
+}
+
+export type StrategySubscribeRequest =
+  SingleStrategySubscribeRequest | CompositeStrategySubscribeRequest;
+
+export interface StrategyUnsubscribeRequest extends MarketKey {
+  chartId: string;
+  strategyId: string;
+}
+
+export interface CompositeStrategyMemberRequest {
+  strategyId: string;
+  params?: unknown;
+  weight?: number;
+}
+
+export interface CompositeStrategyRequest {
+  mode: 'majority' | 'weighted';
+  members: CompositeStrategyMemberRequest[];
+  threshold?: number;
+}
 
 export interface StrategyCatalogEntry {
   id: string;
-  requiresParams: boolean;
+  paramsSchema: StrategyParamsSchema;
+  requiresParams?: boolean;
 }
 
 export interface StrategyCatalog {
   strategies: StrategyCatalogEntry[];
+  strategyIds?: string[];
+}
+
+export type StrategyErrorPhase = 'validation' | 'evaluation';
+
+export interface StrategyErrorEvent extends MarketKey {
+  chartId: string;
+  strategyId: string;
+  phase: StrategyErrorPhase;
+  message: string;
 }
 
 export interface StrategySignalUpdate extends MarketKey {
@@ -101,12 +140,6 @@ export interface StrategySignalSnapshot extends MarketKey {
   chartId: string;
   strategyId: string;
   signals: StrategySignalUpdate[];
-}
-
-export interface StrategyErrorEvent {
-  chartId: string;
-  strategyId: string;
-  message: string;
 }
 
 export interface ServerToClientEvents {
