@@ -1,6 +1,9 @@
 # Sentiment Service: in-process LLM-based scoring replaces the Python/FastAPI + VADER design
 
-**Status:** accepted
+**Status:** accepted. Superseded in part by
+[ADR-0011](0011-shared-llm-json-provider.md), which replaces the DeepSeek V4 Flash via OpenCode Zen fallback
+named below with Groq, and records that sentiment scoring calls Gemini first while strategy generation calls
+Groq first. The per-consumer cooldown reasoning below is unaffected and is carried forward unchanged.
 
 Supersedes the Sentiment Service portion of [ADR-0001](0001-tech-stack-and-modular-monolith.md) and the
 recommendation in [#8](https://github.com/danzgne/crypto-strategy-lab/issues/8). During the

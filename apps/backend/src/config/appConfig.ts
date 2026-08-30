@@ -26,6 +26,14 @@ const appConfigSchema = z
       .union([z.string().min(8), z.literal('')])
       .optional()
       .transform((p) => (p === '' ? undefined : p)),
+    GEMINI_API_KEY: z
+      .string()
+      .optional()
+      .transform((k) => (k === '' ? undefined : k)),
+    GROQ_API_KEY: z
+      .string()
+      .optional()
+      .transform((k) => (k === '' ? undefined : k)),
   })
   .refine((data) => !data.ADMIN_EMAIL || data.ADMIN_DEFAULT_PASSWORD, {
     message: 'ADMIN_DEFAULT_PASSWORD is required when ADMIN_EMAIL is set',
@@ -44,6 +52,8 @@ export type AppConfig = {
   secureCookie: boolean;
   adminEmail?: string | undefined;
   adminDefaultPassword?: string | undefined;
+  geminiApiKey?: string | undefined;
+  groqApiKey?: string | undefined;
 };
 
 export function readAppConfig(
@@ -66,5 +76,7 @@ export function readAppConfig(
         : parsed.NODE_ENV === 'production',
     adminEmail: parsed.ADMIN_EMAIL,
     adminDefaultPassword: parsed.ADMIN_DEFAULT_PASSWORD,
+    geminiApiKey: parsed.GEMINI_API_KEY,
+    groqApiKey: parsed.GROQ_API_KEY,
   };
 }

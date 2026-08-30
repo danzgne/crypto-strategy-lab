@@ -1,6 +1,14 @@
 # NL/link to JSON strategy generation pipeline: dual-provider, reactive fallback, no repair loop
 
-**Status:** accepted
+**Status:** accepted. Superseded in part by
+[ADR-0011](0011-shared-llm-json-provider.md), in four places. It settles the shared generation interface this ADR
+deferred to implementation time; it replaces the availability clause below ("until the cooldown lapses or a later
+request succeeds") with expiry-only cooldown, since a skipped provider never gets a request that could succeed;
+it replaces the DeepSeek V4 Flash via OpenCode Zen fallback with Groq, that model having turned out to offer no
+schema-constrained mechanism and no free tier; and it withdraws the user-facing provider preference, since
+provider order became a data-privacy property rather than a matter of taste. The rejection of *exclusive*
+provider choice below is unaffected. Gemini's wire format is also stated here as `responseSchema`; the current
+API is the Interactions API with `response_format`.
 
 Resolves [#15](https://github.com/danzgne/crypto-strategy-lab/issues/15). A user submits NL text or a URL from
 an "+ Add Strategy" panel in the frontend; the request is handled synchronously by a new in-process endpoint in

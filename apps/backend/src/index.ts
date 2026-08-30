@@ -4,6 +4,9 @@ import { config as loadEnvironment } from 'dotenv';
 import '@crypto-strategy-lab/strategy-engine/strategies';
 
 import { BinanceAdapter } from '@/api/features/marketData/adapters/binance/binanceAdapter';
+import { FallbackLlmJsonProvider } from '@/llm/fallbackLlmJsonProvider';
+import { GeminiJsonProvider } from '@/llm/geminiJsonProvider';
+import { GroqJsonProvider } from '@/llm/groqJsonProvider';
 import { MarketDataService } from '@/api/features/marketData/application/services/marketDataService';
 import { MarketTickService } from '@/api/features/marketData/application/services/marketTickService';
 import { PrismaCandleRepository } from '@/api/features/marketData/repositories/prismaCandleRepository';
@@ -37,6 +40,31 @@ async function startBackend(): Promise<void> {
   const healthRepository = new PrismaHealthRepository(prisma);
   const healthService = new HealthService(healthRepository);
   const exchangeAdapter = new BinanceAdapter();
+  const geminiJsonProvider = new GeminiJsonProvider({
+    apiKey: config.geminiApiKey,
+    logger,
+  });
+  const groqJsonProvider = new GroqJsonProvider({
+    apiKey: config.groqApiKey,
+    logger,
+  });
+  const strategyGenerationLlmProvider = new FallbackLlmJsonProvider({
+    providers: [groqJsonProvider, geminiJsonProvider],
+    logger,
+  });
+  const sentimentAndExtractionLlmProvider = new FallbackLlmJsonProvider({
+    providers: [geminiJsonProvider, groqJsonProvider],
+    logger,
+  });
+  logger.info(
+    {
+      strategyGeneration:
+        strategyGenerationLlmProvider.getAvailability('startup'),
+      sentimentAndExtraction:
+        sentimentAndExtractionLlmProvider.getAvailability('startup'),
+    },
+    'LLM JSON providers configured',
+  );
   const marketDataService = new MarketDataService({
     exchangeAdapter,
     candleRepository: new PrismaCandleRepository(prisma),

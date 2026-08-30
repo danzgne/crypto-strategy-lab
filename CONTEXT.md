@@ -235,6 +235,29 @@ The per-Pair rollup of recent Sentiment over a trailing window (`{ positive, neu
 sampleSize }`), matched to a Pair by `relatedCoins`. This is what populates `Context.sentiment` and what
 NewsSentimentStrategy reads; individual NewsItems never reach a Strategy.
 
+### LLM Infrastructure
+
+**LLM JSON Provider**:
+The seam behind schema-constrained JSON generation from a hosted LLM: one `generate()` call taking a prompt, a
+schema, and a Consumer Identity, returning the parsed value plus which vendor answered (`generatedBy`). Vendor
+implementations know nothing of each other; a chain implementation of the same interface owns fallback and
+Provider Cooldown, so adding a vendor is one class and one list entry (see ADR-0011).
+_Avoid_: LLM Adapter (overloads Exchange Adapter and News Provider, which are data-source seams, not
+generation), Sentiment Service (one consumer of this, not this).
+
+**Consumer Identity**:
+The opaque string a caller passes to an LLM JSON Provider naming which feature is asking: strategy generation,
+sentiment scoring, or extraction-template generation. It is the isolation key for provider availability, so a
+vendor put on cooldown by one consumer stays available to the others (see ADR-0004, ADR-0008).
+_Avoid_: Consumer, Client (the identity is the value passed, not the calling component).
+
+**Provider Cooldown**:
+The window during which an LLM JSON Provider skips one vendor for one Consumer Identity, started by a hard
+failure and lifted only by expiry. A hard failure is one where no usable response arrived at all: a network
+error, a timeout, a 429 or 5xx, or output that will not parse as JSON. A schema-invalid response never starts
+one, because the vendor answered and only the content was wrong.
+_Avoid_: Circuit Breaker (implies half-open probing and shared state, neither of which this has).
+
 ### Accounts & Access
 
 **User**:
