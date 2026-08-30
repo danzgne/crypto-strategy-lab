@@ -65,10 +65,19 @@ describe('MarketDataDashboard', () => {
       name: /Timeframe for panel/,
     });
 
+    const strategySelector = screen.getByRole('combobox', {
+      name: 'Strategy overlay',
+    });
+
     expect(pairSelector).toHaveValue('BTCUSDT');
+    expect(strategySelector).toHaveValue('');
     expect(
-      screen.getByRole('checkbox', { name: 'Enable MA strategy' }),
-    ).not.toBeChecked();
+      screen.getByRole('option', { name: 'None (No overlay)' }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
+
+    fireEvent.change(strategySelector, { target: { value: 'ma' } });
+    expect(strategySelector).toHaveValue('ma');
     expect(timeframeSelectors).toHaveLength(4);
     expect(screen.getByText('4 live panels')).toBeInTheDocument();
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
