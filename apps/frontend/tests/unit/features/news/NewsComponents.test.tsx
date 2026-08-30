@@ -83,7 +83,7 @@ describe('News Frontend Components', () => {
 
     expect(screen.getByText('Website')).toBeInTheDocument();
     expect(screen.getByText('RSS')).toBeInTheDocument();
-    expect(screen.getByText('</> HTML')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'HTML' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByText('RSS'));
     expect(onSelectTab).toHaveBeenCalledWith('RSS');
@@ -152,10 +152,11 @@ describe('News Frontend Components', () => {
     // Regular user sees Website, RSS, and HTML filter tabs
     expect(screen.getByText('Website')).toBeInTheDocument();
     expect(screen.getByText('RSS')).toBeInTheDocument();
-    expect(screen.getByText('</> HTML')).toBeInTheDocument();
+    const htmlTab = screen.getByRole('button', { name: 'HTML' });
+    expect(htmlTab).toBeInTheDocument();
 
     // Clicking HTML tab only triggers tab selection, not modal opening
-    fireEvent.click(screen.getByText('</> HTML'));
+    fireEvent.click(htmlTab);
     expect(onSelectTab).toHaveBeenCalledWith('HTML');
     expect(onOpenHtmlModal).not.toHaveBeenCalled();
 
@@ -196,7 +197,7 @@ describe('News Frontend Components', () => {
       />,
     );
 
-    expect(screen.getByText('</> HTML')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'HTML' })).toBeInTheDocument();
     expect(screen.getByText('Nhập HTML')).toBeInTheDocument();
     expect(screen.getByText('Cấu hình nguồn')).toBeInTheDocument();
     expect(screen.getByText('Bắt đầu crawl')).toBeInTheDocument();
@@ -211,6 +212,42 @@ describe('News Frontend Components', () => {
     // Clicking Nhập HTML action button triggers modal
     fireEvent.click(screen.getByText('Nhập HTML'));
     expect(onOpenHtmlModal).toHaveBeenCalled();
+  });
+
+  it('NewsFeedList renders total counter and triggers onLoadMore when load more button is clicked', () => {
+    const onRefresh = vi.fn();
+    const onLoadMore = vi.fn();
+    const mockItem: NewsItem = {
+      id: 'news-1',
+      title: 'Bitcoin Hits 70k',
+      content: 'Bitcoin breaks new records.',
+      source: 'CoinDesk',
+      url: 'https://coindesk.com/btc',
+      publishedAt: '2026-08-30T10:00:00.000Z',
+      relatedCoins: ['BTC'],
+      createdAt: '2026-08-30T10:00:00.000Z',
+      updatedAt: '2026-08-30T10:00:00.000Z',
+    };
+
+    render(
+      <NewsFeedList
+        items={[mockItem]}
+        total={10}
+        hasMore={true}
+        isLoadingMore={false}
+        onLoadMore={onLoadMore}
+        isLoading={false}
+        lastUpdated="11:00:00"
+        onRefresh={onRefresh}
+      />,
+    );
+
+    expect(screen.getByText('1/10')).toBeInTheDocument();
+    const loadMoreBtn = screen.getByText(/Xem thêm tin tức \(9 tin còn lại\)/);
+    expect(loadMoreBtn).toBeInTheDocument();
+
+    fireEvent.click(loadMoreBtn);
+    expect(onLoadMore).toHaveBeenCalled();
   });
 
   it('NewsFeedList opens NewsDetailModal on item click and handles internal URLs safely', () => {

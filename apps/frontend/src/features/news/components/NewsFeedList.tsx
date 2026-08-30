@@ -7,6 +7,10 @@ import { NewsDetailModal } from './NewsDetailModal';
 
 interface NewsFeedListProps {
   items: NewsItem[];
+  total?: number | undefined;
+  hasMore?: boolean | undefined;
+  isLoadingMore?: boolean | undefined;
+  onLoadMore?: (() => void) | undefined;
   isLoading: boolean;
   lastUpdated: string;
   onRefresh: () => void;
@@ -65,6 +69,10 @@ function formatTime(isoString: string): string {
 
 export function NewsFeedList({
   items,
+  total,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
   isLoading,
   lastUpdated,
   onRefresh,
@@ -76,10 +84,15 @@ export function NewsFeedList({
       <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm h-full">
         {/* Panel Header */}
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <div>
+          <div className="flex items-center gap-2">
             <h2 className="text-base font-bold text-slate-900">
               Tin tức đầu vào
             </h2>
+            {total !== undefined && total > 0 && (
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
+                {items.length}/{total}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2">
             {lastUpdated && (
@@ -120,55 +133,82 @@ export function NewsFeedList({
               Chưa có tin tức nào được thu thập.
             </div>
           ) : (
-            items.map((item) => (
-              <div
-                key={item.id}
-                className="grid grid-cols-[48px_1fr_90px_60px] items-start gap-3 px-5 py-3.5 hover:bg-slate-50/80 transition"
-              >
-                <div>
-                  <CoinBadge coins={item.relatedCoins} />
-                </div>
-
-                <div className="min-w-0 pr-2">
-                  <div className="flex items-start gap-1">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedArticle(item)}
-                      className="group text-left text-xs font-bold text-slate-900 hover:text-blue-600 transition line-clamp-2"
-                    >
-                      {item.title}
-                    </button>
-                    {isExternalUrl(item.url) && (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Mở bài viết gốc trong tab mới"
-                        className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition shrink-0 mt-0.5"
-                      >
-                        <ExternalLink className="size-3" />
-                      </a>
-                    )}
+            <>
+              {items.map((item) => (
+                <div
+                  key={item.id}
+                  className="grid grid-cols-[48px_1fr_90px_60px] items-start gap-3 px-5 py-3.5 hover:bg-slate-50/80 transition"
+                >
+                  <div>
+                    <CoinBadge coins={item.relatedCoins} />
                   </div>
-                  <p
-                    onClick={() => setSelectedArticle(item)}
-                    className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed cursor-pointer hover:text-slate-700 transition"
+
+                  <div className="min-w-0 pr-2">
+                    <div className="flex items-start gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedArticle(item)}
+                        className="group text-left text-xs font-bold text-slate-900 hover:text-blue-600 transition line-clamp-2"
+                      >
+                        {item.title}
+                      </button>
+                      {isExternalUrl(item.url) && (
+                        <a
+                          href={item.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          title="Mở bài viết gốc trong tab mới"
+                          className="text-slate-400 hover:text-blue-600 p-0.5 rounded transition shrink-0 mt-0.5"
+                        >
+                          <ExternalLink className="size-3" />
+                        </a>
+                      )}
+                    </div>
+                    <p
+                      onClick={() => setSelectedArticle(item)}
+                      className="mt-1 text-xs text-slate-500 line-clamp-2 leading-relaxed cursor-pointer hover:text-slate-700 transition"
+                    >
+                      {item.content}
+                    </p>
+                  </div>
+
+                  <div className="truncate text-xs font-medium text-slate-600">
+                    <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
+                      {item.source}
+                    </span>
+                  </div>
+
+                  <div className="text-right text-xs text-slate-400 font-mono">
+                    {formatTime(item.publishedAt)}
+                  </div>
+                </div>
+              ))}
+
+              {/* Load More Button or Finished Indicator */}
+              <div className="p-4 text-center">
+                {hasMore && onLoadMore ? (
+                  <button
+                    type="button"
+                    disabled={isLoadingMore}
+                    onClick={onLoadMore}
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-white hover:border-slate-300 hover:text-slate-900 disabled:opacity-50 transition"
                   >
-                    {item.content}
+                    {isLoadingMore && (
+                      <Loader2 className="size-3.5 animate-spin text-blue-600" />
+                    )}
+                    <span>
+                      {isLoadingMore
+                        ? 'Đang tải thêm tin...'
+                        : `Xem thêm tin tức (${total !== undefined ? total - items.length : 'thêm'} tin còn lại)`}
+                    </span>
+                  </button>
+                ) : items.length > 0 && total !== undefined && total > 0 ? (
+                  <p className="text-xs text-slate-400">
+                    Đã hiển thị tất cả {total} tin tức
                   </p>
-                </div>
-
-                <div className="truncate text-xs font-medium text-slate-600">
-                  <span className="inline-block rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-700">
-                    {item.source}
-                  </span>
-                </div>
-
-                <div className="text-right text-xs text-slate-400 font-mono">
-                  {formatTime(item.publishedAt)}
-                </div>
+                ) : null}
               </div>
-            ))
+            </>
           )}
         </div>
       </div>

@@ -200,26 +200,42 @@ export class PrismaNewsRepository implements NewsRepository {
     const limit = query.limit ?? 20;
     const skip = (page - 1) * limit;
 
-    const where: Prisma.NewsItemWhereInput = {};
+    const andConditions: Prisma.NewsItemWhereInput[] = [];
 
-    if (query.source) {
-      where.source = { contains: query.source, mode: 'insensitive' };
-    }
-
+    // Active source filter: only include items from active sources or direct manual ingest
     if (query.providerType) {
       if (query.providerType === 'HTML') {
-        where.OR = [
-          { newsSource: { providerType: 'HTML' } },
-          { newsSourceId: null },
-        ];
+        andConditions.push({
+          OR: [
+            { newsSource: { providerType: 'HTML', isActive: true } },
+            { newsSourceId: null },
+          ],
+        });
       } else {
-        where.newsSource = { providerType: query.providerType };
+        andConditions.push({
+          newsSource: { providerType: query.providerType, isActive: true },
+        });
       }
+    } else {
+      andConditions.push({
+        OR: [{ newsSource: { isActive: true } }, { newsSourceId: null }],
+      });
+    }
+
+    if (query.source) {
+      andConditions.push({
+        source: { contains: query.source, mode: 'insensitive' },
+      });
     }
 
     if (query.coin) {
-      where.relatedCoins = { has: query.coin.toUpperCase() };
+      andConditions.push({
+        relatedCoins: { has: query.coin.toUpperCase() },
+      });
     }
+
+    const where: Prisma.NewsItemWhereInput =
+      andConditions.length > 0 ? { AND: andConditions } : {};
 
     const [items, total] = await Promise.all([
       this.prisma.newsItem.findMany({
@@ -329,8 +345,12 @@ export class PrismaNewsRepository implements NewsRepository {
   }
 
   public async getNewsStats(): Promise<NewsStats> {
+    const activeNewsFilter: Prisma.NewsItemWhereInput = {
+      OR: [{ newsSource: { isActive: true } }, { newsSourceId: null }],
+    };
+
     const [totalItems, totalSources, activeSources] = await Promise.all([
-      this.prisma.newsItem.count(),
+      this.prisma.newsItem.count({ where: activeNewsFilter }),
       this.prisma.newsSource.count(),
       this.prisma.newsSource.count({ where: { isActive: true } }),
     ]);

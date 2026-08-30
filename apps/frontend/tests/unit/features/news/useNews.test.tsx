@@ -107,4 +107,60 @@ describe('useNews hook', () => {
     expect(result.current.selectedCoin).toBe('BTC');
     expect(result.current.page).toBe(1);
   });
+
+  it('handleLoadMore appends additional items and updates total', async () => {
+    vi.mocked(newsClient.fetchNewsItems).mockResolvedValueOnce({
+      items: [
+        {
+          id: 'news-1',
+          title: 'News 1',
+          content: 'Content 1',
+          source: 'CoinDesk',
+          url: 'https://coindesk.com/1',
+          publishedAt: '2026-08-30T10:00:00.000Z',
+          relatedCoins: ['BTC'],
+          createdAt: '2026-08-30T10:00:00.000Z',
+          updatedAt: '2026-08-30T10:00:00.000Z',
+        },
+      ],
+      total: 2,
+      page: 1,
+      limit: 20,
+    });
+
+    const { result } = renderHook(() => useNews());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    expect(result.current.items).toHaveLength(1);
+    expect(result.current.hasMore).toBe(true);
+
+    vi.mocked(newsClient.fetchNewsItems).mockResolvedValueOnce({
+      items: [
+        {
+          id: 'news-2',
+          title: 'News 2',
+          content: 'Content 2',
+          source: 'CoinDesk',
+          url: 'https://coindesk.com/2',
+          publishedAt: '2026-08-30T10:05:00.000Z',
+          relatedCoins: ['ETH'],
+          createdAt: '2026-08-30T10:05:00.000Z',
+          updatedAt: '2026-08-30T10:05:00.000Z',
+        },
+      ],
+      total: 2,
+      page: 2,
+      limit: 20,
+    });
+
+    await act(async () => {
+      await result.current.handleLoadMore();
+    });
+
+    expect(result.current.items).toHaveLength(2);
+    expect(result.current.hasMore).toBe(false);
+  });
 });

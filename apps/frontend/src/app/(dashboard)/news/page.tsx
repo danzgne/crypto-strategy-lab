@@ -20,6 +20,10 @@ export default function NewsPage() {
   const { isAdmin } = useAuth();
   const {
     items,
+    total,
+    hasMore,
+    isLoadingMore,
+    handleLoadMore,
     sources,
     stats,
     isLoading,
@@ -128,6 +132,10 @@ export default function NewsPage() {
         <div className="lg:col-span-4 h-[780px]">
           <NewsFeedList
             items={items}
+            total={total}
+            hasMore={hasMore}
+            isLoadingMore={isLoadingMore}
+            onLoadMore={handleLoadMore}
             isLoading={isLoading}
             lastUpdated={lastUpdated}
             onRefresh={loadNews}

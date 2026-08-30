@@ -70,6 +70,7 @@ export function useNews(options: UseNewsOptions = {}) {
     coveragePercent: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [selectedTab, setSelectedTab] = useState<NewsProviderType | 'ALL'>(
@@ -97,6 +98,36 @@ export function useNews(options: UseNewsOptions = {}) {
     setSelectedCoin(coin);
     setPage(1);
   }, []);
+
+  const handleLoadMore = useCallback(async () => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    try {
+      const nextPage = Math.floor(items.length / limit) + 1;
+      const providerType = selectedTab === 'ALL' ? undefined : selectedTab;
+      const coin = selectedCoin === 'ALL' ? undefined : selectedCoin;
+
+      const res = await fetchNewsItems({
+        page: nextPage,
+        limit,
+        providerType,
+        coin,
+      });
+
+      setItems((prev) => {
+        const existingIds = new Set(prev.map((i) => i.id));
+        const newItems = res.items.filter((i) => !existingIds.has(i.id));
+        return [...prev, ...newItems];
+      });
+      setTotal(res.total);
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Không thể tải thêm tin tức';
+      setErrorMessage(msg);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [isLoadingMore, items.length, limit, selectedTab, selectedCoin]);
 
   const loadNews = useCallback(async () => {
     try {
@@ -277,6 +308,9 @@ export function useNews(options: UseNewsOptions = {}) {
   return {
     items,
     total,
+    hasMore: items.length < total,
+    isLoadingMore,
+    handleLoadMore,
     sources,
     stats,
     isLoading,
