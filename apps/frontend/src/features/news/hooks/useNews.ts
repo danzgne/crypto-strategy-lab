@@ -83,10 +83,43 @@ export function useNews(options: UseNewsOptions = {}) {
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
+  const handleSelectTab = useCallback((tab: NewsProviderType | 'ALL') => {
+    setSelectedTab(tab);
+    setPage(1);
+  }, []);
+
+  const handleSelectCoin = useCallback((coin: string) => {
+    setSelectedCoin(coin);
+    setPage(1);
+  }, []);
+
+  const loadNews = useCallback(async () => {
+    try {
+      const bundle = await fetchNewsBundle({
+        page,
+        limit,
+        selectedTab,
+        selectedCoin,
+      });
+      setItems(bundle.items);
+      setTotal(bundle.total);
+      setSources(bundle.sources);
+      setStats(bundle.stats);
+      if (bundle.intervalMinutes) {
+        setIntervalMinutesState(bundle.intervalMinutes);
+      }
+      setLastUpdated(bundle.lastUpdated);
+    } catch {
+      // ignore
+    } finally {
+      setIsLoading(false);
+    }
+  }, [page, limit, selectedTab, selectedCoin]);
+
   useEffect(() => {
     let active = true;
 
-    async function fetchInitial() {
+    async function fetchData() {
       try {
         const bundle = await fetchNewsBundle({
           page,
@@ -111,34 +144,11 @@ export function useNews(options: UseNewsOptions = {}) {
       }
     }
 
-    void fetchInitial();
+    void fetchData();
 
     return () => {
       active = false;
     };
-  }, [page, limit, selectedTab, selectedCoin]);
-
-  const loadNews = useCallback(async () => {
-    try {
-      const bundle = await fetchNewsBundle({
-        page,
-        limit,
-        selectedTab,
-        selectedCoin,
-      });
-      setItems(bundle.items);
-      setTotal(bundle.total);
-      setSources(bundle.sources);
-      setStats(bundle.stats);
-      if (bundle.intervalMinutes) {
-        setIntervalMinutesState(bundle.intervalMinutes);
-      }
-      setLastUpdated(bundle.lastUpdated);
-    } catch {
-      // ignore
-    } finally {
-      setIsLoading(false);
-    }
   }, [page, limit, selectedTab, selectedCoin]);
 
   // Auto-refresh interval timer
@@ -238,9 +248,9 @@ export function useNews(options: UseNewsOptions = {}) {
     errorMessage,
     setErrorMessage,
     selectedTab,
-    setSelectedTab,
+    setSelectedTab: handleSelectTab,
     selectedCoin,
-    setSelectedCoin,
+    setSelectedCoin: handleSelectCoin,
     intervalMinutes,
     handleIntervalChange,
     lastUpdated,

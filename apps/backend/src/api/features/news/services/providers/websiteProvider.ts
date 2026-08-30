@@ -4,10 +4,13 @@ import type {
   RawNewsItem,
 } from '@crypto-strategy-lab/shared';
 import type { NewsProvider } from '../interfaces/newsProvider.interface';
+import { stripHtml } from '../../utils/htmlSanitizer';
+import { extractRelatedCoins } from '../../utils/coinExtractor';
 
 function extractMetaTag(html: string, property: string): string | null {
+  const propertyPattern = property.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
   const ogRegex = new RegExp(
-    `<meta[^>]+(?:property|name)=["'](?:og:)?${property}["'][^>]+content=["']([^"']+)["']`,
+    `<meta[^>]+(?:property|name)=["'](?:og:|twitter:|article:)?${propertyPattern}["'][^>]+content=["']([^"']+)["']`,
     'i',
   );
   const match = ogRegex.exec(html);
@@ -16,7 +19,7 @@ function extractMetaTag(html: string, property: string): string | null {
   }
 
   const altRegex = new RegExp(
-    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:)?${property}["']`,
+    `<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["'](?:og:|twitter:|article:)?${propertyPattern}["']`,
     'i',
   );
   const matchAlt = altRegex.exec(html);
@@ -25,14 +28,39 @@ function extractMetaTag(html: string, property: string): string | null {
 
 function extractTitle(html: string): string {
   const ogTitle = extractMetaTag(html, 'title');
-  if (ogTitle) return ogTitle;
+  if (ogTitle) return stripHtml(ogTitle);
 
   const titleMatch = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
-  return titleMatch && titleMatch[1] ? titleMatch[1].trim() : '';
+  return titleMatch && titleMatch[1] ? stripHtml(titleMatch[1]) : '';
 }
 
 function extractDescription(html: string): string {
-  return extractMetaTag(html, 'description') ?? '';
+  const metaDesc = extractMetaTag(html, 'description');
+  if (metaDesc) return stripHtml(metaDesc);
+
+  const pMatch = /<p[^>]*>([^<]{20,})<\/p>/i.exec(html);
+  if (pMatch && pMatch[1]) {
+    return stripHtml(pMatch[1]);
+  }
+
+  return '';
+}
+
+function extractPublishedAt(html: string): Date {
+  const metaDate =
+    extractMetaTag(html, 'published_time') ??
+    extractMetaTag(html, 'article:published_time') ??
+    extractMetaTag(html, 'pubdate') ??
+    extractMetaTag(html, 'date');
+
+  if (metaDate) {
+    const parsed = new Date(metaDate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+
+  return new Date();
 }
 
 export class WebsiteNewsProvider implements NewsProvider {
@@ -46,14 +74,18 @@ export class WebsiteNewsProvider implements NewsProvider {
       return [];
     }
 
+    const content = description || title;
+    const publishedAt = extractPublishedAt(html);
+    const relatedCoins = extractRelatedCoins([], title, content);
+
     return [
       {
         title,
-        content: description || title,
+        content,
         url: source.url,
-        publishedAt: new Date(),
+        publishedAt,
         source: source.name,
-        relatedCoins: [],
+        relatedCoins,
       },
     ];
   }

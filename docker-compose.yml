@@ -53,6 +53,7 @@ services:
       SECURE_COOKIE: 'false'
       ADMIN_EMAIL: ${ADMIN_EMAIL:-}
       ADMIN_DEFAULT_PASSWORD: ${ADMIN_DEFAULT_PASSWORD:-}
+      NODE_OPTIONS: '--max-http-header-size=131072'
     ports:
       - '${BACKEND_PORT:-3100}:3100'
     depends_on:
@@ -83,6 +84,7 @@ services:
       WORKER_ID: ${WORKER_ID:-backtest-worker-compose-1}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-10000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      NODE_OPTIONS: '--max-http-header-size=131072'
     depends_on:
       migrate:
         condition: service_completed_successfully

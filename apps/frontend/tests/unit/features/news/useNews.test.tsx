@@ -77,4 +77,34 @@ describe('useNews hook', () => {
     expect(newsClient.updateCrawlInterval).toHaveBeenCalledWith(4);
     expect(result.current.intervalMinutes).toBe(4);
   });
+
+  it('resets page to 1 when changing selectedTab or selectedCoin', async () => {
+    const { result } = renderHook(() => useNews());
+
+    await waitFor(() => {
+      expect(result.current.isLoading).toBe(false);
+    });
+
+    act(() => {
+      result.current.setPage(3);
+    });
+    expect(result.current.page).toBe(3);
+
+    act(() => {
+      result.current.setSelectedTab('RSS');
+    });
+    expect(result.current.selectedTab).toBe('RSS');
+    expect(result.current.page).toBe(1);
+
+    act(() => {
+      result.current.setPage(5);
+    });
+    expect(result.current.page).toBe(5);
+
+    act(() => {
+      result.current.setSelectedCoin('BTC');
+    });
+    expect(result.current.selectedCoin).toBe('BTC');
+    expect(result.current.page).toBe(1);
+  });
 });

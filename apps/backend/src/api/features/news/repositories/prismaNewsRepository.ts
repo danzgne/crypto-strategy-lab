@@ -219,20 +219,31 @@ export class PrismaNewsRepository implements NewsRepository {
       return { persistedItems: [], skippedCount: 0 };
     }
 
-    const persisted: NewsItem[] = [];
-    let skipped = 0;
-
+    // Deduplicate items within the incoming batch
+    const uniqueItemsMap = new Map<string, RawNewsItem>();
     for (const item of items) {
+      if (!uniqueItemsMap.has(item.url)) {
+        uniqueItemsMap.set(item.url, item);
+      }
+    }
+    const uniqueItems = Array.from(uniqueItemsMap.values());
+    let skipped = items.length - uniqueItems.length;
+
+    // Batch query existing URLs in single database roundtrip
+    const urls = uniqueItems.map((i) => i.url);
+    const existingRecords = await this.prisma.newsItem.findMany({
+      where: { url: { in: urls } },
+      select: { url: true },
+    });
+    const existingUrls = new Set(existingRecords.map((r) => r.url));
+
+    const toCreate = uniqueItems.filter((i) => !existingUrls.has(i.url));
+    skipped += uniqueItems.length - toCreate.length;
+
+    const persisted: NewsItem[] = [];
+
+    for (const item of toCreate) {
       try {
-        const existing = await this.prisma.newsItem.findUnique({
-          where: { url: item.url },
-        });
-
-        if (existing) {
-          skipped++;
-          continue;
-        }
-
         const createData: Prisma.NewsItemCreateInput = {
           title: item.title,
           content: item.content,
@@ -253,6 +264,11 @@ export class PrismaNewsRepository implements NewsRepository {
         persisted.push(mapNewsItem(created));
       } catch (error) {
         if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          skipped++;
+        } else if (
           error instanceof Error &&
           error.message.includes('Unique constraint')
         ) {

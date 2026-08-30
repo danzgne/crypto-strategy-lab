@@ -163,15 +163,37 @@ export class NewsCrawler implements NewsCrawlerInterface {
       'Starting crawl for all active news sources',
     );
 
+    const settledResults = await Promise.allSettled(
+      activeSources.map((source) => this.crawlSource(source)),
+    );
+
     const results: CrawlResult[] = [];
     let totalFound = 0;
     let totalPersisted = 0;
 
-    for (const source of activeSources) {
-      const res = await this.crawlSource(source);
-      results.push(res);
-      totalFound += res.itemsFound;
-      totalPersisted += res.itemsPersisted;
+    for (let i = 0; i < settledResults.length; i++) {
+      const settled = settledResults[i];
+      const source = activeSources[i];
+      if (settled && settled.status === 'fulfilled') {
+        results.push(settled.value);
+        totalFound += settled.value.itemsFound;
+        totalPersisted += settled.value.itemsPersisted;
+      } else if (source) {
+        const errorMsg =
+          settled && settled.status === 'rejected'
+            ? settled.reason instanceof Error
+              ? settled.reason.message
+              : String(settled.reason)
+            : 'Unknown crawl error';
+        results.push({
+          sourceId: source.id,
+          sourceName: source.name,
+          status: 'FAILURE',
+          itemsFound: 0,
+          itemsPersisted: 0,
+          error: errorMsg,
+        });
+      }
     }
 
     const completedAt = new Date().toISOString();

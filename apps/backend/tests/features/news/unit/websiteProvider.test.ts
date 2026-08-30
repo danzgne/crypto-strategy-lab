@@ -18,7 +18,7 @@ describe('WebsiteNewsProvider', () => {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta property="og:title" content="SEC Approves New Crypto Index ETP" />
+  <meta property="og:title" content="SEC Approves New Crypto Index &amp; ETP" />
   <meta property="og:description" content="Regulators have greenlit the first diversified crypto index vehicle in the US." />
   <title>Default Page Title - Ignored if OG present</title>
 </head>
@@ -49,14 +49,26 @@ describe('WebsiteNewsProvider', () => {
 
   const EMPTY_HTML_FIXTURE = `<!DOCTYPE html><html><head></head><body>No title here</body></html>`;
 
+  const YAHOO_STYLE_HTML = `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="twitter:title" content="Bitcoin BTC (BTC-USD) Live Price, News, Chart &amp; History - Yahoo Finance" />
+  <meta name="description" content="Find the live Bitcoin USD (BTC-USD) price, history, news and other vital information." />
+  <meta property="article:published_time" content="2026-08-29T10:00:00.000Z" />
+</head>
+<body>
+  <p>Detailed overview of Bitcoin cryptocurrency market price performance.</p>
+</body>
+</html>`;
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it('should extract title and description from OpenGraph meta tags', () => {
+  it('should extract title and description from OpenGraph meta tags and unescape entities', () => {
     const items = provider.parseHtml(OG_HTML_FIXTURE, dummySource);
     expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('SEC Approves New Crypto Index ETP');
+    expect(items[0]?.title).toBe('SEC Approves New Crypto Index & ETP');
     expect(items[0]?.content).toBe(
       'Regulators have greenlit the first diversified crypto index vehicle in the US.',
     );
@@ -64,20 +76,34 @@ describe('WebsiteNewsProvider', () => {
     expect(items[0]?.source).toBe(dummySource.name);
   });
 
-  it('should fallback to standard <title> and <meta name="description"> tags', () => {
+  it('should fallback to standard <title> and <meta name="description"> tags and extract coins', () => {
     const items = provider.parseHtml(STANDARD_HTML_FIXTURE, dummySource);
     expect(items).toHaveLength(1);
     expect(items[0]?.title).toBe('Bitcoin Dominance Rallies | Market Update');
     expect(items[0]?.content).toBe(
       'Bitcoin dominance rises past 60% amidst market consolidation.',
     );
+    expect(items[0]?.relatedCoins).toContain('BTC');
   });
 
-  it('should use title as content when description is missing', () => {
+  it('should use title as content when description is missing and extract ETH', () => {
     const items = provider.parseHtml(MINIMAL_HTML_FIXTURE, dummySource);
     expect(items).toHaveLength(1);
     expect(items[0]?.title).toBe('Ethereum Scalability Breakthrough');
     expect(items[0]?.content).toBe('Ethereum Scalability Breakthrough');
+    expect(items[0]?.relatedCoins).toContain('ETH');
+  });
+
+  it('should extract Twitter card, published time, and coins from Yahoo-style HTML', () => {
+    const items = provider.parseHtml(YAHOO_STYLE_HTML, dummySource);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.title).toBe(
+      'Bitcoin BTC (BTC-USD) Live Price, News, Chart & History - Yahoo Finance',
+    );
+    expect(items[0]?.relatedCoins).toContain('BTC');
+    expect(items[0]?.publishedAt.toISOString()).toBe(
+      '2026-08-29T10:00:00.000Z',
+    );
   });
 
   it('should return empty list when no title is found in HTML', () => {
@@ -96,7 +122,7 @@ describe('WebsiteNewsProvider', () => {
 
     const items = await provider.fetchNews(dummySource);
     expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('SEC Approves New Crypto Index ETP');
+    expect(items[0]?.title).toBe('SEC Approves New Crypto Index & ETP');
   });
 
   it('should throw an informative error when fetch fails with non-200 status', async () => {

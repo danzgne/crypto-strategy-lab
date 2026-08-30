@@ -33,8 +33,10 @@ CMD ["pnpm", "prisma:migrate:deploy"]
 
 FROM node:24-alpine AS runtime
 ENV NODE_ENV=production
+ENV NODE_OPTIONS="--max-http-header-size=131072"
 WORKDIR /app
 COPY --from=build --chown=node:node /opt/backend ./
 USER node
 EXPOSE 3100
 CMD ["node", "dist/index.js"]
+

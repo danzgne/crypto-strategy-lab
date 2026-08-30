@@ -43,8 +43,11 @@ export class NewsScheduler {
     );
 
     if (this.timer) {
-      this.stop();
-      this.start();
+      clearInterval(this.timer);
+      const intervalMs = this.intervalMinutes * 60 * 1000;
+      this.timer = setInterval(() => {
+        void this.tick();
+      }, intervalMs);
     }
   }
 
