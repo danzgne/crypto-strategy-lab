@@ -32,10 +32,18 @@ describe('useStrategyCatalog', () => {
     expect(socket.emit).toHaveBeenCalledWith('strategy:catalog:request');
 
     act(() =>
-      listeners.get('strategy:catalog')?.({ strategyIds: ['ma', 'rsi'] }),
+      listeners.get('strategy:catalog')?.({
+        strategies: [
+          { id: 'ma', requiresParams: false },
+          { id: 'rsi', requiresParams: false },
+        ],
+      }),
     );
     await waitFor(() =>
-      expect(result.current.strategyIds).toEqual(['ma', 'rsi']),
+      expect(result.current.strategies).toEqual([
+        { id: 'ma', requiresParams: false },
+        { id: 'rsi', requiresParams: false },
+      ]),
     );
   });
 });

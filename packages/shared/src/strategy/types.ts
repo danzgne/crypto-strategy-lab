@@ -26,8 +26,11 @@ export interface StrategyContext {
 
 export type Context = StrategyContext;
 
+export type StrategyParamType =
+  'integer' | 'number' | 'string' | 'object' | 'array';
+
 export interface StrategyParamDefinition {
-  type: 'integer' | 'number';
+  type: StrategyParamType;
   default?: number;
   minimum?: number;
   maximum?: number;

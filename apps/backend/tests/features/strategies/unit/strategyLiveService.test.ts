@@ -162,4 +162,216 @@ describe('StrategyLiveService', () => {
     await strategyLiveService.close();
     await service.close();
   });
+
+  it('constructs a RuleStrategy from authored params and evaluates it exactly like a hand-written strategy', async () => {
+    let streamHandlers:
+      Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+    const initialCandles = Array.from({ length: 10 }, (_, index) =>
+      makeCandle(index, 100),
+    );
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        },
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+    const updates: unknown[] = [];
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'rule',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        params: {
+          source: 'manual',
+          indicators: [{ name: 'RSI', period: 2 }],
+          conditions: {
+            long: [{ indicator: 'RSI', operator: '<', value: 30 }],
+            short: [],
+          },
+          timeframe: '1m',
+        },
+      },
+      (update) => updates.push(update),
+    );
+
+    const dropCandle = makeCandle(10, 50);
+    await streamHandlers?.onCandle(dropCandle);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(updates).toEqual([
+      {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        candle: dropCandle,
+        indicators: { RSI: 0 },
+        signal: { action: 'BUY', indicators: { RSI: 0 }, reason: 'RSI < 30' },
+      },
+    ]);
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
+  it('rejects a RuleStrategy subscription whose request timeframe does not match its declared timeframe', async () => {
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => [],
+        openKlineStream: () => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+
+    await expect(
+      strategyLiveService.subscribe(
+        {
+          strategyId: 'rule',
+          pair: 'BTCUSDT',
+          timeframe: '1m',
+          params: {
+            source: 'manual',
+            indicators: [],
+            conditions: {
+              long: [{ indicator: 'Close', operator: '>', value: 0 }],
+              short: [],
+            },
+            timeframe: '5m',
+          },
+        },
+        () => undefined,
+      ),
+    ).rejects.toThrow(/timeframe/i);
+
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
+  it('rejects a RuleStrategy subscription for a pair outside its declared applicability', async () => {
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => [],
+        openKlineStream: () => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+
+    await expect(
+      strategyLiveService.subscribe(
+        {
+          strategyId: 'rule',
+          pair: 'BTCUSDT',
+          timeframe: '1m',
+          params: {
+            source: 'manual',
+            indicators: [],
+            conditions: {
+              long: [{ indicator: 'Close', operator: '>', value: 0 }],
+              short: [],
+            },
+            timeframe: '1m',
+            applicability: { pairs: ['ETHUSDT'] },
+          },
+        },
+        () => undefined,
+      ),
+    ).rejects.toThrow(/not applicable/i);
+
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
+  it('keeps two differently-parameterized RuleStrategy subscriptions on the same pair and timeframe independent', async () => {
+    let streamHandlers:
+      Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+    const initialCandles = Array.from({ length: 10 }, (_, index) =>
+      makeCandle(index, 100 + index),
+    );
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        },
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+
+    const ruleParams = (period: number): unknown => ({
+      source: 'manual',
+      indicators: [{ name: 'SMA', period }],
+      conditions: {
+        long: [{ indicator: 'Close', operator: '>', value: 1_000_000 }],
+        short: [],
+      },
+      timeframe: '1m',
+    });
+
+    const shortUpdates: unknown[] = [];
+    const longUpdates: unknown[] = [];
+    const shortPeriod = await strategyLiveService.subscribe(
+      {
+        strategyId: 'rule',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        params: ruleParams(3),
+      },
+      (update) => shortUpdates.push(update),
+    );
+    const longPeriod = await strategyLiveService.subscribe(
+      {
+        strategyId: 'rule',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        params: ruleParams(7),
+      },
+      (update) => longUpdates.push(update),
+    );
+
+    await streamHandlers?.onCandle(makeCandle(10, 200));
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(shortUpdates).toHaveLength(1);
+    expect(longUpdates).toHaveLength(1);
+    const shortSma = (shortUpdates[0] as { indicators: Record<string, number> })
+      .indicators['SMA'];
+    const longSma = (longUpdates[0] as { indicators: Record<string, number> })
+      .indicators['SMA'];
+    expect(shortSma).toBeDefined();
+    expect(longSma).toBeDefined();
+    expect(shortSma).not.toEqual(longSma);
+
+    await shortPeriod.unsubscribe();
+    await longPeriod.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
 });

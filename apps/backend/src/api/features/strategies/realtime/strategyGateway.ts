@@ -3,6 +3,7 @@ import type {
   InterServerEvents,
   ServerToClientEvents,
   SocketData,
+  StrategyCatalogEntry,
   StrategySubscribeRequest,
   StrategyUnsubscribeRequest,
 } from '@crypto-strategy-lab/shared';
@@ -46,9 +47,7 @@ export function registerStrategyGateway(
 
   socketServer.on('connection', (socket) => {
     const sendCatalog = (): void => {
-      socket.emit('strategy:catalog', {
-        strategyIds: StrategyRegistry.list(),
-      });
+      socket.emit('strategy:catalog', { strategies: buildCatalog() });
     };
     socket.on('strategy:catalog:request', sendCatalog);
     sendCatalog();
@@ -87,6 +86,7 @@ async function subscribeStrategy(
         pair: request.pair,
         timeframe: request.timeframe,
         ...(request.limit === undefined ? {} : { limit: request.limit }),
+        ...(request.params === undefined ? {} : { params: request.params }),
       },
       (update) => socket.emit('strategy:signal', update),
     );
@@ -117,7 +117,20 @@ async function subscribeStrategy(
       },
       'Strategy subscription failed',
     );
+    socket.emit('strategy:error', {
+      chartId: request.chartId,
+      strategyId: request.strategyId,
+      message:
+        error instanceof Error ? error.message : 'Strategy subscription failed',
+    });
   }
+}
+
+function buildCatalog(): StrategyCatalogEntry[] {
+  return StrategyRegistry.list().map((id) => {
+    const required = StrategyRegistry.get(id)?.paramsSchema.required ?? [];
+    return { id, requiresParams: required.length > 0 };
+  });
 }
 
 async function unsubscribeStrategy(

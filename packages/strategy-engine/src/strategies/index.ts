@@ -4,6 +4,7 @@ import './bbStrategy';
 import './srStrategy';
 import './smcStrategy';
 import './wyckoffStrategy';
+import '../rules/ruleStrategy';
 
 export {
   MA_PARAMS_SCHEMA,
@@ -46,3 +47,18 @@ export {
   WyckoffStrategy,
   type WyckoffParams,
 } from './wyckoffStrategy';
+
+export {
+  RULE_PARAMS_SCHEMA,
+  RULE_STRATEGY_ID,
+  RuleStrategy,
+  isRuleStrategy,
+} from '../rules/ruleStrategy';
+
+export {
+  evaluateRule,
+  requiredHistoryForRule,
+  resolveRuleStrategyParams,
+  type ResolvedIndicatorDeclaration,
+  type ResolvedRuleStrategyParams,
+} from '../rules/ruleEvaluation';

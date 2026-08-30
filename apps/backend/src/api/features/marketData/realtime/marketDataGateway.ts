@@ -1,12 +1,13 @@
-import type {
-  ClientToServerEvents,
-  InterServerEvents,
-  MarketHistoryRequest,
-  MarketSubscribeRequest,
-  MarketUnsubscribeRequest,
-  ServerToClientEvents,
-  SocketData,
-  Timeframe,
+import {
+  isTimeframe,
+  type ClientToServerEvents,
+  type InterServerEvents,
+  type MarketHistoryRequest,
+  type MarketSubscribeRequest,
+  type MarketUnsubscribeRequest,
+  type ServerToClientEvents,
+  type SocketData,
+  type Timeframe,
 } from '@crypto-strategy-lab/shared';
 import { normalizeCandleLimit } from '@crypto-strategy-lab/shared/market-data';
 import type { Server, Socket } from 'socket.io';
@@ -451,10 +452,6 @@ function normalizeHistoryRequest(
     beforeOpenTime: Math.trunc(request.beforeOpenTime),
     limit: normalizeCandleLimit(request.limit),
   };
-}
-
-function isTimeframe(value: string): value is Timeframe {
-  return ['1m', '5m', '15m', '1h', '4h', '1d'].includes(value);
 }
 
 function marketRoom(pair: string, timeframe: Timeframe): string {

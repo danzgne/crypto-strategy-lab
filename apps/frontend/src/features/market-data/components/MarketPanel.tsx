@@ -16,7 +16,7 @@ const PHASE_COPY = {
   stale: { label: 'STALE', tone: 'negative' },
 } as const;
 
-export const CHART_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h'] as const;
+export const CHART_TIMEFRAMES = ['1m', '5m', '15m', '1h', '4h', '1d'] as const;
 export type ChartTimeframe = (typeof CHART_TIMEFRAMES)[number];
 
 interface MarketPanelProperties {
@@ -26,6 +26,7 @@ interface MarketPanelProperties {
   panelNumber: number;
   onTimeframeChange: (timeframe: ChartTimeframe) => void;
   strategyId: string | null;
+  strategyParams?: unknown;
 }
 
 export function MarketPanel({
@@ -35,6 +36,7 @@ export function MarketPanel({
   panelNumber,
   onTimeframeChange,
   strategyId,
+  strategyParams,
 }: MarketPanelProperties) {
   const chartId = `market-panel-${panelNumber}`;
   const market = useMarketSubscription({
@@ -48,6 +50,7 @@ export function MarketPanel({
     enabled: strategyId !== null,
     limit: MAX_CANDLE_LIMIT,
     pair,
+    ...(strategyParams === undefined ? {} : { params: strategyParams }),
     strategyId: strategyId ?? '',
     timeframe,
   });
@@ -91,6 +94,15 @@ export function MarketPanel({
           </StatusBadge>
         </div>
       </div>
+
+      {strategy.error !== null && (
+        <p
+          className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700"
+          role="alert"
+        >
+          {strategy.error}
+        </p>
+      )}
 
       <div className="mt-5">
         <CandlestickChart

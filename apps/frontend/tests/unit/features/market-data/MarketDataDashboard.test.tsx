@@ -7,6 +7,7 @@ import type {
 } from '../../../../src/features/market-data/hooks/useMarketSubscription';
 import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
 import type { RecentTicksState } from '../../../../src/features/market-data/hooks/useRecentTicks';
+import type { StrategySignalState } from '../../../../src/features/market-data/hooks/useStrategySignal';
 
 vi.mock(
   '../../../../src/features/market-data/hooks/useMarketSubscription',
@@ -47,10 +48,23 @@ vi.mock('../../../../src/features/market-data/hooks/useRecentTicks', () => ({
   }),
 }));
 
+vi.mock('../../../../src/features/market-data/hooks/useStrategySignal', () => ({
+  useStrategySignal: (): StrategySignalState => ({
+    latest: null,
+    history: [],
+    error: null,
+  }),
+}));
+
 vi.mock(
   '../../../../src/features/market-data/hooks/useStrategyCatalog',
   () => ({
-    useStrategyCatalog: () => ({ strategyIds: ['ma'] }),
+    useStrategyCatalog: () => ({
+      strategies: [
+        { id: 'ma', requiresParams: false },
+        { id: 'rule', requiresParams: true },
+      ],
+    }),
   }),
 );
 
@@ -82,8 +96,8 @@ describe('MarketDataDashboard', () => {
     expect(screen.getByText('4 live panels')).toBeInTheDocument();
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
     expect(
-      screen.queryByRole('option', { name: '1d' }),
-    ).not.toBeInTheDocument();
+      screen.getAllByRole('option', { name: '1d' }).length,
+    ).toBeGreaterThan(0);
 
     const firstTimeframeSelector = timeframeSelectors.at(0);
     if (firstTimeframeSelector === undefined) {
@@ -95,5 +109,40 @@ describe('MarketDataDashboard', () => {
     fireEvent.change(pairSelector, { target: { value: 'ETHUSDT' } });
     expect(screen.getByText('ETHUSDT · 4h')).toBeInTheDocument();
     expect(screen.getAllByText('ETHUSDT · 5m')).toHaveLength(1);
+  });
+
+  it('shows a manual JSON params input for a strategy that requires params, and rejects invalid JSON', () => {
+    render(<MarketDataDashboard />);
+
+    expect(
+      screen.queryByLabelText(/RULE params \(JSON\)/),
+    ).not.toBeInTheDocument();
+
+    const strategySelector = screen.getByRole('combobox', {
+      name: 'Strategy overlay',
+    });
+    fireEvent.change(strategySelector, { target: { value: 'rule' } });
+
+    const paramsInput = screen.getByLabelText(/RULE params \(JSON\)/);
+    expect(paramsInput).toBeInTheDocument();
+
+    fireEvent.change(paramsInput, { target: { value: '{not valid json' } });
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'That is not valid JSON.',
+    );
+
+    fireEvent.change(paramsInput, {
+      target: {
+        value: JSON.stringify({
+          indicators: [{ name: 'RSI', period: 14 }],
+          conditions: {
+            long: [{ indicator: 'RSI', operator: '<', value: 30 }],
+            short: [],
+          },
+          timeframe: '1m',
+        }),
+      },
+    });
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

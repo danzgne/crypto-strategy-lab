@@ -8,9 +8,14 @@ import type {
   StrategySignalUpdate,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
-import { marketKey } from '@crypto-strategy-lab/shared';
+import {
+  marketKey,
+  pairMatchesRuleApplicability,
+} from '@crypto-strategy-lab/shared';
+import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import {
   StrategyRegistry,
+  isRuleStrategy,
   type Strategy,
 } from '@crypto-strategy-lab/strategy-engine';
 import {
@@ -44,6 +49,7 @@ export interface StrategySubscriptionRequest {
   pair: Pair;
   timeframe: Timeframe;
   limit?: number;
+  params?: unknown;
 }
 
 export type StrategySignalListener = (update: StrategySignalUpdate) => void;
@@ -99,11 +105,13 @@ export class StrategyLiveService {
   ): Promise<StrategySubscription> {
     const strategyId = request.strategyId;
     const pair = request.pair.toUpperCase();
-    const key = strategyKey(strategyId, pair, request.timeframe);
+    const strategy = StrategyRegistry.create(strategyId, request.params);
+    assertApplicable(strategy, pair, request.timeframe);
+    const versionTag = computeStrategyVersionTag(strategyId, strategy.params);
+    const key = strategyKey(strategyId, versionTag, pair, request.timeframe);
     let state = this.activeStrategies.get(key);
 
     if (state === undefined) {
-      const strategy = StrategyRegistry.create(strategyId);
       const historyLimit = Math.min(
         MAX_CANDLE_LIMIT,
         Math.max(
@@ -117,6 +125,7 @@ export class StrategyLiveService {
         request.timeframe,
         strategy,
         historyLimit,
+        key,
       );
       this.activeStrategies.set(key, state);
       state.initialization = this.initializeState(state);
@@ -164,13 +173,14 @@ export class StrategyLiveService {
     timeframe: Timeframe,
     strategy: Strategy,
     historyLimit: number,
+    key: string,
   ): ActiveStrategyState {
     return {
       strategyId,
       pair,
       timeframe,
       historyLimit,
-      key: strategyKey(strategyId, pair, timeframe),
+      key,
       strategy,
       candles: [],
       signalHistory: [],
@@ -305,10 +315,29 @@ export class StrategyLiveService {
 
 function strategyKey(
   strategyId: string,
+  versionTag: string,
   pair: Pair,
   timeframe: Timeframe,
 ): string {
-  return `${strategyId}:${marketKey({ pair, timeframe })}`;
+  return `${strategyId}:${versionTag}:${marketKey({ pair, timeframe })}`;
+}
+
+function assertApplicable(
+  strategy: Strategy,
+  pair: Pair,
+  timeframe: Timeframe,
+): void {
+  if (!isRuleStrategy(strategy)) return;
+  if (strategy.params.timeframe !== timeframe) {
+    throw new Error(
+      `Strategy ${strategy.id} only applies to timeframe ${strategy.params.timeframe}, not ${timeframe}`,
+    );
+  }
+  if (!pairMatchesRuleApplicability(pair, strategy.params.applicability)) {
+    throw new Error(
+      `Strategy ${strategy.id} is not applicable to pair ${pair}`,
+    );
+  }
 }
 
 function mergeCandles(

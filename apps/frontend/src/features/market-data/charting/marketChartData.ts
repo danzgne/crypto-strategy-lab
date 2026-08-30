@@ -3,6 +3,7 @@ import type {
   SignalAction,
   StrategySignalUpdate,
 } from '@crypto-strategy-lab/shared';
+import { paneForIndicatorReference } from '@crypto-strategy-lab/shared';
 import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 
 import {
@@ -52,7 +53,7 @@ export function toMarketChartData(
     .map(([id, points], index) => ({
       color: INDICATOR_COLORS[index % INDICATOR_COLORS.length] ?? '#818cf8',
       id,
-      pane: 0,
+      pane: paneForIndicatorReference(id),
       points,
     }));
 
