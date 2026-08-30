@@ -115,8 +115,8 @@ export function MarketDataDashboard({
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)]">
         <section aria-labelledby="workspace-title">
-          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:flex-row sm:items-end sm:justify-between sm:p-5">
-            <div>
+          <div className="mb-5 grid gap-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="min-w-0">
               <h2
                 id="workspace-title"
                 className="text-base font-semibold text-slate-900"
@@ -128,8 +128,11 @@ export function MarketDataDashboard({
                 timeframe. Matching panels share one backend market stream.
               </p>
             </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
+            <div
+              className="grid gap-3 sm:grid-cols-2 lg:min-w-[21rem]"
+              data-testid="workspace-controls"
+            >
+              <div className="min-w-0">
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
                   htmlFor="strategy-overlay"
@@ -137,7 +140,7 @@ export function MarketDataDashboard({
                   Strategy overlay
                 </label>
                 <select
-                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="strategy-overlay"
                   onChange={(event) => {
                     setOverlayKey(event.target.value);
@@ -153,7 +156,7 @@ export function MarketDataDashboard({
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
                   htmlFor="market-pair"
@@ -161,7 +164,7 @@ export function MarketDataDashboard({
                   Market pair
                 </label>
                 <select
-                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="market-pair"
                   onChange={(event) => setPair(event.target.value)}
                   value={pair}
@@ -173,9 +176,6 @@ export function MarketDataDashboard({
                   ))}
                 </select>
               </div>
-              <span className="pb-2 text-xs font-medium text-slate-400">
-                {panelTimeframes.length} live panels
-              </span>
             </div>
           </div>
           <ManualCompositeBuilder

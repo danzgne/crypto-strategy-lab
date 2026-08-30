@@ -134,7 +134,14 @@ describe('MarketDataDashboard', () => {
     fireEvent.change(strategySelector, { target: { value: 'builtin:ma' } });
     expect(strategySelector).toHaveValue('builtin:ma');
     expect(timeframeSelectors).toHaveLength(4);
-    expect(screen.getByText('4 live panels')).toBeInTheDocument();
+    expect(screen.queryByText('4 live panels')).not.toBeInTheDocument();
+    const workspace = screen.getByRole('region', {
+      name: 'Live market workspace',
+    });
+    expect(within(workspace).getByTestId('workspace-controls')).toHaveClass(
+      'grid',
+      'sm:grid-cols-2',
+    );
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
     expect(
       screen.getAllByRole('option', { name: '1d' }).length,
