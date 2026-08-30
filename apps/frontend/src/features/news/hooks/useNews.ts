@@ -109,8 +109,10 @@ export function useNews(options: UseNewsOptions = {}) {
         setIntervalMinutesState(bundle.intervalMinutes);
       }
       setLastUpdated(bundle.lastUpdated);
-    } catch {
-      // ignore
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : 'Không thể tải dữ liệu tin tức';
+      setErrorMessage(msg);
     } finally {
       setIsLoading(false);
     }
@@ -137,6 +139,14 @@ export function useNews(options: UseNewsOptions = {}) {
           setIntervalMinutesState(bundle.intervalMinutes);
         }
         setLastUpdated(bundle.lastUpdated);
+      } catch (err) {
+        if (active) {
+          const msg =
+            err instanceof Error
+              ? err.message
+              : 'Không thể tải dữ liệu tin tức';
+          setErrorMessage(msg);
+        }
       } finally {
         if (active) {
           setIsLoading(false);

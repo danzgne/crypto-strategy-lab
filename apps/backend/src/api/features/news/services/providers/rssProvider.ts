@@ -166,6 +166,39 @@ export class RssNewsProvider implements NewsProvider {
 
     if (typeof entry.link === 'string') {
       link = entry.link.trim();
+    } else if (Array.isArray(entry.link)) {
+      const altLink = entry.link.find(
+        (l) =>
+          l &&
+          typeof l === 'object' &&
+          ((l as Record<string, unknown>)['@_rel'] === 'alternate' ||
+            !(l as Record<string, unknown>)['@_rel']) &&
+          typeof (l as Record<string, unknown>)['@_href'] === 'string',
+      );
+      if (altLink && typeof altLink === 'object') {
+        link = (
+          (altLink as Record<string, unknown>)['@_href'] as string
+        ).trim();
+      } else {
+        for (const l of entry.link) {
+          if (typeof l === 'string' && l.trim()) {
+            link = l.trim();
+            break;
+          } else if (l && typeof l === 'object') {
+            const lObj = l as Record<string, unknown>;
+            if (typeof lObj['@_href'] === 'string' && lObj['@_href'].trim()) {
+              link = lObj['@_href'].trim();
+              break;
+            } else if (
+              typeof lObj['#text'] === 'string' &&
+              lObj['#text'].trim()
+            ) {
+              link = lObj['#text'].trim();
+              break;
+            }
+          }
+        }
+      }
     } else if (entry.link && typeof entry.link === 'object') {
       const linkObj = entry.link as Record<string, unknown>;
       if (typeof linkObj['@_href'] === 'string') {
@@ -173,6 +206,10 @@ export class RssNewsProvider implements NewsProvider {
       } else if (typeof linkObj['#text'] === 'string') {
         link = linkObj['#text'].trim();
       }
+    }
+
+    if (!link && typeof entry.id === 'string' && entry.id.startsWith('http')) {
+      link = entry.id.trim();
     }
 
     if (!title || !link) {

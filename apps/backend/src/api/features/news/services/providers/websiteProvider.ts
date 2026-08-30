@@ -14,8 +14,7 @@ function cleanHtml(html: string): string {
     .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '');
 }
 
-function extractMetaTag(html: string, property: string): string | null {
-  const clean = cleanHtml(html);
+function extractMetaTag(cleanedHtml: string, property: string): string | null {
   const escapedProp = property.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&');
 
   // Format 1: <meta ... (property|name|itemprop)="prop" ... content="val" ... >
@@ -23,7 +22,7 @@ function extractMetaTag(html: string, property: string): string | null {
     `<meta\\s+[^>]*(?:property|name|itemprop)\\s*=\\s*["'](?:og:|twitter:|article:)?${escapedProp}["'][^>]*content\\s*=\\s*["']([^"']+)["'][^>]*>`,
     'is',
   );
-  const match1 = pattern1.exec(clean);
+  const match1 = pattern1.exec(cleanedHtml);
   if (match1 && match1[1]) {
     return match1[1].trim();
   }
@@ -33,7 +32,7 @@ function extractMetaTag(html: string, property: string): string | null {
     `<meta\\s+[^>]*content\\s*=\\s*["']([^"']+)["'][^>]*(?:property|name|itemprop)\\s*=\\s*["'](?:og:|twitter:|article:)?${escapedProp}["'][^>]*>`,
     'is',
   );
-  const match2 = pattern2.exec(clean);
+  const match2 = pattern2.exec(cleanedHtml);
   if (match2 && match2[1]) {
     return match2[1].trim();
   }
@@ -41,30 +40,29 @@ function extractMetaTag(html: string, property: string): string | null {
   return null;
 }
 
-function extractTitle(html: string): string {
+function extractTitle(cleanedHtml: string): string {
   const ogTitle =
-    extractMetaTag(html, 'title') ?? extractMetaTag(html, 'twitter:title');
+    extractMetaTag(cleanedHtml, 'title') ??
+    extractMetaTag(cleanedHtml, 'twitter:title');
   if (ogTitle) return stripHtml(ogTitle);
 
-  const clean = cleanHtml(html);
-  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(clean);
+  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(cleanedHtml);
   if (h1Match && h1Match[1]) {
     const titleFromH1 = stripHtml(h1Match[1]);
     if (titleFromH1.length > 5) return titleFromH1;
   }
 
-  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(clean);
+  const titleMatch = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(cleanedHtml);
   return titleMatch && titleMatch[1] ? stripHtml(titleMatch[1]) : '';
 }
 
-function extractDescription(html: string): string {
+function extractDescription(cleanedHtml: string): string {
   const metaDesc =
-    extractMetaTag(html, 'description') ??
-    extractMetaTag(html, 'twitter:description');
+    extractMetaTag(cleanedHtml, 'description') ??
+    extractMetaTag(cleanedHtml, 'twitter:description');
   if (metaDesc) return stripHtml(metaDesc);
 
-  const clean = cleanHtml(html);
-  const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(clean);
+  const pMatch = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(cleanedHtml);
   if (pMatch && pMatch[1]) {
     const text = stripHtml(pMatch[1]);
     if (text.length >= 20) {
@@ -75,13 +73,13 @@ function extractDescription(html: string): string {
   return '';
 }
 
-function extractPublishedAt(html: string): Date {
+function extractPublishedAt(cleanedHtml: string): Date {
   const metaDate =
-    extractMetaTag(html, 'published_time') ??
-    extractMetaTag(html, 'article:published_time') ??
-    extractMetaTag(html, 'datePublished') ??
-    extractMetaTag(html, 'pubdate') ??
-    extractMetaTag(html, 'date');
+    extractMetaTag(cleanedHtml, 'published_time') ??
+    extractMetaTag(cleanedHtml, 'article:published_time') ??
+    extractMetaTag(cleanedHtml, 'datePublished') ??
+    extractMetaTag(cleanedHtml, 'pubdate') ??
+    extractMetaTag(cleanedHtml, 'date');
 
   if (metaDate) {
     const parsed = new Date(metaDate);
@@ -90,10 +88,9 @@ function extractPublishedAt(html: string): Date {
     }
   }
 
-  const clean = cleanHtml(html);
   const timeMatch =
     /<time[^>]*(?:datetime|data-time)\s*=\s*["']([^"']+)["'][^>]*>/i.exec(
-      clean,
+      cleanedHtml,
     );
   if (timeMatch && timeMatch[1]) {
     const parsedTime = new Date(timeMatch[1]);
@@ -109,15 +106,16 @@ export class WebsiteNewsProvider implements NewsProvider {
   public readonly providerType: NewsProviderType = 'WEBSITE';
 
   public parseHtml(html: string, source: NewsSource): RawNewsItem[] {
-    const title = extractTitle(html);
-    const description = extractDescription(html);
+    const cleaned = cleanHtml(html);
+    const title = extractTitle(cleaned);
+    const description = extractDescription(cleaned);
 
     if (!title) {
       return [];
     }
 
     const content = description || title;
-    const publishedAt = extractPublishedAt(html);
+    const publishedAt = extractPublishedAt(cleaned);
     const relatedCoins = extractRelatedCoins([], title, content);
 
     return [

@@ -81,6 +81,39 @@ describe('RssNewsProvider', () => {
     expect(items[0]?.relatedCoins).toContain('SOL');
   });
 
+  it('should parse Atom feed entries with multiple link elements and alternate link', () => {
+    const multiLinkAtom = `<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Feed with Multi Link</title>
+  <entry>
+    <title>Multi-link article about Cardano</title>
+    <link rel="self" href="https://example.com/atom/feed/self" />
+    <link rel="alternate" href="https://example.com/article/cardano-news" />
+    <summary>Cardano announces new smart contract upgrade.</summary>
+    <updated>2026-08-29T15:00:00Z</updated>
+  </entry>
+  <entry>
+    <title>Article with ID fallback</title>
+    <id>https://example.com/article/polkadot-parachain</id>
+    <summary>Polkadot completes parachain auction.</summary>
+    <updated>2026-08-29T16:00:00Z</updated>
+  </entry>
+</feed>`;
+
+    const items = provider.parseXml(multiLinkAtom, 'MultiFeed');
+    expect(items).toHaveLength(2);
+
+    expect(items[0]?.title).toBe('Multi-link article about Cardano');
+    expect(items[0]?.url).toBe('https://example.com/article/cardano-news');
+    expect(items[0]?.relatedCoins).toContain('ADA');
+
+    expect(items[1]?.title).toBe('Article with ID fallback');
+    expect(items[1]?.url).toBe(
+      'https://example.com/article/polkadot-parachain',
+    );
+    expect(items[1]?.relatedCoins).toContain('DOT');
+  });
+
   it('should handle malformed or empty XML gracefully without throwing', () => {
     const items = provider.parseXml('<not-a-feed></not-a-feed>', 'Unknown');
     expect(items).toEqual([]);
