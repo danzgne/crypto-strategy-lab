@@ -4,6 +4,10 @@ import type {
   NewsStats,
   NewsListFilterQuery,
   NewsProviderType,
+  NewsCrawlAttempt,
+  CrawlResult,
+  CrawlSummary,
+  CrawlStatus,
 } from '@crypto-strategy-lab/shared';
 
 export type {
@@ -12,6 +16,10 @@ export type {
   NewsStats,
   NewsListFilterQuery,
   NewsProviderType,
+  NewsCrawlAttempt,
+  CrawlResult,
+  CrawlSummary,
+  CrawlStatus,
 };
 
 export interface NewsListResponse {

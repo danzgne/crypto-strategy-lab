@@ -139,4 +139,15 @@ describe('WebsiteNewsProvider', () => {
       'Website fetch failed for https://cryptonews.example.com/article/1: HTTP 404 Not Found',
     );
   });
+
+  it('should throw an error when content is RSS/Atom XML instead of HTML', () => {
+    const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel><title>CoinDesk</title></channel>
+</rss>`;
+
+    expect(() => provider.parseHtml(rssXml, dummySource)).toThrow(
+      'Nội dung nhận được là RSS/Atom feed XML, không phải trang Web HTML',
+    );
+  });
 });

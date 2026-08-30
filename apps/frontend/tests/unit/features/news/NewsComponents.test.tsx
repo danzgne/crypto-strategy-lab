@@ -125,7 +125,7 @@ describe('News Frontend Components', () => {
     expect(screen.getByText('Validate kết quả')).toBeInTheDocument();
   });
 
-  it('NewsControlBar hides admin buttons and HTML tab when isAdmin is false', () => {
+  it('NewsControlBar hides admin action buttons when isAdmin is false but keeps filter tabs', () => {
     const onSelectTab = vi.fn();
     const onSelectCoin = vi.fn();
     const onIntervalChange = vi.fn();
@@ -149,12 +149,18 @@ describe('News Frontend Components', () => {
       />,
     );
 
-    // Regular user sees Website and RSS, but NOT HTML tab
+    // Regular user sees Website, RSS, and HTML filter tabs
     expect(screen.getByText('Website')).toBeInTheDocument();
     expect(screen.getByText('RSS')).toBeInTheDocument();
-    expect(screen.queryByText('</> HTML')).not.toBeInTheDocument();
+    expect(screen.getByText('</> HTML')).toBeInTheDocument();
+
+    // Clicking HTML tab only triggers tab selection, not modal opening
+    fireEvent.click(screen.getByText('</> HTML'));
+    expect(onSelectTab).toHaveBeenCalledWith('HTML');
+    expect(onOpenHtmlModal).not.toHaveBeenCalled();
 
     // Regular user does NOT see admin action buttons
+    expect(screen.queryByText('Nhập HTML')).not.toBeInTheDocument();
     expect(screen.queryByText('Cấu hình nguồn')).not.toBeInTheDocument();
     expect(screen.queryByText('Bắt đầu crawl')).not.toBeInTheDocument();
 
@@ -164,7 +170,7 @@ describe('News Frontend Components', () => {
     expect(screen.queryByText('1 phút')).not.toBeInTheDocument();
   });
 
-  it('NewsControlBar shows admin buttons and HTML tab when isAdmin is true', () => {
+  it('NewsControlBar shows admin buttons (Nhập HTML, Cấu hình nguồn, Bắt đầu crawl) when isAdmin is true', () => {
     const onSelectTab = vi.fn();
     const onSelectCoin = vi.fn();
     const onIntervalChange = vi.fn();
@@ -189,9 +195,61 @@ describe('News Frontend Components', () => {
     );
 
     expect(screen.getByText('</> HTML')).toBeInTheDocument();
+    expect(screen.getByText('Nhập HTML')).toBeInTheDocument();
     expect(screen.getByText('Cấu hình nguồn')).toBeInTheDocument();
     expect(screen.getByText('Bắt đầu crawl')).toBeInTheDocument();
     expect(screen.getByText('1 phút')).toBeInTheDocument();
     expect(screen.getByText('5 phút')).toBeInTheDocument();
+
+    // Clicking Nhập HTML action button triggers modal
+    fireEvent.click(screen.getByText('Nhập HTML'));
+    expect(onOpenHtmlModal).toHaveBeenCalled();
+  });
+
+  it('NewsFeedList opens NewsDetailModal on item click and handles internal URLs safely', () => {
+    const onRefresh = vi.fn();
+    const htmlItem: NewsItem = {
+      id: 'news-html-1',
+      title: 'Solana Ecosystem Update via Raw HTML',
+      content: 'Solana DEX volume hits new weekly record high.',
+      source: 'HTML Ingest',
+      url: 'https://local.ingest/html/12345-6789',
+      publishedAt: '2026-08-30T10:00:00.000Z',
+      relatedCoins: ['SOL'],
+      createdAt: '2026-08-30T10:00:00.000Z',
+      updatedAt: '2026-08-30T10:00:00.000Z',
+    };
+
+    render(
+      <NewsFeedList
+        items={[htmlItem]}
+        isLoading={false}
+        lastUpdated="11:00:00"
+        onRefresh={onRefresh}
+      />,
+    );
+
+    // Modal is initially not open
+    expect(screen.queryByText('Nội dung bài viết')).not.toBeInTheDocument();
+
+    // Click on the article title
+    fireEvent.click(screen.getByText('Solana Ecosystem Update via Raw HTML'));
+
+    // Modal is now displayed with full content
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('Nội dung bài viết')).toBeInTheDocument();
+    expect(
+      screen.getAllByText('Solana DEX volume hits new weekly record high.')
+        .length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      screen.getByText(
+        'Tin tức này được nhập trực tiếp qua HTML và không có liên kết trang ngoài.',
+      ),
+    ).toBeInTheDocument();
+
+    // Close modal
+    fireEvent.click(screen.getByText('Đóng'));
+    expect(screen.queryByText('Nội dung bài viết')).not.toBeInTheDocument();
   });
 });

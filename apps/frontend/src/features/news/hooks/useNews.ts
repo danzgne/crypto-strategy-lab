@@ -81,6 +81,11 @@ export function useNews(options: UseNewsOptions = {}) {
   const [page, setPage] = useState(1);
   const limit = 20;
 
+  const [crawlNotice, setCrawlNotice] = useState<{
+    type: 'success' | 'warning' | 'error';
+    message: string;
+  } | null>(null);
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   const handleSelectTab = useCallback((tab: NewsProviderType | 'ALL') => {
@@ -188,9 +193,30 @@ export function useNews(options: UseNewsOptions = {}) {
     }
     setIsCrawling(true);
     setErrorMessage(null);
+    setCrawlNotice(null);
     try {
-      await triggerCrawl();
+      const summary = await triggerCrawl();
       await loadNews();
+
+      if (summary && Array.isArray(summary.results)) {
+        const failed = summary.results.filter((r) => r.status === 'FAILURE');
+        const succeeded = summary.results.filter((r) => r.status === 'SUCCESS');
+
+        if (failed.length > 0) {
+          const failDetails = failed
+            .map((f) => `• ${f.sourceName}: ${f.error || 'Lỗi không xác định'}`)
+            .join('\n');
+          setCrawlNotice({
+            type: 'warning',
+            message: `Crawl hoàn tất: ${succeeded.length}/${summary.sourcesProcessed} nguồn thành công, ${failed.length} nguồn thất bại.\nChi tiết lỗi:\n${failDetails}`,
+          });
+        } else {
+          setCrawlNotice({
+            type: 'success',
+            message: `Crawl hoàn tất thành công! Quét được ${summary.totalFound} tin tức mới từ tất cả ${summary.sourcesProcessed} nguồn.`,
+          });
+        }
+      }
     } catch (err: unknown) {
       const msg =
         err instanceof Error ? err.message : 'Kích hoạt crawl thất bại';
@@ -257,6 +283,8 @@ export function useNews(options: UseNewsOptions = {}) {
     isCrawling,
     errorMessage,
     setErrorMessage,
+    crawlNotice,
+    setCrawlNotice,
     selectedTab,
     setSelectedTab: handleSelectTab,
     selectedCoin,

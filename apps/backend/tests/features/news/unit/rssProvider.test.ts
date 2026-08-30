@@ -114,8 +114,21 @@ describe('RssNewsProvider', () => {
     expect(items[1]?.relatedCoins).toContain('DOT');
   });
 
-  it('should handle malformed or empty XML gracefully without throwing', () => {
-    const items = provider.parseXml('<not-a-feed></not-a-feed>', 'Unknown');
-    expect(items).toEqual([]);
+  it('should throw an error when content is HTML instead of RSS/Atom XML', () => {
+    const htmlResponse = `<!DOCTYPE html>
+<html>
+  <head><title>CoinDesk Home</title></head>
+  <body><h1>Latest Bitcoin News</h1></body>
+</html>`;
+
+    expect(() => provider.parseXml(htmlResponse, 'CoinDesk')).toThrow(
+      'Nội dung nhận được là trang Web (HTML), không phải RSS/Atom XML hợp lệ',
+    );
+  });
+
+  it('should throw an error when XML is not a valid RSS or Atom feed structure', () => {
+    expect(() =>
+      provider.parseXml('<not-a-feed></not-a-feed>', 'Unknown'),
+    ).toThrow('Không tìm thấy cấu trúc RSS hoặc Atom feed hợp lệ');
   });
 });

@@ -17,6 +17,7 @@ import type {
   UpdateNewsSourceDto,
   IngestHtmlDto,
 } from '../types/news.dto';
+import { AppError } from '@/errors/AppError';
 
 interface NewsServiceDependencies {
   newsRepository: NewsRepository;
@@ -73,7 +74,11 @@ export class NewsService implements NewsServiceInterface {
   public async createSource(dto: CreateNewsSourceDto): Promise<NewsSource> {
     const existing = await this.newsRepository.findSourceByUrl(dto.url);
     if (existing) {
-      throw new Error(`News source with URL ${dto.url} already exists`);
+      throw new AppError(
+        `Nguồn tin tức với URL này đã tồn tại: ${dto.url}`,
+        409,
+        'SOURCE_URL_EXISTS',
+      );
     }
 
     return this.newsRepository.createSource({
@@ -91,7 +96,11 @@ export class NewsService implements NewsServiceInterface {
   ): Promise<NewsSource> {
     const source = await this.newsRepository.findSourceById(id);
     if (!source) {
-      throw new Error(`News source with ID ${id} not found`);
+      throw new AppError(
+        `Không tìm thấy nguồn tin tức với ID: ${id}`,
+        404,
+        'NOT_FOUND',
+      );
     }
 
     return this.newsRepository.updateSource(id, {
@@ -106,7 +115,11 @@ export class NewsService implements NewsServiceInterface {
   public async deleteSource(id: string): Promise<void> {
     const source = await this.newsRepository.findSourceById(id);
     if (!source) {
-      throw new Error(`News source with ID ${id} not found`);
+      throw new AppError(
+        `Không tìm thấy nguồn tin tức với ID: ${id}`,
+        404,
+        'NOT_FOUND',
+      );
     }
     await this.newsRepository.deleteSource(id);
   }

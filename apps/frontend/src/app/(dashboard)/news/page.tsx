@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { AlertCircle, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import {
   NewsHeader,
   NewsControlBar,
@@ -26,6 +26,8 @@ export default function NewsPage() {
     isCrawling,
     errorMessage,
     setErrorMessage,
+    crawlNotice,
+    setCrawlNotice,
     selectedTab,
     setSelectedTab,
     selectedCoin,
@@ -46,17 +48,59 @@ export default function NewsPage() {
       {/* Top Header */}
       <NewsHeader />
 
+      {/* Crawl Result / Feedback Banner */}
+      {crawlNotice && (
+        <div
+          className={`flex items-start justify-between rounded-xl border p-4 text-xs shadow-xs ${
+            crawlNotice.type === 'success'
+              ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              : crawlNotice.type === 'warning'
+                ? 'border-amber-200 bg-amber-50 text-amber-900'
+                : 'border-rose-200 bg-rose-50 text-rose-800'
+          }`}
+        >
+          <div className="flex items-start gap-2.5">
+            {crawlNotice.type === 'success' ? (
+              <CheckCircle2 className="size-4 shrink-0 text-emerald-600 mt-0.5" />
+            ) : crawlNotice.type === 'warning' ? (
+              <AlertTriangle className="size-4 shrink-0 text-amber-600 mt-0.5" />
+            ) : (
+              <AlertCircle className="size-4 shrink-0 text-rose-600 mt-0.5" />
+            )}
+            <div className="space-y-1">
+              <p className="font-semibold">
+                {crawlNotice.type === 'success'
+                  ? 'Crawl thành công'
+                  : crawlNotice.type === 'warning'
+                    ? 'Crawl hoàn tất có cảnh báo lỗi nguồn'
+                    : 'Crawl thất bại'}
+              </p>
+              <p className="whitespace-pre-line font-medium opacity-90 leading-relaxed">
+                {crawlNotice.message}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setCrawlNotice(null)}
+            className="rounded-lg p-1 text-slate-500 hover:bg-slate-200/50 transition"
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+      )}
+
       {/* Error Alert Banner */}
       {errorMessage && (
-        <div className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-800 shadow-xs">
+        <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 shadow-xs">
           <div className="flex items-center gap-2.5">
-            <AlertCircle className="size-4 shrink-0 text-amber-600" />
+            <AlertCircle className="size-4 shrink-0 text-rose-600" />
             <p className="font-medium">{errorMessage}</p>
           </div>
           <button
             type="button"
             onClick={() => setErrorMessage(null)}
-            className="rounded-lg p-1 text-amber-600 hover:bg-amber-100 transition"
+            className="rounded-lg p-1 text-rose-600 hover:bg-rose-100 transition"
           >
             <X className="size-4" />
           </button>

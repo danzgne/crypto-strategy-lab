@@ -22,6 +22,7 @@ export interface NewsSource {
   providerType: NewsProviderType;
   isActive: boolean;
   config?: Record<string, unknown> | null | undefined;
+  lastCrawlAttempt?: NewsCrawlAttempt | null | undefined;
   createdAt: string;
   updatedAt: string;
 }
@@ -43,6 +44,24 @@ export interface NewsCrawlAttempt {
   itemsPersisted: number;
   errorMessage?: string | null | undefined;
   crawledAt: string;
+}
+
+export interface CrawlResult {
+  sourceId: string;
+  sourceName: string;
+  status: CrawlStatus;
+  itemsFound: number;
+  itemsPersisted: number;
+  error?: string | undefined;
+}
+
+export interface CrawlSummary {
+  startedAt: string;
+  completedAt: string;
+  sourcesProcessed: number;
+  totalFound: number;
+  totalPersisted: number;
+  results: CrawlResult[];
 }
 
 export interface NewsListFilterQuery {

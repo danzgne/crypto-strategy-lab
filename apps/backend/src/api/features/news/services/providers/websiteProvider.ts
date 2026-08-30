@@ -106,6 +106,18 @@ export class WebsiteNewsProvider implements NewsProvider {
   public readonly providerType: NewsProviderType = 'WEBSITE';
 
   public parseHtml(html: string, source: NewsSource): RawNewsItem[] {
+    const trimmed = html.trim();
+    if (
+      (trimmed.startsWith('<?xml') ||
+        trimmed.startsWith('<rss') ||
+        /<feed[\s>]/i.test(trimmed)) &&
+      !/<html[\s>]/i.test(trimmed)
+    ) {
+      throw new Error(
+        'Nội dung nhận được là RSS/Atom feed XML, không phải trang Web HTML. Vui lòng chuyển loại nguồn sang "RSS Feed" để thu thập đầy đủ danh sách bài viết.',
+      );
+    }
+
     const cleaned = cleanHtml(html);
     const title = extractTitle(cleaned);
     const description = extractDescription(cleaned);

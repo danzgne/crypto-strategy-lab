@@ -25,7 +25,21 @@ function mapNewsSource(source: {
   config: Prisma.JsonValue | null;
   createdAt: Date;
   updatedAt: Date;
+  crawlLogs?: Array<{
+    id: string;
+    newsSourceId: string;
+    status: CrawlStatus;
+    itemsFound: number;
+    itemsPersisted: number;
+    errorMessage: string | null;
+    crawledAt: Date;
+  }>;
 }): NewsSource {
+  const lastAttempt =
+    source.crawlLogs && source.crawlLogs.length > 0 && source.crawlLogs[0]
+      ? mapCrawlAttempt(source.crawlLogs[0])
+      : undefined;
+
   return {
     id: source.id,
     name: source.name,
@@ -33,6 +47,7 @@ function mapNewsSource(source: {
     providerType: source.providerType,
     isActive: source.isActive,
     config: (source.config as Record<string, unknown> | null) ?? null,
+    lastCrawlAttempt: lastAttempt,
     createdAt: source.createdAt.toISOString(),
     updatedAt: source.updatedAt.toISOString(),
   };
@@ -93,6 +108,12 @@ export class PrismaNewsRepository implements NewsRepository {
       : {};
     const sources = await this.prisma.newsSource.findMany({
       where,
+      include: {
+        crawlLogs: {
+          orderBy: { crawledAt: 'desc' },
+          take: 1,
+        },
+      },
       orderBy: { createdAt: 'asc' },
     });
     return sources.map(mapNewsSource);
@@ -101,6 +122,12 @@ export class PrismaNewsRepository implements NewsRepository {
   public async findSourceById(id: string): Promise<NewsSource | null> {
     const source = await this.prisma.newsSource.findUnique({
       where: { id },
+      include: {
+        crawlLogs: {
+          orderBy: { crawledAt: 'desc' },
+          take: 1,
+        },
+      },
     });
     return source ? mapNewsSource(source) : null;
   }
@@ -108,6 +135,12 @@ export class PrismaNewsRepository implements NewsRepository {
   public async findSourceByUrl(url: string): Promise<NewsSource | null> {
     const source = await this.prisma.newsSource.findFirst({
       where: { url },
+      include: {
+        crawlLogs: {
+          orderBy: { crawledAt: 'desc' },
+          take: 1,
+        },
+      },
     });
     return source ? mapNewsSource(source) : null;
   }

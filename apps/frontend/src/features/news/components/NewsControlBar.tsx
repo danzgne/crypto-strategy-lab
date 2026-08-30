@@ -65,23 +65,18 @@ export function NewsControlBar({
               <Radio className="size-3.5" />
               RSS
             </button>
-            {isAdmin && (
-              <button
-                type="button"
-                onClick={() => {
-                  onSelectTab('HTML');
-                  onOpenHtmlModal();
-                }}
-                className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
-                  selectedTab === 'HTML'
-                    ? 'bg-blue-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                <Code2 className="size-3.5" />
-                {'</> HTML'}
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => onSelectTab('HTML')}
+              className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition ${
+                selectedTab === 'HTML'
+                  ? 'bg-blue-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <Code2 className="size-3.5" />
+              {'</> HTML'}
+            </button>
             <button
               type="button"
               onClick={() => onSelectTab('ALL')}
@@ -146,6 +141,15 @@ export function NewsControlBar({
       {/* Admin Action Buttons */}
       {isAdmin && (
         <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenHtmlModal}
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
+          >
+            <Code2 className="size-4 text-purple-600" />
+            Nhập HTML
+          </button>
+
           <button
             type="button"
             onClick={onOpenSourceModal}

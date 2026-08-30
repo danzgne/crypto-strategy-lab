@@ -44,6 +44,17 @@ export class RssNewsProvider implements NewsProvider {
   }
 
   public parseXml(xmlText: string, defaultSourceName: string): RawNewsItem[] {
+    const trimmed = xmlText.trim();
+    if (
+      trimmed.startsWith('<!DOCTYPE html') ||
+      trimmed.startsWith('<!doctype html') ||
+      /<html[\s>]/i.test(trimmed)
+    ) {
+      throw new Error(
+        'Nội dung nhận được là trang Web (HTML), không phải RSS/Atom XML hợp lệ. Vui lòng đổi loại nguồn sang "Website" hoặc kiểm tra lại đường dẫn RSS.',
+      );
+    }
+
     const parsed = this.parser.parse(xmlText);
     const items: RawNewsItem[] = [];
 
@@ -75,6 +86,12 @@ export class RssNewsProvider implements NewsProvider {
         }
       }
       return items;
+    }
+
+    if (!parsed.rss && !parsed.feed) {
+      throw new Error(
+        'Không tìm thấy cấu trúc RSS hoặc Atom feed hợp lệ trong nội dung XML trả về.',
+      );
     }
 
     return items;

@@ -6,6 +6,7 @@ import type {
   NewsListFilterQuery,
   NewsListResponse,
   NewsProviderType,
+  CrawlSummary,
 } from '../types';
 
 export async function fetchNewsItems(
@@ -31,16 +32,10 @@ export async function fetchNewsStats(): Promise<NewsStats> {
   return browserHttpClient<NewsStats>('/api/v1/news/stats');
 }
 
-export async function triggerCrawl(): Promise<{
-  success: boolean;
-  message?: string;
-}> {
-  return browserHttpClient<{ success: boolean; message?: string }>(
-    '/api/v1/admin/crawl/start',
-    {
-      method: 'POST',
-    },
-  );
+export async function triggerCrawl(): Promise<CrawlSummary> {
+  return browserHttpClient<CrawlSummary>('/api/v1/admin/crawl/start', {
+    method: 'POST',
+  });
 }
 
 export async function fetchCrawlInterval(): Promise<{
@@ -73,6 +68,32 @@ export async function createNewsSource(data: {
     method: 'POST',
     body: JSON.stringify(data),
   });
+}
+
+export async function updateNewsSource(
+  id: string,
+  data: {
+    name?: string | undefined;
+    url?: string | undefined;
+    providerType?: NewsProviderType | undefined;
+    isActive?: boolean | undefined;
+  },
+): Promise<NewsSource> {
+  return browserHttpClient<NewsSource>(`/api/v1/admin/news-sources/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteNewsSource(
+  id: string,
+): Promise<{ message: string }> {
+  return browserHttpClient<{ message: string }>(
+    `/api/v1/admin/news-sources/${id}`,
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 export async function ingestHtml(data: {
