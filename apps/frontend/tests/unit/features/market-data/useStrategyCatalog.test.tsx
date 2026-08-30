@@ -34,8 +34,16 @@ describe('useStrategyCatalog', () => {
     act(() =>
       listeners.get('strategy:catalog')?.({
         strategies: [
-          { id: 'ma', requiresParams: false },
-          { id: 'rsi', requiresParams: false },
+          {
+            id: 'ma',
+            requiresParams: false,
+            paramsSchema: { type: 'object', properties: {} },
+          },
+          {
+            id: 'rsi',
+            requiresParams: false,
+            paramsSchema: { type: 'object', properties: {} },
+          },
         ],
       }),
     );

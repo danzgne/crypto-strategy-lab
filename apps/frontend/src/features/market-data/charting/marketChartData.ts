@@ -22,8 +22,6 @@ const INDICATOR_COLORS = [
   '#fb923c',
 ] as const;
 
-const RSI_PANE = 2;
-
 export function toMarketChartData(
   candles: readonly Candle[],
   strategySignals: readonly StrategySignalUpdate[],
@@ -98,10 +96,6 @@ function markerForAction(
       time: toChartTime(openTime),
     },
   ];
-}
-
-function paneForIndicatorReference(reference: string): number {
-  return /(^|:)RSI(?:$|_)/i.test(reference) ? RSI_PANE : 0;
 }
 
 function toChartTime(openTimeMs: number): number {

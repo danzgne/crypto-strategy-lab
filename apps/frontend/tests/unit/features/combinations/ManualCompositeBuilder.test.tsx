@@ -44,7 +44,7 @@ describe('ManualCompositeBuilder', () => {
     );
 
     expect(
-      screen.getByRole('heading', { name: 'Weighted Voting' }),
+      screen.getByRole('heading', { name: 'Composite Strategy' }),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole('combobox', { name: 'Composition mode' }),

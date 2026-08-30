@@ -1,5 +1,7 @@
 import type {
+  CompositeStrategyRequest,
   RuleStrategyParams,
+  SavedStrategy,
   StrategyProvenance,
 } from '@crypto-strategy-lab/shared';
 
@@ -38,12 +40,43 @@ export interface StrategyLibraryEntry {
   latestVersion: StrategyLibraryVersionSummary;
 }
 
+export type PersistedStrategyRequest =
+  PersistedSingularStrategyRequest | PersistedCompositeStrategyRequest;
+
+interface PersistedStrategyMetadata {
+  description?: string;
+  source?: StrategyProvenance;
+  sourceInput?: string;
+  tags?: readonly string[];
+  versionTag?: string;
+  libraryVersion?: string;
+}
+
+export interface PersistedSingularStrategyRequest extends PersistedStrategyMetadata {
+  name: string;
+  strategyId: string;
+  params: Readonly<Record<string, unknown>>;
+  composite?: never;
+}
+
+export interface PersistedCompositeStrategyRequest extends PersistedStrategyMetadata {
+  name: string;
+  strategyId: 'composite';
+  composite: CompositeStrategyRequest;
+  params?: never;
+}
+
 export interface StrategyLibraryRepository {
-  createWithFirstVersion(
+  createWithFirstVersion?(
     input: CreateStrategyLibraryEntryInput,
   ): Promise<StrategyLibraryEntry>;
-  listRecentByOwner(
+  listRecentByOwner?(
     ownerId: string,
     limit: number,
   ): Promise<StrategyLibraryEntry[]>;
+  listByOwner?(ownerId: string): Promise<SavedStrategy[]>;
+  create?(
+    ownerId: string,
+    request: PersistedStrategyRequest,
+  ): Promise<SavedStrategy>;
 }

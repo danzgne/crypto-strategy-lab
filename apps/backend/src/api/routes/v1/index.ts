@@ -19,6 +19,10 @@ import {
   type StrategyGenerationService,
   type StrategyLibraryService,
 } from '@/api/features/strategies';
+import {
+  createStrategyLibraryFeatureRouter,
+  type StrategyLibraryServiceInterface,
+} from '@/api/features/strategies/library';
 
 export interface StrategiesRouterDependencies {
   generationService: StrategyGenerationService;
@@ -30,6 +34,7 @@ export function createV1Router(
   authService: PasswordAuthServiceInterface,
   newsService?: NewsServiceInterface,
   strategies?: StrategiesRouterDependencies,
+  strategyLibraryService?: StrategyLibraryServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
@@ -53,6 +58,13 @@ export function createV1Router(
     router.use(
       '/strategies',
       createStrategiesFeatureRouter(generationController, libraryController),
+    );
+  } else if (strategyLibraryService !== undefined) {
+    router.use(
+      '/strategies',
+      createStrategyLibraryFeatureRouter(
+        new StrategyLibraryController(strategyLibraryService),
+      ),
     );
   }
 

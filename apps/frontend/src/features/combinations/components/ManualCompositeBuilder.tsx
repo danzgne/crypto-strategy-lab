@@ -3,19 +3,25 @@
 import type {
   CompositeStrategyMemberRequest,
   CompositeStrategyRequest,
+  SaveStrategyRequest,
   StrategyCatalog,
-  StrategyCatalogEntry,
-  StrategyParamDefinition,
 } from '@crypto-strategy-lab/shared';
-import {
-  canonicalStrategyVersionId,
-  formatStrategyType,
-} from '@crypto-strategy-lab/shared/strategy';
+import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import { useEffect, useMemo, useRef, useState } from 'react';
+
+import {
+  catalogEntries,
+  createDefaultParameterValues,
+  resolveParameters,
+  strategyVersionKey,
+} from '../strategyForm';
+import { StrategyParameterFields } from './StrategyParameterFields';
 
 export interface ManualCompositeBuilderProperties {
   catalog: StrategyCatalog;
   onCompositeChange: (definition: CompositeStrategyRequest | null) => void;
+  onSave?: (request: SaveStrategyRequest) => Promise<unknown> | void;
+  isSaving?: boolean;
 }
 
 interface EditableMember {
@@ -27,12 +33,15 @@ interface EditableMember {
 
 export function ManualCompositeBuilder({
   catalog,
+  isSaving = false,
   onCompositeChange,
+  onSave,
 }: ManualCompositeBuilderProperties) {
   const entries = useMemo(() => catalogEntries(catalog), [catalog]);
   const [members, setMembers] = useState<EditableMember[]>([]);
   const [threshold, setThreshold] = useState('0.3');
   const [pendingStrategyId, setPendingStrategyId] = useState('');
+  const [name, setName] = useState('');
   const memberSequence = useRef(0);
   const uniqueMemberCount = useMemo(
     () => countUniqueVersions(members, entries),
@@ -88,7 +97,7 @@ export function ManualCompositeBuilder({
   return (
     <section
       aria-labelledby="manual-composite-builder-title"
-      className="mb-5 rounded-2xl border border-indigo-100 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5"
+      className="rounded-2xl border border-indigo-100 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5"
       data-testid="manual-composite-builder"
     >
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -100,11 +109,14 @@ export function ManualCompositeBuilder({
             className="mt-1 text-lg font-semibold tracking-tight text-slate-950"
             id="manual-composite-builder-title"
           >
-            Weighted Voting
+            Composite Strategy
           </h2>
           <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-500">
-            Combine enabled Strategy Versions into one live signal. Weights are
-            normalized when the Composite Strategy is assembled.
+            <span className="font-semibold text-slate-700">
+              Weighted Voting
+            </span>{' '}
+            · Combine enabled Strategy Versions into one live signal. Weights
+            are normalized when the Composite Strategy is assembled.
           </p>
         </div>
         <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">
@@ -193,27 +205,21 @@ export function ManualCompositeBuilder({
                 </div>
 
                 <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  {Object.entries(entry?.paramsSchema.properties ?? {}).map(
-                    ([parameterName, parameter]) => (
-                      <ParameterInput
-                        memberKey={member.key}
-                        key={parameterName}
-                        name={parameterName}
-                        parameter={parameter}
-                        strategyName={strategyName}
-                        value={member.params[parameterName] ?? ''}
-                        onChange={(value) =>
-                          updateMember(member.key, (current) => ({
-                            ...current,
-                            params: {
-                              ...current.params,
-                              [parameterName]: value,
-                            },
-                          }))
-                        }
-                      />
-                    ),
-                  )}
+                  <StrategyParameterFields
+                    definitions={entry?.paramsSchema.properties ?? {}}
+                    idPrefix={`parameter-${member.key}`}
+                    labelPrefix={strategyName}
+                    onChange={(parameterName, value) =>
+                      updateMember(member.key, (current) => ({
+                        ...current,
+                        params: {
+                          ...current.params,
+                          [parameterName]: value,
+                        },
+                      }))
+                    }
+                    values={member.params}
+                  />
                   <div>
                     <label
                       className="mb-1 block text-[11px] font-medium text-slate-500"
@@ -243,75 +249,60 @@ export function ManualCompositeBuilder({
           })}
         </div>
       )}
+
+      {onSave !== undefined && (
+        <div className="mt-5 rounded-xl border border-indigo-100 bg-indigo-50/50 p-3 sm:flex sm:items-end sm:gap-3">
+          <div className="min-w-0 flex-1">
+            <label
+              className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-indigo-700"
+              htmlFor="composite-strategy-name"
+            >
+              Strategy name
+            </label>
+            <input
+              aria-label="Composite strategy name"
+              className="w-full rounded-lg border border-indigo-100 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+              id="composite-strategy-name"
+              maxLength={80}
+              onChange={(event) => setName(event.target.value)}
+              placeholder="e.g. Momentum confirmation"
+              type="text"
+              value={name}
+            />
+          </div>
+          <button
+            className="mt-3 w-full rounded-lg bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 sm:mt-0 sm:w-auto"
+            disabled={definition === null || isSaving}
+            onClick={() => {
+              if (definition === null) return;
+              void onSave({
+                composite: definition,
+                name: name.trim() || 'Composite Strategy',
+                strategyId: 'composite',
+              });
+            }}
+            type="button"
+          >
+            {isSaving ? 'Saving…' : 'Save composite strategy'}
+          </button>
+        </div>
+      )}
     </section>
   );
 }
 
-function ParameterInput({
-  memberKey,
-  name,
-  onChange,
-  parameter,
-  strategyName,
-  value,
-}: {
-  memberKey: string;
-  name: string;
-  onChange: (value: string) => void;
-  parameter: StrategyParamDefinition;
-  strategyName: string;
-  value: string;
-}) {
-  const isInteger = parameter.type === 'integer';
-  return (
-    <div>
-      <label
-        className="mb-1 block text-[11px] font-medium text-slate-500"
-        htmlFor={`parameter-${memberKey}-${name}`}
-      >
-        {strategyName} {name}
-      </label>
-      <input
-        aria-label={`${strategyName} ${name}`}
-        className="w-full rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-sm text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-        id={`parameter-${memberKey}-${name}`}
-        max={parameter.maximum}
-        min={parameter.minimum}
-        onChange={(event) => onChange(event.target.value)}
-        step={isInteger ? 1 : 0.01}
-        type={isInteger || parameter.type === 'number' ? 'number' : 'text'}
-        value={value}
-      />
-    </div>
-  );
-}
-
-function catalogEntries(catalog: StrategyCatalog): StrategyCatalogEntry[] {
-  const strategies = catalog.strategies;
-  if (strategies !== undefined && strategies.length > 0) return strategies;
-  return (catalog.strategyIds ?? []).map((id) => ({
-    id,
-    paramsSchema: { type: 'object', properties: {} },
-  }));
-}
-
 function createEditableMember(
-  entry: StrategyCatalogEntry,
+  entry: ReturnType<typeof catalogEntries>[number],
   key: string,
 ): EditableMember {
-  const params = Object.fromEntries(
-    Object.entries(entry.paramsSchema.properties).map(([name, parameter]) => [
-      name,
-      parameter.default === undefined ? '' : String(parameter.default),
-    ]),
-  );
+  const params = createDefaultParameterValues(entry);
   return { key, strategyId: entry.id, params, weight: '1' };
 }
 
 function toCompositeDefinition(
   members: readonly EditableMember[],
   thresholdText: string,
-  entries: readonly StrategyCatalogEntry[],
+  entries: readonly ReturnType<typeof catalogEntries>[number][],
 ): CompositeStrategyRequest | null {
   if (members.length < 2) return null;
   const threshold = Number(thresholdText);
@@ -343,7 +334,7 @@ function toCompositeDefinition(
 
 function countUniqueVersions(
   members: readonly EditableMember[],
-  entries: readonly StrategyCatalogEntry[],
+  entries: readonly ReturnType<typeof catalogEntries>[number][],
 ): number {
   const versionIds = new Set<string>();
   for (const member of members) {
@@ -353,59 +344,4 @@ function countUniqueVersions(
     versionIds.add(strategyVersionKey(member.strategyId, params, entry));
   }
   return versionIds.size;
-}
-
-function strategyVersionKey(
-  strategyId: string,
-  params: Readonly<Record<string, number | string>>,
-  entry: StrategyCatalogEntry | undefined,
-): string {
-  const effectiveParams: Record<string, number | string> = {};
-  for (const [name, parameter] of Object.entries(
-    entry?.paramsSchema.properties ?? {},
-  )) {
-    const value = params[name];
-    if (value !== undefined) {
-      effectiveParams[name] = value;
-    } else if (parameter.default !== undefined) {
-      effectiveParams[name] = parameter.default;
-    }
-  }
-  return canonicalStrategyVersionId(strategyId, effectiveParams);
-}
-
-function resolveParameters(
-  values: Readonly<Record<string, string>>,
-  entry: StrategyCatalogEntry | undefined,
-): Record<string, number | string> | null {
-  if (entry === undefined) return {};
-  const resolved: Record<string, number | string> = {};
-  for (const [name, value] of Object.entries(values)) {
-    if (value.trim().length === 0) continue;
-    const definition = entry.paramsSchema.properties[name];
-    if (definition === undefined) continue;
-    if (definition.type === 'integer' || definition.type === 'number') {
-      const numericValue = Number(value);
-      if (!Number.isFinite(numericValue)) return null;
-      if (definition.type === 'integer' && !Number.isInteger(numericValue)) {
-        return null;
-      }
-      if (
-        definition.minimum !== undefined &&
-        numericValue < definition.minimum
-      ) {
-        return null;
-      }
-      if (
-        definition.maximum !== undefined &&
-        numericValue > definition.maximum
-      ) {
-        return null;
-      }
-      resolved[name] = numericValue;
-    } else {
-      resolved[name] = value;
-    }
-  }
-  return resolved;
 }

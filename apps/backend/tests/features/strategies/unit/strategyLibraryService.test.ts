@@ -1,4 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import '@crypto-strategy-lab/strategy-engine/strategies';
+
+import type { SavedStrategy } from '@crypto-strategy-lab/shared';
+import { describe, expect, it, vi } from 'vitest';
 
 import { StrategyLibraryService } from '@/api/features/strategies/services/strategyLibraryService';
 import type {
@@ -231,3 +234,91 @@ describe('StrategyLibraryService', () => {
     expect(result[0]!.name).toBe('A');
   });
 });
+
+const savedStrategy: SavedStrategy = {
+  createdAt: '2026-08-30T00:00:00.000Z',
+  description: null,
+  id: 'definition-id',
+  kind: 'singular',
+  name: 'Saved strategy',
+  params: { fast: 10, slow: 50 },
+  strategyId: 'ma',
+  versionId: 'version-id',
+};
+
+describe('StrategyLibraryService', () => {
+  it('persists effective parameters for a named singular version', async () => {
+    const repository = createRepository();
+    const service = new StrategyLibraryService(repository);
+
+    await service.save('owner-id', {
+      name: '  Fast trend  ',
+      params: { fast: 10 },
+      strategyId: 'ma',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith('owner-id', {
+      name: 'Fast trend',
+      params: { fast: 10, slow: 50 },
+      strategyId: 'ma',
+    });
+  });
+
+  it('assembles and persists normalized composite members', async () => {
+    const repository = createRepository();
+    const service = new StrategyLibraryService(repository);
+
+    await service.save('owner-id', {
+      composite: {
+        members: [
+          { params: { fast: 10 }, strategyId: 'ma', weight: 2 },
+          { params: { period: 14 }, strategyId: 'rsi', weight: 1 },
+        ],
+        mode: 'weighted',
+        threshold: 0.3,
+      },
+      name: 'Momentum pair',
+      strategyId: 'composite',
+    });
+
+    expect(repository.create).toHaveBeenCalledWith('owner-id', {
+      composite: {
+        members: [
+          {
+            params: { fast: 10, slow: 50 },
+            strategyId: 'ma',
+            weight: 2 / 3,
+          },
+          {
+            params: { overbought: 70, oversold: 30, period: 14 },
+            strategyId: 'rsi',
+            weight: 1 / 3,
+          },
+        ],
+        mode: 'weighted',
+        threshold: 0.3,
+      },
+      name: 'Momentum pair',
+      strategyId: 'composite',
+    });
+  });
+
+  it('rejects invalid names before writing a definition', async () => {
+    const repository = createRepository();
+    const service = new StrategyLibraryService(repository);
+
+    await expect(
+      service.save('owner-id', { name: '   ', strategyId: 'ma' }),
+    ).rejects.toMatchObject({
+      code: 'INVALID_NAME',
+    });
+    expect(repository.create).not.toHaveBeenCalled();
+  });
+});
+
+function createRepository(): StrategyLibraryRepository {
+  return {
+    create: vi.fn().mockResolvedValue(savedStrategy),
+    listByOwner: vi.fn().mockResolvedValue([savedStrategy]),
+  };
+}
