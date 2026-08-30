@@ -121,6 +121,16 @@ class FakeNewsRepository implements NewsRepository {
       coveragePercent: 100,
     };
   }
+
+  private settings = new Map<string, string>();
+
+  public async getSetting(key: string): Promise<string | null> {
+    return this.settings.get(key) ?? null;
+  }
+
+  public async setSetting(key: string, value: string): Promise<void> {
+    this.settings.set(key, value);
+  }
 }
 
 describe('NewsCrawler', () => {

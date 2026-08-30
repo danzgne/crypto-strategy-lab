@@ -52,9 +52,9 @@ export class AdminService implements AdminServiceInterface {
     return this.newsService.getCrawlInterval();
   }
 
-  public updateCrawlInterval(intervalMinutes: number): {
+  public async updateCrawlInterval(intervalMinutes: number): Promise<{
     intervalMinutes: number;
-  } {
+  }> {
     return this.newsService.updateCrawlInterval(intervalMinutes);
   }
 

@@ -116,11 +116,16 @@ export class NewsService implements NewsServiceInterface {
     return this.crawler.crawlAllActiveSources();
   }
 
-  public updateCrawlInterval(intervalMinutes: number): {
-    intervalMinutes: number;
-  } {
+  public async updateCrawlInterval(
+    intervalMinutes: number,
+  ): Promise<{ intervalMinutes: number }> {
     this.scheduler.setIntervalMinutes(intervalMinutes);
-    return { intervalMinutes: this.scheduler.getIntervalMinutes() };
+    const validMinutes = this.scheduler.getIntervalMinutes();
+    await this.newsRepository.setSetting(
+      'news.crawl_interval_minutes',
+      String(validMinutes),
+    );
+    return { intervalMinutes: validMinutes };
   }
 
   public getCrawlInterval(): { intervalMinutes: number } {
@@ -133,6 +138,18 @@ export class NewsService implements NewsServiceInterface {
 
   public async getStats(): Promise<NewsStats> {
     return this.newsRepository.getNewsStats();
+  }
+
+  public async init(): Promise<void> {
+    const saved = await this.newsRepository.getSetting(
+      'news.crawl_interval_minutes',
+    );
+    if (saved) {
+      const parsed = parseInt(saved, 10);
+      if (!Number.isNaN(parsed) && parsed >= 1 && parsed <= 5) {
+        this.scheduler.setIntervalMinutes(parsed);
+      }
+    }
   }
 
   public async ensureDefaultSources(): Promise<void> {

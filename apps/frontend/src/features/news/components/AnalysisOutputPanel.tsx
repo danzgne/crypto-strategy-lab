@@ -11,15 +11,10 @@ export function AnalysisOutputPanel({
   stats,
   lastUpdated,
 }: AnalysisOutputPanelProps) {
-  const activeSourcesCount = stats.activeSources > 0 ? stats.activeSources : 23;
-  const totalSourcesCount = stats.totalSources > 0 ? stats.totalSources : 25;
-  const coveragePct =
-    stats.totalSources > 0
-      ? stats.coveragePercent
-      : Math.round((activeSourcesCount / totalSourcesCount) * 100);
-
-  const totalAnalyzed =
-    stats.totalItems > 0 ? stats.totalItems.toLocaleString() : '1,248';
+  const activeSourcesCount = stats.activeSources;
+  const totalSourcesCount = stats.totalSources;
+  const coveragePct = stats.coveragePercent;
+  const totalAnalyzed = stats.totalItems.toLocaleString();
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -37,6 +32,9 @@ export function AnalysisOutputPanel({
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
           <span>Sentiment tổng hợp (24h)</span>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+            Preview #42
+          </span>
         </div>
 
         {/* Progress Bar */}
@@ -80,7 +78,14 @@ export function AnalysisOutputPanel({
 
       {/* Event Type (Top) */}
       <div className="mt-5 border-t border-slate-100 pt-4">
-        <p className="text-xs font-semibold text-slate-700">Event Type (Top)</p>
+        <div className="flex items-center justify-between">
+          <p className="text-xs font-semibold text-slate-700">
+            Event Type (Top)
+          </p>
+          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
+            Preview #42
+          </span>
+        </div>
         <div className="mt-2.5 flex flex-wrap gap-2">
           <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
             <span className="font-medium">ETF / Fund Flow</span>
@@ -109,12 +114,12 @@ export function AnalysisOutputPanel({
       <div className="mt-5 space-y-3 border-t border-slate-100 pt-4 text-xs">
         <div className="flex items-center justify-between">
           <span className="text-slate-500">Confidence Score (TB)</span>
-          <span className="font-bold text-emerald-600">0.78</span>
+          <span className="font-bold text-emerald-600">0.92</span>
         </div>
 
         <div className="flex items-center justify-between">
           <span className="text-slate-500">
-            Số lượng tin đã phân tích (24h)
+            Số lượng tin đã thu thập &amp; phân tích
           </span>
           <span className="font-bold text-slate-800">{totalAnalyzed}</span>
         </div>

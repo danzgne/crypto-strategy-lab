@@ -1,5 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
-import type { AdminServiceInterface } from '../services/interfaces/adminService.interface';
+import type { NewsServiceInterface } from '@/api/features/news/services/interfaces/newsService.interface';
 import {
   createNewsSourceSchema,
   updateNewsSourceSchema,
@@ -9,7 +9,7 @@ import {
 import { sendSuccess, sendError } from '@/utils/response/ApiResponse';
 
 export class AdminController {
-  public constructor(private readonly adminService: AdminServiceInterface) {}
+  public constructor(private readonly newsService: NewsServiceInterface) {}
 
   public getNewsSources = async (
     _req: Request,
@@ -17,7 +17,7 @@ export class AdminController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const sources = await this.adminService.getNewsSources();
+      const sources = await this.newsService.getSources();
       sendSuccess(res, sources);
     } catch (error) {
       next(error);
@@ -44,7 +44,7 @@ export class AdminController {
           return;
         }
 
-        const created = await this.adminService.createNewsSource(parsed.data);
+        const created = await this.newsService.createSource(parsed.data);
         sendSuccess(res, created, 200);
         return;
       }
@@ -81,7 +81,7 @@ export class AdminController {
         return;
       }
 
-      const updated = await this.adminService.updateNewsSource(id, parsed.data);
+      const updated = await this.newsService.updateSource(id, parsed.data);
       sendSuccess(res, updated);
     } catch (error) {
       next(error);
@@ -100,7 +100,7 @@ export class AdminController {
         sendError(res, { code: 'BAD_REQUEST', message: 'ID is required' }, 400);
         return;
       }
-      await this.adminService.deleteNewsSource(id);
+      await this.newsService.deleteSource(id);
       sendSuccess(res, { message: 'News source deleted' });
     } catch (error) {
       next(error);
@@ -113,7 +113,7 @@ export class AdminController {
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const summary = await this.adminService.startCrawl();
+      const summary = await this.newsService.triggerCrawlNow();
       sendSuccess(res, summary, 200);
     } catch (error) {
       next(error);
@@ -126,18 +126,18 @@ export class AdminController {
     next: NextFunction,
   ): void => {
     try {
-      const result = this.adminService.getCrawlInterval();
+      const result = this.newsService.getCrawlInterval();
       sendSuccess(res, result);
     } catch (error) {
       next(error);
     }
   };
 
-  public updateCrawlInterval = (
+  public updateCrawlInterval = async (
     req: Request,
     res: Response,
     next: NextFunction,
-  ): void => {
+  ): Promise<void> => {
     try {
       const parsed = updateCrawlIntervalSchema.safeParse(req.body);
       if (!parsed.success) {
@@ -152,7 +152,7 @@ export class AdminController {
         return;
       }
 
-      const result = this.adminService.updateCrawlInterval(
+      const result = await this.newsService.updateCrawlInterval(
         parsed.data.intervalMinutes,
       );
       sendSuccess(res, result, 200);
@@ -180,7 +180,7 @@ export class AdminController {
         return;
       }
 
-      const item = await this.adminService.ingestHtml(parsed.data);
+      const item = await this.newsService.ingestHtml(parsed.data);
       sendSuccess(res, item, 200);
     } catch (error) {
       next(error);

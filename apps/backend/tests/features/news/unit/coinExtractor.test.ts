@@ -41,4 +41,35 @@ describe('coinExtractor', () => {
     );
     expect(coins).toEqual([]);
   });
+
+  it('does not falsely extract ambiguous coins from common English words', () => {
+    const coins = extractRelatedCoins(
+      [],
+      'Price is near all-time high, click link for details',
+      'A red dot appeared on the chart with an apt observation.',
+    );
+    expect(coins).toEqual([]);
+  });
+
+  it('correctly extracts ambiguous coins when using full name, cashtag, or tags', () => {
+    const coins1 = extractRelatedCoins(
+      [],
+      'Chainlink and Polkadot partnership',
+      'Near Protocol is expanding with Aptos support.',
+    );
+    expect(coins1).toContain('LINK');
+    expect(coins1).toContain('DOT');
+    expect(coins1).toContain('NEAR');
+    expect(coins1).toContain('APT');
+
+    const coins2 = extractRelatedCoins(
+      ['DOT', 'NEAR'],
+      'Daily crypto roundup',
+      'Looking at $LINK and $APT performance.',
+    );
+    expect(coins2).toContain('DOT');
+    expect(coins2).toContain('NEAR');
+    expect(coins2).toContain('LINK');
+    expect(coins2).toContain('APT');
+  });
 });

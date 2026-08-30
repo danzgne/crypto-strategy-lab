@@ -98,6 +98,7 @@ async function startBackend(): Promise<void> {
     }
   }
 
+  await newsService.init?.();
   await newsService.ensureDefaultSources();
   void newsService.triggerCrawlNow().catch((err: unknown) => {
     logger.error({ err }, 'Initial background news crawl encountered an error');

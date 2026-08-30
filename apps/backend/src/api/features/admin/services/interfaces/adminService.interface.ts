@@ -13,6 +13,8 @@ export interface AdminServiceInterface {
   deleteNewsSource(id: string): Promise<void>;
   startCrawl(): Promise<CrawlSummary>;
   getCrawlInterval(): { intervalMinutes: number };
-  updateCrawlInterval(intervalMinutes: number): { intervalMinutes: number };
+  updateCrawlInterval(
+    intervalMinutes: number,
+  ): Promise<{ intervalMinutes: number }>;
   ingestHtml(dto: IngestHtmlDto): Promise<NewsItem>;
 }

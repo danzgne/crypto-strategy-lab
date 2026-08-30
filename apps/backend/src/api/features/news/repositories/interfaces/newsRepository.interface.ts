@@ -56,4 +56,8 @@ export interface NewsRepository {
 
   // Stats
   getNewsStats(): Promise<NewsStats>;
+
+  // System Settings
+  getSetting(key: string): Promise<string | null>;
+  setSetting(key: string, value: string): Promise<void>;
 }

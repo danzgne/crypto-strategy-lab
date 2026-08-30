@@ -31,7 +31,7 @@ describe('AdminService', () => {
         results: [],
       }),
       getCrawlInterval: vi.fn().mockReturnValue({ intervalMinutes: 3 }),
-      updateCrawlInterval: vi.fn().mockReturnValue({ intervalMinutes: 5 }),
+      updateCrawlInterval: vi.fn().mockResolvedValue({ intervalMinutes: 5 }),
       ingestHtml: vi.fn().mockResolvedValue({
         id: 'item-1',
         title: 'Test',
@@ -65,7 +65,9 @@ describe('AdminService', () => {
     expect(crawlRes.sourcesProcessed).toBe(1);
 
     expect(service.getCrawlInterval()).toEqual({ intervalMinutes: 3 });
-    expect(service.updateCrawlInterval(5)).toEqual({ intervalMinutes: 5 });
+    expect(await service.updateCrawlInterval(5)).toEqual({
+      intervalMinutes: 5,
+    });
   });
 
   it('can be initialized with dependencies object', async () => {

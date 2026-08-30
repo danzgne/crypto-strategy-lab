@@ -8,7 +8,6 @@ import { createAuthFeatureRouter, AuthController } from '@/api/features/auth';
 import {
   createAdminFeatureRouter,
   AdminController,
-  AdminService,
 } from '@/api/features/admin';
 import { createNewsFeatureRouter, NewsController } from '@/api/features/news';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
@@ -24,8 +23,7 @@ export function createV1Router(
   router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
 
   if (newsService) {
-    const adminService = new AdminService(newsService);
-    const adminController = new AdminController(adminService);
+    const adminController = new AdminController(newsService);
     router.use('/admin', createAdminFeatureRouter(adminController));
 
     const newsController = new NewsController(newsService);

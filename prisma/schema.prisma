@@ -257,3 +257,11 @@ model NewsCrawlAttempt {
   @@index([newsSourceId, crawledAt])
   @@map("news_crawl_attempts")
 }
+
+model SystemSetting {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+
+  @@map("system_settings")
+}

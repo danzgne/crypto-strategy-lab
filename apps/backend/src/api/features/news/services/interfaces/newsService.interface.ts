@@ -22,9 +22,12 @@ export interface NewsServiceInterface {
   updateSource(id: string, dto: UpdateNewsSourceDto): Promise<NewsSource>;
   deleteSource(id: string): Promise<void>;
   triggerCrawlNow(): Promise<CrawlSummary>;
-  updateCrawlInterval(intervalMinutes: number): { intervalMinutes: number };
+  updateCrawlInterval(
+    intervalMinutes: number,
+  ): Promise<{ intervalMinutes: number }>;
   getCrawlInterval(): { intervalMinutes: number };
   ingestHtml(dto: IngestHtmlDto): Promise<NewsItem>;
   getStats(): Promise<NewsStats>;
   ensureDefaultSources(): Promise<void>;
+  init?(): Promise<void>;
 }

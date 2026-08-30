@@ -242,40 +242,26 @@ export class PrismaNewsRepository implements NewsRepository {
 
     const persisted: NewsItem[] = [];
 
-    for (const item of toCreate) {
-      try {
-        const createData: Prisma.NewsItemCreateInput = {
+    if (toCreate.length > 0) {
+      await this.prisma.newsItem.createMany({
+        data: toCreate.map((item) => ({
           title: item.title,
           content: item.content,
           source: item.source,
           url: item.url,
           publishedAt: item.publishedAt,
           relatedCoins: item.relatedCoins ?? [],
-        };
+          newsSourceId: newsSourceId ?? null,
+        })),
+        skipDuplicates: true,
+      });
 
-        if (newsSourceId) {
-          createData.newsSource = { connect: { id: newsSourceId } };
-        }
+      const newlyCreated = await this.prisma.newsItem.findMany({
+        where: { url: { in: toCreate.map((i) => i.url) } },
+      });
 
-        const created = await this.prisma.newsItem.create({
-          data: createData,
-        });
-
+      for (const created of newlyCreated) {
         persisted.push(mapNewsItem(created));
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === 'P2002'
-        ) {
-          skipped++;
-        } else if (
-          error instanceof Error &&
-          error.message.includes('Unique constraint')
-        ) {
-          skipped++;
-        } else {
-          throw error;
-        }
       }
     }
 
@@ -325,5 +311,20 @@ export class PrismaNewsRepository implements NewsRepository {
       activeSources,
       coveragePercent,
     };
+  }
+
+  public async getSetting(key: string): Promise<string | null> {
+    const setting = await this.prisma.systemSetting.findUnique({
+      where: { key },
+    });
+    return setting ? setting.value : null;
+  }
+
+  public async setSetting(key: string, value: string): Promise<void> {
+    await this.prisma.systemSetting.upsert({
+      where: { key },
+      create: { key, value },
+      update: { value },
+    });
   }
 }
