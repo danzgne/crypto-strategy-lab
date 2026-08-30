@@ -114,24 +114,20 @@ export function NewsControlBar({
             Auto refresh
           </span>
           {isAdmin ? (
-            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            <select
+              value={intervalMinutes}
+              onChange={(e) => onIntervalChange(Number(e.target.value))}
+              aria-label="Chu kỳ tự động làm mới"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
+            >
               {intervals.map((min) => (
-                <button
-                  key={min}
-                  type="button"
-                  onClick={() => onIntervalChange(min)}
-                  className={`rounded-lg px-2.5 py-1 text-xs font-medium transition ${
-                    intervalMinutes === min
-                      ? 'bg-blue-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
+                <option key={min} value={min}>
                   {min} phút
-                </button>
+                </option>
               ))}
-            </div>
+            </select>
           ) : (
-            <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700">
+            <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
               {intervalMinutes} phút
             </span>
           )}

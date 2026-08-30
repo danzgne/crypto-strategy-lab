@@ -166,11 +166,13 @@ describe('News Frontend Components', () => {
 
     // Auto refresh interval is displayed as read-only badge
     expect(screen.getByText('3 phút')).toBeInTheDocument();
-    // Buttons for other intervals (1, 2, 4, 5 phút) should not exist
-    expect(screen.queryByText('1 phút')).not.toBeInTheDocument();
+    // Select dropdown for auto refresh should not exist for regular user
+    expect(
+      screen.queryByRole('combobox', { name: 'Chu kỳ tự động làm mới' }),
+    ).not.toBeInTheDocument();
   });
 
-  it('NewsControlBar shows admin buttons (Nhập HTML, Cấu hình nguồn, Bắt đầu crawl) when isAdmin is true', () => {
+  it('NewsControlBar shows admin buttons (Nhập HTML, Cấu hình nguồn, Bắt đầu crawl) and auto refresh select when isAdmin is true', () => {
     const onSelectTab = vi.fn();
     const onSelectCoin = vi.fn();
     const onIntervalChange = vi.fn();
@@ -198,8 +200,13 @@ describe('News Frontend Components', () => {
     expect(screen.getByText('Nhập HTML')).toBeInTheDocument();
     expect(screen.getByText('Cấu hình nguồn')).toBeInTheDocument();
     expect(screen.getByText('Bắt đầu crawl')).toBeInTheDocument();
-    expect(screen.getByText('1 phút')).toBeInTheDocument();
-    expect(screen.getByText('5 phút')).toBeInTheDocument();
+
+    const intervalSelect = screen.getByRole('combobox', {
+      name: 'Chu kỳ tự động làm mới',
+    });
+    expect(intervalSelect).toBeInTheDocument();
+    fireEvent.change(intervalSelect, { target: { value: '5' } });
+    expect(onIntervalChange).toHaveBeenCalledWith(5);
 
     // Clicking Nhập HTML action button triggers modal
     fireEvent.click(screen.getByText('Nhập HTML'));
