@@ -75,7 +75,7 @@ export function NewsControlBar({
               }`}
             >
               <Code2 className="size-3.5" />
-              {'</> HTML'}
+              HTML
             </button>
             <button
               type="button"

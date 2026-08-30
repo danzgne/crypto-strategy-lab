@@ -63,12 +63,13 @@ export class NewsController {
   };
 
   public getSources = async (
-    _req: Request,
+    req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const sources = await this.newsService.getSources(true);
+      const onlyActive = req.query.active === 'true' ? true : undefined;
+      const sources = await this.newsService.getSources(onlyActive);
       sendSuccess(res, sources);
     } catch (error) {
       next(error);
