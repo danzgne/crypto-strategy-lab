@@ -3,7 +3,7 @@ import type {
   SignalAction,
   StrategySignalUpdate,
 } from '@crypto-strategy-lab/shared';
-import { paneForIndicatorReference } from '@crypto-strategy-lab/shared';
+import { paneForIndicatorReference } from '@crypto-strategy-lab/shared/strategy';
 import { MAX_CANDLE_LIMIT } from '@crypto-strategy-lab/shared/market-data';
 
 import {
