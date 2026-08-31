@@ -22,6 +22,11 @@ import { createSessionMiddleware } from '@/api/middlewares/auth/session';
 import { PrismaAuthRepository, PasswordAuthService } from '@/api/features/auth';
 import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
 import {
+  PrismaStrategyLibraryRepository,
+  StrategyGenerationService,
+  StrategyLibraryService,
+} from '@/api/features/strategies';
+import {
   PrismaNewsRepository,
   NewsCrawler,
   NewsScheduler,
@@ -85,6 +90,13 @@ async function startBackend(): Promise<void> {
     eventBus,
     marketDataService,
   });
+  const strategyGenerationService = new StrategyGenerationService({
+    llmProvider: strategyGenerationLlmProvider,
+    logger,
+  });
+  const strategyLibraryService = new StrategyLibraryService({
+    repository: new PrismaStrategyLibraryRepository(prisma),
+  });
 
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
@@ -136,6 +148,10 @@ async function startBackend(): Promise<void> {
     healthRepository,
     authService,
     newsService,
+    strategies: {
+      generationService: strategyGenerationService,
+      libraryService: strategyLibraryService,
+    },
     sessionMiddleware,
     allowedOrigin: config.frontendOrigin,
     logger,

@@ -9,13 +9,17 @@ import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
 import { notFoundHandler } from '@/api/middlewares/handlers/notFoundHandler';
 import { requestLogger } from '@/api/middlewares/logging/requestLogger';
 import { requestId } from '@/api/middlewares/requestId/requestId';
-import { createV1Router } from '@/api/routes/v1';
+import {
+  createV1Router,
+  type StrategiesRouterDependencies,
+} from '@/api/routes/v1';
 import { createAppLogger, type AppLogger } from '@/utils/logger';
 
 interface AppDependencies {
   healthRepository: HealthRepository;
   authService: PasswordAuthServiceInterface;
   newsService?: NewsServiceInterface;
+  strategies?: StrategiesRouterDependencies;
   sessionMiddleware: express.RequestHandler;
   allowedOrigin?: string;
   logger?: AppLogger;
@@ -25,6 +29,7 @@ export function createApp({
   healthRepository,
   authService,
   newsService,
+  strategies,
   sessionMiddleware,
   allowedOrigin = 'http://localhost:3000',
   logger = createAppLogger({ service: 'backend-test', enabled: false }),
@@ -40,7 +45,7 @@ export function createApp({
   app.use(sessionMiddleware);
   app.use(
     '/api/v1',
-    createV1Router(healthRepository, authService, newsService),
+    createV1Router(healthRepository, authService, newsService, strategies),
   );
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));

@@ -30,8 +30,8 @@ const navigation: NavItem[] = [
   {
     label: 'Strategy Engine',
     icon: FlaskConical,
-    href: '#strategy-engine',
-    implemented: false,
+    href: '/strategy-engine',
+    implemented: true,
   },
   { label: 'Discovery', icon: Search, href: '#discovery', implemented: false },
   { label: 'Backtest', icon: BarChart3, href: '#backtest', implemented: false },

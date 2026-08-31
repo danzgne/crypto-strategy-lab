@@ -39,6 +39,8 @@ describe('PostgresJobQueue Integration', () => {
         ownerId,
         name: 'test',
         type: 'test',
+        source: 'USER_PROMPT',
+        sourceInput: 'test',
       },
     });
     strategyDefId = def.id;
@@ -49,6 +51,8 @@ describe('PostgresJobQueue Integration', () => {
         ownerId,
         strategyDefinitionId: strategyDefId,
         params: {},
+        versionTag: 'test-version-tag',
+        libraryVersion: '1.0.0',
       },
     });
     strategyVerId = ver.id;

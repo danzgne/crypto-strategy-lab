@@ -76,12 +76,15 @@ model Session {
 }
 
 model StrategyDefinition {
-  id          String  @id @default(uuid()) @db.Uuid
-  ownerId     String  @db.Uuid
-  owner       User    @relation(fields: [ownerId], references: [id])
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @db.Uuid
+  owner       User     @relation(fields: [ownerId], references: [id])
   name        String
   description String?
   type        String
+  source      String
+  sourceInput String   @db.Text
+  tags        String[] @default([])
 
   versions  StrategyVersion[]
   createdAt DateTime          @default(now()) @db.Timestamptz(3)
@@ -97,6 +100,8 @@ model StrategyVersion {
   strategyDefinitionId String             @db.Uuid
   strategyDefinition   StrategyDefinition @relation(fields: [strategyDefinitionId], references: [id])
   params               Json
+  versionTag           String
+  libraryVersion       String
 
   experiments Experiment[]
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)
