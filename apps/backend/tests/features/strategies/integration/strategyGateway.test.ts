@@ -113,7 +113,6 @@ describe('strategy realtime gateway', () => {
       strategyId: 'rule',
       timeframe: '1m',
       params: {
-        source: 'manual',
         indicators: [{ name: 'RSI', period: 2 }],
         conditions: {
           long: [{ indicator: 'RSI', operator: '<', value: 30 }],
@@ -176,7 +175,6 @@ describe('strategy realtime gateway', () => {
       strategyId: 'rule',
       timeframe: '1m',
       params: {
-        source: 'manual',
         indicators: [{ name: 'MACD' }],
         conditions: {
           long: [{ indicator: 'Close', operator: '>', value: 0 }],

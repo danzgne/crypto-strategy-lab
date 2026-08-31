@@ -54,14 +54,26 @@ _Avoid_: Indicator (the computation itself; a reference names one of its outputs
 **RuleStrategy**:
 The one generic Strategy implementation that backs NL/link-authored strategies. Its `params` declares an
 `indicators` list, `conditions.long` and `conditions.short`, `riskManagement`, a `timeframe`, and an
-`applicability` block, alongside `source` and `sourceInput` (see ADR-0006). Registered once at boot like any
-hand-written Strategy: authoring a new one via natural language or a link never adds a `StrategyRegistry` entry,
-it only produces a new `params` value (and therefore a new Strategy Version) for this one class. `source`
-records how the params were authored (`manual` for a hand-written JSON, `nl-generated` for the generation
-pipeline) and is part of the authored value, never assigned on the author's behalf. A name, Library Version, and
-description are Strategy Library entry fields rather than `params`, so renaming an entry does not mint a new
-Strategy Version. Combining multiple Strategies' Signals into one decision stays the Combination Engine's job,
-not something a RuleStrategy does internally.
+`applicability` block (see ADR-0006). Registered once at boot like any hand-written Strategy: authoring a new
+one via natural language or a link never adds a `StrategyRegistry` entry, it only produces a new `params` value
+(and therefore a new Strategy Version) for this one class. `params` carries only what the Strategy *does*: a
+name, Library Version, description, and Provenance are Strategy Library entry fields, so neither renaming an
+entry nor correcting the prompt it came from mints a new Strategy Version (see ADR-0013). Combining multiple
+Strategies' Signals into one decision stays the Combination Engine's job, not something a RuleStrategy does
+internally.
+
+**Provenance**:
+Where a Strategy Library entry's parameters originated: `USER_PROMPT` for the natural-language pipeline,
+`WEB_IMPORT` for a link. Immutable, so editing a generated strategy never rewrites where it came from, and
+descriptive only: it is entry metadata, never part of `params` and never part of the Strategy Version. The
+original prompt text or URL is kept alongside it as the entry's source input.
+_Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source).
+
+**Strategy Editor**:
+The UI surface for viewing and changing a Strategy's parameters, reached by drilling into a Strategy Library
+entry. A schema-driven form rendered from `paramsSchema` is the default; a Strategy may register a custom
+editor for its id, which is how RuleStrategy's grammar gets an editor without making `paramsSchema` recursive
+(see ADR-0013). Built-in Strategies are read-only in place but can be forked into a User's own entry.
 
 **Applicability**:
 A RuleStrategy's declared `timeframe` and permitted Pairs. Enforced server-side before execution, by the
@@ -123,7 +135,9 @@ _Avoid_: Library Version (the human-authored label; see below).
 
 **Strategy Library**:
 A User's browsable collection of their own authored Strategy entries, shown alongside the read-only built-in
-Strategies. Entries carry a name, tags, and a Library Version.
+Strategies. An entry pairs any Strategy's id with a concrete `params` value, so tuning a built-in's parameters
+produces an entry just as authoring a RuleStrategy does. Entries carry a name, tags, a Library Version, and a
+Provenance, none of which are part of `params`.
 
 **Library Version**:
 The human-authored semantic-version label on a Strategy Library entry (for example `1.0.0`). Purely descriptive:

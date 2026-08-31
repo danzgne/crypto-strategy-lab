@@ -11,7 +11,6 @@ import {
   type RuleConditionDirections,
   type RuleIndicatorName,
   type RuleRiskManagement,
-  type RuleSource,
   type Signal,
   type StrategyContext,
   type Timeframe,
@@ -24,8 +23,6 @@ export interface ResolvedIndicatorDeclaration {
 }
 
 export interface ResolvedRuleStrategyParams {
-  source: RuleSource;
-  sourceInput?: string;
   indicators: readonly ResolvedIndicatorDeclaration[];
   conditions: RuleConditionDirections;
   riskManagement?: RuleRiskManagement;
@@ -104,8 +101,6 @@ export function resolveRuleStrategyParams(
   assertNoUnknownKeys(
     candidate,
     [
-      'source',
-      'sourceInput',
       'indicators',
       'conditions',
       'riskManagement',
@@ -115,8 +110,6 @@ export function resolveRuleStrategyParams(
     'RuleStrategy params',
   );
 
-  const source = validateSource(candidate['source']);
-  const sourceInput = validateSourceInput(candidate['sourceInput']);
   const timeframe = validateTimeframe(candidate['timeframe']);
   const applicability = validateApplicability(candidate['applicability']);
   const indicators = resolveIndicatorDeclarations(candidate['indicators']);
@@ -133,11 +126,9 @@ export function resolveRuleStrategyParams(
   }
 
   const resolved: ResolvedRuleStrategyParams = {
-    source,
     indicators,
     conditions,
     timeframe,
-    ...(sourceInput === undefined ? {} : { sourceInput }),
     ...(applicability === undefined ? {} : { applicability }),
   };
 
@@ -536,21 +527,6 @@ function validateApplicability(value: unknown): RuleApplicability | undefined {
   throw new Error(
     'RuleStrategy applicability.pairs must be "USDT_ALL" or an array of pair strings',
   );
-}
-
-function validateSource(value: unknown): RuleSource {
-  if (value !== 'manual' && value !== 'nl-generated') {
-    throw new Error('RuleStrategy source must be "manual" or "nl-generated"');
-  }
-  return value;
-}
-
-function validateSourceInput(value: unknown): string | undefined {
-  if (value === undefined) return undefined;
-  if (typeof value !== 'string') {
-    throw new Error('RuleStrategy sourceInput must be a string');
-  }
-  return value;
 }
 
 function validateTimeframe(value: unknown): Timeframe {

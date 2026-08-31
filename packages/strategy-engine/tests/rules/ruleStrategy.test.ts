@@ -9,7 +9,6 @@ import {
 import { makeContext } from '../testUtils';
 
 const RSI_OVERSOLD_LONG = {
-  source: 'manual' as const,
   indicators: [{ name: 'RSI' as const, period: 2 }],
   conditions: {
     long: [{ indicator: 'RSI', operator: '<' as const, value: 30 }],
@@ -51,7 +50,6 @@ describe('RuleStrategy', () => {
 
   it('compares an indicator against another declared indicator, e.g. close below BB_Lower', () => {
     const strategy = new RuleStrategy({
-      source: 'manual',
       indicators: [{ name: 'BollingerBands', period: 5, stdDev: 1 }],
       conditions: {
         long: [{ indicator: 'Close', operator: '<', indicatorRef: 'BB_Lower' }],
@@ -67,7 +65,6 @@ describe('RuleStrategy', () => {
 
   it('combines multiple conditions per direction as a flat AND', () => {
     const strategy = new RuleStrategy({
-      source: 'manual',
       indicators: [
         { name: 'RSI', period: 2 },
         { name: 'SMA', period: 2, as: 'SMA_REF' },
@@ -88,7 +85,6 @@ describe('RuleStrategy', () => {
 
   it('allows a long-only strategy: an empty short list never emits SELL', () => {
     const strategy = new RuleStrategy({
-      source: 'manual',
       indicators: [{ name: 'RSI', period: 2 }],
       conditions: {
         long: [{ indicator: 'RSI', operator: '<', value: 30 }],
@@ -105,7 +101,6 @@ describe('RuleStrategy', () => {
     expect(
       () =>
         new RuleStrategy({
-          source: 'manual',
           indicators: [{ name: 'RSI', period: 2 }],
           conditions: { long: [], short: [] },
           timeframe: '1m',
@@ -115,7 +110,6 @@ describe('RuleStrategy', () => {
 
   it('emits HOLD with a contradiction reason when long and short both fire on the same candle', () => {
     const strategy = new RuleStrategy({
-      source: 'manual',
       indicators: [{ name: 'RSI', period: 2 }],
       conditions: {
         // The same sharp drop crosses RSI below 30 and Close below 60 on one candle.

@@ -14,20 +14,6 @@ import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
 const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
 
-const EXAMPLE_RULE_PARAMS = JSON.stringify(
-  {
-    source: 'manual',
-    indicators: [{ name: 'RSI', period: 14 }],
-    conditions: {
-      long: [{ indicator: 'RSI', operator: '<', value: 30 }],
-      short: [{ indicator: 'RSI', operator: '>', value: 70 }],
-    },
-    timeframe: '1m',
-  },
-  null,
-  2,
-);
-
 export interface MarketDataDashboardProperties {
   chartRenderer?: FinancialChartRenderer;
 }
@@ -42,21 +28,12 @@ export function MarketDataDashboard({
   const [enabledStrategyId, setEnabledStrategyId] = useState<string | null>(
     null,
   );
-  const [strategyParamsText, setStrategyParamsText] = useState('');
   const strategyCatalog = useStrategyCatalog();
   const recentTicks = useRecentTicks({ pair, limit: 5 });
 
-  const enabledStrategy = strategyCatalog.strategies.find(
-    (entry) => entry.id === enabledStrategyId,
+  const runnableStrategies = strategyCatalog.strategies.filter(
+    (entry) => !entry.requiresParams,
   );
-  const requiresParams = enabledStrategy?.requiresParams ?? false;
-  const { params: parsedStrategyParams, error: strategyParamsError } =
-    parseStrategyParams(strategyParamsText);
-  const activeStrategyId =
-    enabledStrategyId !== null &&
-    (!requiresParams || parsedStrategyParams !== undefined)
-      ? enabledStrategyId
-      : null;
 
   const changeTimeframe = (
     panelIndex: number,
@@ -117,24 +94,13 @@ export function MarketDataDashboard({
                 <select
                   className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="strategy-overlay"
-                  onChange={(event) => {
-                    const strategyId = event.target.value || null;
-                    setEnabledStrategyId(strategyId);
-                    const entry = strategyCatalog.strategies.find(
-                      (candidate) => candidate.id === strategyId,
-                    );
-                    if (
-                      strategyId !== null &&
-                      entry?.requiresParams === true &&
-                      strategyParamsText.trim().length === 0
-                    ) {
-                      setStrategyParamsText(EXAMPLE_RULE_PARAMS);
-                    }
-                  }}
+                  onChange={(event) =>
+                    setEnabledStrategyId(event.target.value || null)
+                  }
                   value={enabledStrategyId ?? ''}
                 >
                   <option value="">None (No overlay)</option>
-                  {strategyCatalog.strategies.map(({ id: strategyId }) => (
+                  {runnableStrategies.map(({ id: strategyId }) => (
                     <option key={strategyId} value={strategyId}>
                       {formatStrategyName(strategyId)}
                     </option>
@@ -167,31 +133,6 @@ export function MarketDataDashboard({
             </div>
           </div>
 
-          {requiresParams && (
-            <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5">
-              <label
-                className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
-                htmlFor="rule-strategy-params"
-              >
-                {formatStrategyName(enabledStrategyId ?? '')} params (JSON)
-              </label>
-              <textarea
-                className="min-h-32 w-full rounded-lg border border-slate-200 bg-slate-50 p-3 font-mono text-xs text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
-                id="rule-strategy-params"
-                onChange={(event) => setStrategyParamsText(event.target.value)}
-                value={strategyParamsText}
-              />
-              {strategyParamsError !== null && (
-                <p
-                  className="mt-2 text-xs font-medium text-rose-600"
-                  role="alert"
-                >
-                  {strategyParamsError}
-                </p>
-              )}
-            </div>
-          )}
-
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
@@ -202,10 +143,7 @@ export function MarketDataDashboard({
                 }
                 panelNumber={index + 1}
                 pair={pair}
-                {...(requiresParams && parsedStrategyParams !== undefined
-                  ? { strategyParams: parsedStrategyParams }
-                  : {})}
-                strategyId={activeStrategyId}
+                strategyId={enabledStrategyId}
                 timeframe={timeframe}
               />
             ))}
@@ -238,19 +176,4 @@ export function MarketDataDashboard({
 
 function formatStrategyName(strategyId: string): string {
   return strategyId.replaceAll(/[-_]+/g, ' ').toUpperCase();
-}
-
-function parseStrategyParams(text: string): {
-  params: unknown;
-  error: string | null;
-} {
-  const trimmed = text.trim();
-  if (trimmed.length === 0) {
-    return { params: undefined, error: null };
-  }
-  try {
-    return { params: JSON.parse(trimmed) as unknown, error: null };
-  } catch {
-    return { params: undefined, error: 'That is not valid JSON.' };
-  }
 }

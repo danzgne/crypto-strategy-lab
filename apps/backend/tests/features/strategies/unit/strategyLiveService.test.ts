@@ -192,7 +192,6 @@ describe('StrategyLiveService', () => {
         pair: 'BTCUSDT',
         timeframe: '1m',
         params: {
-          source: 'manual',
           indicators: [{ name: 'RSI', period: 2 }],
           conditions: {
             long: [{ indicator: 'RSI', operator: '<', value: 30 }],
@@ -245,7 +244,6 @@ describe('StrategyLiveService', () => {
           pair: 'BTCUSDT',
           timeframe: '1m',
           params: {
-            source: 'manual',
             indicators: [],
             conditions: {
               long: [{ indicator: 'Close', operator: '>', value: 0 }],
@@ -284,7 +282,6 @@ describe('StrategyLiveService', () => {
           pair: 'BTCUSDT',
           timeframe: '1m',
           params: {
-            source: 'manual',
             indicators: [],
             conditions: {
               long: [{ indicator: 'Close', operator: '>', value: 0 }],
@@ -326,7 +323,6 @@ describe('StrategyLiveService', () => {
     });
 
     const ruleParams = (period: number): unknown => ({
-      source: 'manual',
       indicators: [{ name: 'SMA', period }],
       conditions: {
         long: [{ indicator: 'Close', operator: '>', value: 1_000_000 }],

@@ -111,38 +111,12 @@ describe('MarketDataDashboard', () => {
     expect(screen.getAllByText('ETHUSDT · 5m')).toHaveLength(1);
   });
 
-  it('shows a manual JSON params input for a strategy that requires params, and rejects invalid JSON', () => {
+  it('offers only strategies that need no authored params, without naming any strategy id', () => {
     render(<MarketDataDashboard />);
 
+    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
     expect(
-      screen.queryByLabelText(/RULE params \(JSON\)/),
+      screen.queryByRole('option', { name: 'RULE' }),
     ).not.toBeInTheDocument();
-
-    const strategySelector = screen.getByRole('combobox', {
-      name: 'Strategy overlay',
-    });
-    fireEvent.change(strategySelector, { target: { value: 'rule' } });
-
-    const paramsInput = screen.getByLabelText(/RULE params \(JSON\)/);
-    expect(paramsInput).toBeInTheDocument();
-
-    fireEvent.change(paramsInput, { target: { value: '{not valid json' } });
-    expect(screen.getByRole('alert')).toHaveTextContent(
-      'That is not valid JSON.',
-    );
-
-    fireEvent.change(paramsInput, {
-      target: {
-        value: JSON.stringify({
-          indicators: [{ name: 'RSI', period: 14 }],
-          conditions: {
-            long: [{ indicator: 'RSI', operator: '<', value: 30 }],
-            short: [],
-          },
-          timeframe: '1m',
-        }),
-      },
-    });
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

@@ -9,7 +9,6 @@ import {
 describe('resolveRuleStrategyParams: indicators', () => {
   it('applies default periods and reference names per indicator', () => {
     const resolved = resolveRuleStrategyParams({
-      source: 'manual',
       indicators: [
         { name: 'SMA' },
         { name: 'RSI' },
@@ -35,7 +34,6 @@ describe('resolveRuleStrategyParams: indicators', () => {
   it('rejects an unknown indicator name', () => {
     expect(() =>
       resolveRuleStrategyParams({
-        source: 'manual',
         indicators: [{ name: 'MACD' }],
         conditions: {
           long: [],
@@ -49,7 +47,6 @@ describe('resolveRuleStrategyParams: indicators', () => {
   it('rejects an unexpected key on an indicator declaration', () => {
     expect(() =>
       resolveRuleStrategyParams({
-        source: 'manual',
         indicators: [{ name: 'SMA', position: 'top' }],
         conditions: {
           long: [],
@@ -63,7 +60,6 @@ describe('resolveRuleStrategyParams: indicators', () => {
   it('rejects two indicators colliding on the same default reference', () => {
     expect(() =>
       resolveRuleStrategyParams({
-        source: 'manual',
         indicators: [{ name: 'SMA' }, { name: 'SMA' }],
         conditions: {
           long: [{ indicator: 'SMA', operator: '>', value: 1 }],
@@ -76,7 +72,6 @@ describe('resolveRuleStrategyParams: indicators', () => {
 
   it('allows two indicators of the same kind once disambiguated by alias', () => {
     const resolved = resolveRuleStrategyParams({
-      source: 'manual',
       indicators: [
         { name: 'SMA', period: 20, as: 'SMA_FAST' },
         { name: 'SMA', period: 50, as: 'SMA_SLOW' },
@@ -97,7 +92,6 @@ describe('resolveRuleStrategyParams: indicators', () => {
 
 describe('resolveRuleStrategyParams: conditions', () => {
   const BASE = {
-    source: 'manual' as const,
     indicators: [{ name: 'RSI' as const, period: 14 }],
     timeframe: '1m' as const,
   };
@@ -117,7 +111,6 @@ describe('resolveRuleStrategyParams: conditions', () => {
 
   it('resolves an indicator-to-indicator condition, e.g. close below BB_Lower', () => {
     const resolved = resolveRuleStrategyParams({
-      source: 'manual',
       indicators: [{ name: 'BollingerBands' }],
       conditions: {
         long: [{ indicator: 'Close', operator: '<', indicatorRef: 'BB_Lower' }],
@@ -219,7 +212,6 @@ describe('resolveRuleStrategyParams: top-level strictness', () => {
   it('rejects a stray top-level key', () => {
     expect(() =>
       resolveRuleStrategyParams({
-        source: 'manual',
         indicators: [],
         conditions: {
           long: [{ indicator: 'Close', operator: '>', value: 1 }],
@@ -234,7 +226,6 @@ describe('resolveRuleStrategyParams: top-level strictness', () => {
   it('rejects a missing timeframe', () => {
     expect(() =>
       resolveRuleStrategyParams({
-        source: 'manual',
         indicators: [],
         conditions: {
           long: [{ indicator: 'Close', operator: '>', value: 1 }],
@@ -244,24 +235,40 @@ describe('resolveRuleStrategyParams: top-level strictness', () => {
     ).toThrow(/timeframe must be/i);
   });
 
-  it('rejects an invalid source', () => {
+  it('rejects provenance fields, which belong to the library entry and not to params', () => {
+    const rules = {
+      indicators: [],
+      conditions: {
+        long: [{ indicator: 'Close', operator: '>', value: 1 }],
+        short: [],
+      },
+      timeframe: '1m',
+    };
     expect(() =>
-      resolveRuleStrategyParams({
-        source: 'made-up',
-        indicators: [],
-        conditions: {
-          long: [{ indicator: 'Close', operator: '>', value: 1 }],
-          short: [],
-        },
-        timeframe: '1m',
-      }),
-    ).toThrow(/source must be/i);
+      resolveRuleStrategyParams({ ...rules, source: 'USER_PROMPT' }),
+    ).toThrow(/unexpected key "source"/i);
+    expect(() =>
+      resolveRuleStrategyParams({ ...rules, sourceInput: 'RSI below 30' }),
+    ).toThrow(/unexpected key "sourceInput"/i);
+  });
+
+  it('gives the same version tag to identical rules regardless of provenance', () => {
+    const rules = {
+      indicators: [{ name: 'RSI', period: 14 }],
+      conditions: {
+        long: [{ indicator: 'RSI', operator: '<', value: 30 }],
+        short: [],
+      },
+      timeframe: '1m',
+    };
+    expect(resolveRuleStrategyParams(rules)).toEqual(
+      resolveRuleStrategyParams({ ...rules }),
+    );
   });
 });
 
 describe('resolveRuleStrategyParams: riskManagement', () => {
   const BASE = {
-    source: 'manual' as const,
     indicators: [],
     conditions: {
       long: [{ indicator: 'Close' as const, operator: '>' as const, value: 1 }],
@@ -313,7 +320,6 @@ describe('resolveRuleStrategyParams: riskManagement', () => {
 
 describe('resolveRuleStrategyParams: applicability', () => {
   const BASE = {
-    source: 'manual' as const,
     indicators: [],
     conditions: {
       long: [{ indicator: 'Close' as const, operator: '>' as const, value: 1 }],
@@ -369,7 +375,6 @@ describe('requiredHistoryForRule', () => {
     expect(
       requiredHistoryForRule(
         resolveRuleStrategyParams({
-          source: 'manual',
           indicators: [{ name: 'SMA', period: 20 }],
           conditions: {
             long: [{ indicator: 'SMA', operator: '>', value: 1 }],
@@ -382,7 +387,6 @@ describe('requiredHistoryForRule', () => {
     expect(
       requiredHistoryForRule(
         resolveRuleStrategyParams({
-          source: 'manual',
           indicators: [{ name: 'RSI', period: 14 }],
           conditions: {
             long: [{ indicator: 'RSI', operator: '<', value: 30 }],
@@ -395,7 +399,6 @@ describe('requiredHistoryForRule', () => {
     expect(
       requiredHistoryForRule(
         resolveRuleStrategyParams({
-          source: 'manual',
           indicators: [{ name: 'BollingerBands', period: 20 }],
           conditions: {
             long: [

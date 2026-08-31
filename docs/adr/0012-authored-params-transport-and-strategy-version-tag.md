@@ -59,6 +59,13 @@ is a flat `export *` that the Next.js client bundle pulls in and `node:crypto` m
 - The tag's inputs include both `riskManagement` and its derived flat `stopLoss`/`takeProfit`, per ADR-0006's
   mapping. Dropping the redundant half later would change every previously computed tag, so the mapping is now
   effectively load-bearing for reproducibility.
+- **Params-over-socket is expected to be superseded at #48, not to stand forever.** Once the Strategy Library
+  persists entries, the Realtime page selects a saved strategy rather than carrying a params blob, so
+  `strategy:subscribe` should come to carry a Strategy Version id and let the server load params it already
+  owns. `requiresParams` goes vestigial at the same moment, since a saved entry always has its params. This
+  decision is what works before persistence exists, and it stays the right shape for a caller holding an
+  unsaved params value; read it as a stage, not a destination. See
+  [ADR-0013](0013-params-provenance-boundary-and-editor-registry.md).
 - Revisit if: a second params-carrying surface appears (a backtest form, a library run action) and duplicating
   validation and enforcement at each entry point starts to cost more than a single request-validated endpoint
   would have.

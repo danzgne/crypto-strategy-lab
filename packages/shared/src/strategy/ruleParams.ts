@@ -2,7 +2,18 @@ import type { Pair, Timeframe } from '../marketData/candle';
 
 export const CLOSE_REFERENCE = 'Close';
 
-export type RuleSource = 'manual' | 'nl-generated';
+export const STRATEGY_PROVENANCES = ['USER_PROMPT', 'WEB_IMPORT'] as const;
+
+export type StrategyProvenance = (typeof STRATEGY_PROVENANCES)[number];
+
+export function isStrategyProvenance(
+  value: unknown,
+): value is StrategyProvenance {
+  return (
+    typeof value === 'string' &&
+    STRATEGY_PROVENANCES.includes(value as StrategyProvenance)
+  );
+}
 
 export type RuleIndicatorName = 'RSI' | 'BollingerBands' | 'SMA';
 
@@ -61,8 +72,6 @@ export interface RuleApplicability {
 }
 
 export interface RuleStrategyParams {
-  source: RuleSource;
-  sourceInput?: string;
   indicators: readonly RuleIndicatorDeclaration[];
   conditions: RuleConditionDirections;
   riskManagement?: RuleRiskManagement;

@@ -19,15 +19,6 @@ export const RULE_STRATEGY_ID = 'rule';
 export const RULE_PARAMS_SCHEMA: StrategyParamsSchema = {
   type: 'object',
   properties: {
-    source: {
-      type: 'string',
-      description: 'How these params were authored: manual or nl-generated',
-    },
-    sourceInput: {
-      type: 'string',
-      description:
-        'The original natural-language text or URL, when authored that way',
-    },
     indicators: {
       type: 'array',
       description:
@@ -50,7 +41,7 @@ export const RULE_PARAMS_SCHEMA: StrategyParamsSchema = {
       description: 'Optional permitted-pairs restriction',
     },
   },
-  required: ['source', 'indicators', 'conditions', 'timeframe'],
+  required: ['indicators', 'conditions', 'timeframe'],
 };
 
 export class RuleStrategy implements Strategy<ResolvedRuleStrategyParams> {
