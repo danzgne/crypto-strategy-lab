@@ -10,6 +10,7 @@ vi.mock(
     generateStrategy: vi.fn(),
     saveStrategy: vi.fn(),
     fetchRecentStrategies: vi.fn(),
+    validateStrategy: vi.fn(),
   }),
 );
 
@@ -79,6 +80,246 @@ describe('useStrategyGeneration hook', () => {
     expect(result.current.saveTags).toEqual(['rsi']);
     expect(result.current.generationError).toBeNull();
     expect(result.current.isGenerating).toBe(false);
+    expect(result.current.paramsValidation).toEqual({ status: 'valid' });
+    expect(result.current.renderedParams).toEqual(sampleGenerated().params);
+    expect(result.current.isParamsDirty).toBe(false);
+    expect(client.validateStrategy).not.toHaveBeenCalled();
+  });
+
+  describe('editing the generated params', () => {
+    beforeEach(() => {
+      vi.mocked(client.generateStrategy).mockResolvedValue(sampleGenerated());
+    });
+
+    async function generateOnce() {
+      const { result } = renderHook(() => useStrategyGeneration());
+      act(() => result.current.setPromptText('Long when RSI under 30'));
+      await act(async () => {
+        await result.current.handleAnalyzePrompt();
+      });
+      return result;
+    }
+
+    it('shows a syntax error immediately, without calling the server', async () => {
+      const result = await generateOnce();
+
+      act(() => result.current.handleParamsTextChange('{ not json'));
+
+      expect(result.current.paramsValidation.status).toBe('syntax-error');
+      expect(result.current.isParamsDirty).toBe(true);
+      expect(client.validateStrategy).not.toHaveBeenCalled();
+    });
+
+    it('debounces a parseable edit, then validates it on the server', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(client.validateStrategy).mockResolvedValue({ valid: true });
+        const result = await generateOnce();
+        const edited = JSON.stringify({
+          ...sampleGenerated().params,
+          timeframe: '4h',
+        });
+
+        act(() => result.current.handleParamsTextChange(edited));
+        expect(result.current.paramsValidation.status).toBe('checking');
+        expect(client.validateStrategy).not.toHaveBeenCalled();
+
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+
+        expect(client.validateStrategy).toHaveBeenCalledWith(
+          JSON.parse(edited),
+        );
+        expect(result.current.paramsValidation).toEqual({ status: 'valid' });
+        expect(result.current.renderedParams).toEqual(JSON.parse(edited));
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('reports an invalid edit without touching the last rendered params', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(client.validateStrategy).mockResolvedValue({
+          valid: false,
+          message: 'conditions must declare at least one condition',
+        });
+        const result = await generateOnce();
+        const priorRendered = result.current.renderedParams;
+        const edited = JSON.stringify({
+          indicators: [],
+          conditions: { long: [], short: [] },
+          timeframe: '1h',
+        });
+
+        act(() => result.current.handleParamsTextChange(edited));
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+
+        expect(result.current.paramsValidation).toEqual({
+          status: 'invalid',
+          message: 'conditions must declare at least one condition',
+        });
+        expect(result.current.renderedParams).toEqual(priorRendered);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('ignores a stale validate response for an edit that was since superseded', async () => {
+      vi.useFakeTimers();
+      try {
+        const result = await generateOnce();
+        let resolveFirst!: (value: {
+          valid: boolean;
+          message?: string;
+        }) => void;
+        vi.mocked(client.validateStrategy)
+          .mockImplementationOnce(
+            () =>
+              new Promise((resolve) => {
+                resolveFirst = resolve;
+              }),
+          )
+          .mockResolvedValueOnce({ valid: false, message: 'second wins' });
+
+        const firstEdit = JSON.stringify({
+          ...sampleGenerated().params,
+          timeframe: '4h',
+        });
+        act(() => result.current.handleParamsTextChange(firstEdit));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+
+        const secondEdit = JSON.stringify({
+          ...sampleGenerated().params,
+          timeframe: '1d',
+        });
+        act(() => result.current.handleParamsTextChange(secondEdit));
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(500);
+        });
+
+        act(() => resolveFirst({ valid: true }));
+        await act(async () => {
+          await Promise.resolve();
+        });
+
+        expect(result.current.paramsValidation).toEqual({
+          status: 'invalid',
+          message: 'second wins',
+        });
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('clears dirty and re-seeds a fresh valid state on the next successful generation', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(client.validateStrategy).mockResolvedValue({ valid: true });
+        const result = await generateOnce();
+        act(() =>
+          result.current.handleParamsTextChange(
+            JSON.stringify({ ...sampleGenerated().params, timeframe: '4h' }),
+          ),
+        );
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+        expect(result.current.isParamsDirty).toBe(true);
+
+        act(() => result.current.setPromptText('Long when RSI under 20'));
+        await act(async () => {
+          await result.current.handleAnalyzePrompt();
+        });
+
+        expect(result.current.isParamsDirty).toBe(false);
+        expect(result.current.paramsValidation).toEqual({ status: 'valid' });
+        expect(result.current.renderedParams).toEqual(sampleGenerated().params);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('saves the edited params, not the original generation output', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(client.validateStrategy).mockResolvedValue({ valid: true });
+        const result = await generateOnce();
+        const edited = {
+          ...sampleGenerated().params,
+          timeframe: '4h' as const,
+        };
+        act(() =>
+          result.current.handleParamsTextChange(JSON.stringify(edited)),
+        );
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+
+        vi.mocked(client.saveStrategy).mockResolvedValue({
+          id: 'entry-1',
+          name: 'RSI_LONG',
+          description: 'Long when RSI drops below 30',
+          tags: ['rsi'],
+          source: 'USER_PROMPT',
+          sourceInput: 'Long when RSI under 30',
+          createdAt: '2026-02-01T00:00:00.000Z',
+          version: {
+            id: 'version-1',
+            params: edited,
+            versionTag: 'deadbeef',
+            libraryVersion: '1.0.0',
+          },
+        });
+
+        await act(async () => {
+          await result.current.handleSave();
+        });
+
+        expect(client.saveStrategy).toHaveBeenCalledWith(
+          expect.objectContaining({ params: edited }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('refuses to save while the current edit is invalid', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(client.validateStrategy).mockResolvedValue({
+          valid: false,
+          message: 'broken',
+        });
+        const result = await generateOnce();
+        act(() =>
+          result.current.handleParamsTextChange(
+            JSON.stringify({
+              indicators: [],
+              conditions: { long: [], short: [] },
+              timeframe: '1h',
+            }),
+          ),
+        );
+        await act(async () => {
+          await vi.runAllTimersAsync();
+        });
+
+        await act(async () => {
+          await result.current.handleSave();
+        });
+
+        expect(client.saveStrategy).not.toHaveBeenCalled();
+        expect(result.current.generation).not.toBeNull();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it('surfaces a plain-language error and leaves the prompt editable on failure', async () => {

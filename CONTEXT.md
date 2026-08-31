@@ -70,10 +70,13 @@ original prompt text or URL is kept alongside it as the entry's source input.
 _Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source).
 
 **Strategy Editor**:
-The UI surface for viewing and changing a Strategy's parameters, reached by drilling into a Strategy Library
-entry. A schema-driven form rendered from `paramsSchema` is the default; a Strategy may register a custom
-editor for its id, which is how RuleStrategy's grammar gets an editor without making `paramsSchema` recursive
-(see ADR-0013). Built-in Strategies are read-only in place but can be forked into a User's own entry.
+The UI surface for viewing and changing a Strategy's parameters, whether or not they are saved yet. Reached by
+drilling into a Strategy Library entry, and also by editing a just-generated, unsaved `params` value in the
+generation flow (see ADR-0015): both consume the same registered editor for a Strategy's id, so there is exactly
+one editor per grammar regardless of when in its lifecycle a `params` value is being edited. A schema-driven form
+rendered from `paramsSchema` is the default; a Strategy may register a custom editor for its id, which is how
+RuleStrategy's grammar gets an editor without making `paramsSchema` recursive (see ADR-0013). Built-in Strategies
+are read-only in place but can be forked into a User's own entry.
 
 **Applicability**:
 A RuleStrategy's declared `timeframe` and permitted Pairs. Enforced server-side before execution, by the

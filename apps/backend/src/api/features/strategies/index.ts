@@ -17,6 +17,7 @@ export {
   StrategyLibraryService,
   type SaveStrategyInput,
   type SaveStrategyResult,
+  type ValidateStrategyResult,
 } from './services/strategyLibraryService';
 export { PrismaStrategyLibraryRepository } from './repositories/prismaStrategyLibraryRepository';
 export type {

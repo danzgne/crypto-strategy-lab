@@ -21,6 +21,11 @@ export default function StrategyEnginePage() {
     activeKind,
     generation,
     generationError,
+    paramsText,
+    handleParamsTextChange,
+    paramsValidation,
+    renderedParams,
+    isParamsDirty,
     handleAnalyzePrompt,
     handleExtractUrl,
     handleClearPrompt,
@@ -41,9 +46,20 @@ export default function StrategyEnginePage() {
 
   const validationStatus = generationError
     ? 'error'
-    : generation
-      ? 'valid'
-      : 'idle';
+    : !generation
+      ? 'idle'
+      : paramsValidation.status === 'checking'
+        ? 'checking'
+        : paramsValidation.status === 'valid'
+          ? 'valid'
+          : 'error';
+
+  const validationMessage =
+    generationError ??
+    (paramsValidation.status === 'invalid' ||
+    paramsValidation.status === 'syntax-error'
+      ? paramsValidation.message
+      : undefined);
 
   return (
     <div className="space-y-6">
@@ -65,19 +81,21 @@ export default function StrategyEnginePage() {
             onAnalyze={() => void handleAnalyzePrompt()}
             onClear={handleClearPrompt}
             isAnalyzing={isGenerating && activeKind === 'USER_PROMPT'}
+            hasUnsavedEdits={isParamsDirty}
           />
           <UrlInputPanel
             urlText={urlText}
             onChangeUrlText={setUrlText}
             onExtract={() => void handleExtractUrl()}
             isExtracting={isGenerating && activeKind === 'WEB_IMPORT'}
+            hasUnsavedEdits={isParamsDirty}
           />
         </div>
 
         <div className="lg:col-span-3">
-          {generation ? (
+          {generation && renderedParams ? (
             <AnalyzedStrategyPanel
-              params={generation.response.params}
+              params={renderedParams}
               unsupportedRequests={generation.response.unsupportedRequests}
             />
           ) : (
@@ -90,17 +108,22 @@ export default function StrategyEnginePage() {
 
         <div className="lg:col-span-3">
           {generation && (
-            <StrategyJsonPanel params={generation.response.params} />
+            <StrategyJsonPanel
+              paramsText={paramsText}
+              onChangeParamsText={handleParamsTextChange}
+              validation={paramsValidation}
+            />
           )}
         </div>
 
         <div className="space-y-6 lg:col-span-3">
           <ValidationStatusCard
             status={validationStatus}
-            message={generationError ?? undefined}
+            message={validationMessage}
           />
           <SaveStrategyPanel
             disabled={!generation}
+            paramsAreValid={paramsValidation.status === 'valid'}
             source={generation?.source ?? null}
             name={saveName}
             onChangeName={setSaveName}

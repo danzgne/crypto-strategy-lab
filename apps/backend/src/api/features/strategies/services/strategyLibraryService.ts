@@ -31,6 +31,14 @@ export type SaveStrategyResult =
   | { readonly outcome: 'SUCCESS'; readonly entry: StrategyLibraryEntry }
   | { readonly outcome: 'GENERATION_INVALID'; readonly message: string };
 
+export type ValidateStrategyResult =
+  | { readonly valid: true }
+  | { readonly valid: false; readonly message: string };
+
+type ConstructResult =
+  | { readonly ok: true; readonly strategy: RuleStrategy }
+  | { readonly ok: false; readonly message: string };
+
 export interface StrategyLibraryServiceDependencies {
   repository: StrategyLibraryRepository;
 }
@@ -42,16 +50,19 @@ export class StrategyLibraryService {
     this.repository = repository;
   }
 
+  public validate(params: unknown): ValidateStrategyResult {
+    const result = this.tryConstruct(params);
+    return result.ok
+      ? { valid: true }
+      : { valid: false, message: result.message };
+  }
+
   public async save(input: SaveStrategyInput): Promise<SaveStrategyResult> {
-    let strategy: RuleStrategy;
-    try {
-      strategy = new RuleStrategy(input.params);
-    } catch (error) {
-      return {
-        outcome: 'GENERATION_INVALID',
-        message: (error as Error).message,
-      };
+    const result = this.tryConstruct(input.params);
+    if (!result.ok) {
+      return { outcome: 'GENERATION_INVALID', message: result.message };
     }
+    const strategy = result.strategy;
 
     const versionTag = computeStrategyVersionTag(
       RULE_STRATEGY_ID,
@@ -79,5 +90,13 @@ export class StrategyLibraryService {
     limit: number = DEFAULT_LIST_LIMIT,
   ): Promise<StrategyLibraryEntry[]> {
     return this.repository.listRecentByOwner(ownerId, limit);
+  }
+
+  private tryConstruct(params: unknown): ConstructResult {
+    try {
+      return { ok: true, strategy: new RuleStrategy(params) };
+    } catch (error) {
+      return { ok: false, message: (error as Error).message };
+    }
   }
 }

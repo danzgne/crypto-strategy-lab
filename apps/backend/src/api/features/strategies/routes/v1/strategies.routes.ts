@@ -12,6 +12,7 @@ export function createStrategiesFeatureRouter(
   const router = Router();
 
   router.post('/generate', requireAuth, generationController.generate);
+  router.post('/validate', requireAuth, libraryController.validate);
   router.post('/', requireAuth, libraryController.create);
   router.get('/', requireAuth, libraryController.list);
 

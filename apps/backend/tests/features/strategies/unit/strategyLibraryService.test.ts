@@ -158,6 +158,55 @@ describe('StrategyLibraryService', () => {
     );
   });
 
+  it('validates without persisting anything', () => {
+    const repository = new FakeStrategyLibraryRepository();
+    const service = new StrategyLibraryService({ repository });
+
+    const result = service.validate(VALID_PARAMS);
+
+    expect(result).toEqual({ valid: true });
+    expect(repository.created).toHaveLength(0);
+  });
+
+  it('reports the constructor rejection message on invalid params', () => {
+    const repository = new FakeStrategyLibraryRepository();
+    const service = new StrategyLibraryService({ repository });
+
+    const result = service.validate({
+      indicators: [],
+      conditions: { long: [], short: [] },
+    });
+
+    expect(result.valid).toBe(false);
+    if (result.valid) throw new Error('expected invalid');
+    expect(result.message.length).toBeGreaterThan(0);
+  });
+
+  it('uses the same validator for save and for validate', async () => {
+    const repository = new FakeStrategyLibraryRepository();
+    const service = new StrategyLibraryService({ repository });
+    const brokenParams = {
+      indicators: [],
+      conditions: { long: [], short: [] },
+    };
+
+    const validated = service.validate(brokenParams);
+    const saved = await service.save({
+      ownerId: 'user-1',
+      name: 'BROKEN',
+      source: 'USER_PROMPT',
+      sourceInput: 'anything',
+      params: brokenParams,
+    });
+
+    expect(validated.valid).toBe(false);
+    expect(saved.outcome).toBe('GENERATION_INVALID');
+    if (validated.valid || saved.outcome !== 'GENERATION_INVALID') {
+      throw new Error('expected both to fail identically');
+    }
+    expect(validated.message).toBe(saved.message);
+  });
+
   it('lists recent entries scoped to the given owner', async () => {
     const repository = new FakeStrategyLibraryRepository();
     const service = new StrategyLibraryService({ repository });

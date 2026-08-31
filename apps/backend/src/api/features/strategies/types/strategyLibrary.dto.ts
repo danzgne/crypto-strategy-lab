@@ -17,6 +17,19 @@ export const saveStrategyRequestSchema = z.object({
 
 export type SaveStrategyRequestDto = z.infer<typeof saveStrategyRequestSchema>;
 
+export const validateStrategyRequestSchema = z.object({
+  params: z.unknown(),
+});
+
+export type ValidateStrategyRequestDto = z.infer<
+  typeof validateStrategyRequestSchema
+>;
+
+export interface ValidateStrategyResponseDto {
+  valid: boolean;
+  message?: string;
+}
+
 export const listStrategiesQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(50).optional(),
 });

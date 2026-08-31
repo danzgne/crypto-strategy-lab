@@ -11,6 +11,7 @@ import type { StrategyLibraryService } from '../services/strategyLibraryService'
 import {
   listStrategiesQuerySchema,
   saveStrategyRequestSchema,
+  validateStrategyRequestSchema,
   type StrategyLibraryEntryResponseDto,
   type StrategyLibrarySummaryDto,
 } from '../types/strategyLibrary.dto';
@@ -61,6 +62,32 @@ export class StrategyLibraryController {
       }
 
       sendSuccess(res, toEntryResponseDto(result.entry), 201);
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  public validate = async (
+    req: Request,
+    res: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    try {
+      const parseResult = validateStrategyRequestSchema.safeParse(req.body);
+      if (!parseResult.success) {
+        sendError(
+          res,
+          {
+            code: 'VALIDATION_ERROR',
+            message: parseResult.error.issues.map((i) => i.message).join(', '),
+          },
+          400,
+        );
+        return;
+      }
+
+      const result = this.libraryService.validate(parseResult.data.params);
+      sendSuccess(res, result);
     } catch (error) {
       next(error);
     }

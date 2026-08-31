@@ -57,3 +57,8 @@ export interface StrategyLibrarySummary {
   libraryVersion: string;
   tags: string[];
 }
+
+export interface ValidateStrategyResult {
+  valid: boolean;
+  message?: string;
+}

@@ -6,6 +6,7 @@ import type { StrategyProvenance } from '@crypto-strategy-lab/shared/strategy';
 
 interface SaveStrategyPanelProps {
   disabled: boolean;
+  paramsAreValid: boolean;
   source: StrategyProvenance | null;
   name: string;
   onChangeName: (value: string) => void;
@@ -22,6 +23,7 @@ interface SaveStrategyPanelProps {
 
 export function SaveStrategyPanel({
   disabled,
+  paramsAreValid,
   source,
   name,
   onChangeName,
@@ -138,10 +140,18 @@ export function SaveStrategyPanel({
         </p>
       )}
 
+      {!disabled && !paramsAreValid && (
+        <p className="mt-3 text-xs text-amber-600">
+          Sửa lỗi trong định nghĩa JSON trước khi lưu.
+        </p>
+      )}
+
       <button
         type="button"
         onClick={onSave}
-        disabled={disabled || isSaving || name.trim().length === 0}
+        disabled={
+          disabled || !paramsAreValid || isSaving || name.trim().length === 0
+        }
         className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-100 transition disabled:cursor-not-allowed disabled:opacity-50"
       >
         {isSaving ? (

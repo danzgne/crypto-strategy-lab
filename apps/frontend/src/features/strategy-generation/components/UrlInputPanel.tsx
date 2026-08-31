@@ -1,12 +1,15 @@
 'use client';
 
-import { Globe, Loader2 } from 'lucide-react';
+import { AlertTriangle, Globe, Loader2 } from 'lucide-react';
+
+import { useConfirmGate } from '../hooks/useConfirmGate';
 
 interface UrlInputPanelProps {
   urlText: string;
   onChangeUrlText: (value: string) => void;
   onExtract: () => void;
   isExtracting: boolean;
+  hasUnsavedEdits: boolean;
 }
 
 export function UrlInputPanel({
@@ -14,7 +17,10 @@ export function UrlInputPanel({
   onChangeUrlText,
   onExtract,
   isExtracting,
+  hasUnsavedEdits,
 }: UrlInputPanelProps) {
+  const { armed, trigger } = useConfirmGate(hasUnsavedEdits);
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-bold text-slate-900">Nhập URL chiến lược</h3>
@@ -31,16 +37,22 @@ export function UrlInputPanel({
       </p>
       <button
         type="button"
-        onClick={onExtract}
+        onClick={() => trigger(onExtract)}
         disabled={isExtracting || urlText.trim().length === 0}
-        className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        className={`mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 ${
+          armed
+            ? 'border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100'
+            : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+        }`}
       >
         {isExtracting ? (
           <Loader2 className="size-4 animate-spin" />
+        ) : armed ? (
+          <AlertTriangle className="size-4" />
         ) : (
           <Globe className="size-4" />
         )}
-        Trích xuất từ website
+        {armed ? 'Nhấn lại để xác nhận' : 'Trích xuất từ website'}
       </button>
     </div>
   );

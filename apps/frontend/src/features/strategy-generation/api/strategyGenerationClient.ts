@@ -5,6 +5,7 @@ import type {
   SaveStrategyRequest,
   StrategyLibraryEntry,
   StrategyLibrarySummary,
+  ValidateStrategyResult,
 } from '../types';
 
 export async function generateStrategy(
@@ -26,6 +27,18 @@ export async function saveStrategy(
     method: 'POST',
     body: JSON.stringify(request),
   });
+}
+
+export async function validateStrategy(
+  params: unknown,
+): Promise<ValidateStrategyResult> {
+  return browserHttpClient<ValidateStrategyResult>(
+    '/api/v1/strategies/validate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ params }),
+    },
+  );
 }
 
 export async function fetchRecentStrategies(

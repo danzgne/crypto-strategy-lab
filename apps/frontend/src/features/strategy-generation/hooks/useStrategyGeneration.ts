@@ -1,26 +1,35 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 import {
   fetchRecentStrategies,
   generateStrategy,
   saveStrategy,
+  validateStrategy,
 } from '../api/strategyGenerationClient';
 import type {
   GenerateStrategyResponse,
   GenerationKind,
+  RuleStrategyParams,
   StrategyLibrarySummary,
   StrategyProvenance,
 } from '../types';
 
 const DEFAULT_LIBRARY_VERSION = '1.0.0';
+const VALIDATE_DEBOUNCE_MS = 500;
 
 export interface GenerationReview {
   response: GenerateStrategyResponse;
   source: StrategyProvenance;
   sourceInput: string;
 }
+
+export type ParamsValidationState =
+  | { status: 'valid' }
+  | { status: 'checking' }
+  | { status: 'invalid'; message: string }
+  | { status: 'syntax-error'; message: string };
 
 export function useStrategyGeneration() {
   const [promptText, setPromptText] = useState('');
@@ -29,6 +38,15 @@ export function useStrategyGeneration() {
   const [activeKind, setActiveKind] = useState<GenerationKind | null>(null);
   const [generation, setGeneration] = useState<GenerationReview | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+
+  const [paramsText, setParamsText] = useState('');
+  const [renderedParams, setRenderedParams] =
+    useState<RuleStrategyParams | null>(null);
+  const [paramsValidation, setParamsValidation] =
+    useState<ParamsValidationState>({ status: 'valid' });
+  const [isParamsDirty, setIsParamsDirty] = useState(false);
+  const validationSequence = useRef(0);
+  const debounceTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const [saveName, setSaveName] = useState('');
   const [saveDescription, setSaveDescription] = useState('');
@@ -65,15 +83,33 @@ export function useStrategyGeneration() {
     };
   }, []);
 
+  useEffect(() => {
+    return () => {
+      clearTimeout(debounceTimer.current);
+    };
+  }, []);
+
+  const seedParams = useCallback((params: RuleStrategyParams) => {
+    validationSequence.current += 1;
+    clearTimeout(debounceTimer.current);
+    setParamsText(JSON.stringify(params, null, 2));
+    setRenderedParams(params);
+    setParamsValidation({ status: 'valid' });
+    setIsParamsDirty(false);
+  }, []);
+
   const runGeneration = useCallback(
     async (kind: GenerationKind, input: string) => {
       setIsGenerating(true);
       setActiveKind(kind);
       setGenerationError(null);
       setGeneration(null);
+      validationSequence.current += 1;
+      clearTimeout(debounceTimer.current);
       try {
         const response = await generateStrategy({ kind, input });
         setGeneration({ response, source: kind, sourceInput: input });
+        seedParams(response.params);
         setSaveName(response.name);
         setSaveDescription(response.description);
         setSaveTags(response.tags);
@@ -85,8 +121,51 @@ export function useStrategyGeneration() {
         setActiveKind(null);
       }
     },
-    [],
+    [seedParams],
   );
+
+  const handleParamsTextChange = useCallback((text: string) => {
+    setParamsText(text);
+    setIsParamsDirty(true);
+    clearTimeout(debounceTimer.current);
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch (error) {
+      setParamsValidation({
+        status: 'syntax-error',
+        message: (error as Error).message,
+      });
+      return;
+    }
+
+    setParamsValidation({ status: 'checking' });
+    const sequence = ++validationSequence.current;
+    debounceTimer.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const result = await validateStrategy(parsed);
+          if (sequence !== validationSequence.current) return;
+          if (result.valid) {
+            setParamsValidation({ status: 'valid' });
+            setRenderedParams(parsed as RuleStrategyParams);
+          } else {
+            setParamsValidation({
+              status: 'invalid',
+              message: result.message ?? 'These parameters are not valid.',
+            });
+          }
+        } catch (error) {
+          if (sequence !== validationSequence.current) return;
+          setParamsValidation({
+            status: 'invalid',
+            message: (error as Error).message,
+          });
+        }
+      })();
+    }, VALIDATE_DEBOUNCE_MS);
+  }, []);
 
   const handleAnalyzePrompt = useCallback(async () => {
     await runGeneration('USER_PROMPT', promptText);
@@ -101,7 +180,8 @@ export function useStrategyGeneration() {
   }, []);
 
   const handleSave = useCallback(async () => {
-    if (!generation) return;
+    if (!generation || paramsValidation.status !== 'valid') return;
+    if (renderedParams === null) return;
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -112,7 +192,7 @@ export function useStrategyGeneration() {
         source: generation.source,
         sourceInput: generation.sourceInput,
         libraryVersion: saveLibraryVersion,
-        params: generation.response.params,
+        params: renderedParams,
       });
       setRecentStrategies((current) => [
         {
@@ -126,6 +206,12 @@ export function useStrategyGeneration() {
         ...current,
       ]);
       setGeneration(null);
+      validationSequence.current += 1;
+      clearTimeout(debounceTimer.current);
+      setParamsText('');
+      setRenderedParams(null);
+      setParamsValidation({ status: 'valid' });
+      setIsParamsDirty(false);
       setSaveName('');
       setSaveDescription('');
       setSaveTags([]);
@@ -135,7 +221,15 @@ export function useStrategyGeneration() {
     } finally {
       setIsSaving(false);
     }
-  }, [generation, saveDescription, saveLibraryVersion, saveName, saveTags]);
+  }, [
+    generation,
+    paramsValidation,
+    renderedParams,
+    saveDescription,
+    saveLibraryVersion,
+    saveName,
+    saveTags,
+  ]);
 
   return {
     promptText,
@@ -146,6 +240,11 @@ export function useStrategyGeneration() {
     activeKind,
     generation,
     generationError,
+    paramsText,
+    handleParamsTextChange,
+    paramsValidation,
+    renderedParams,
+    isParamsDirty,
     handleAnalyzePrompt,
     handleExtractUrl,
     handleClearPrompt,

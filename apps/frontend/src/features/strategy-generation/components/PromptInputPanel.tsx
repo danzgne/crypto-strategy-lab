@@ -1,6 +1,8 @@
 'use client';
 
-import { Loader2, Sparkles, Trash2 } from 'lucide-react';
+import { AlertTriangle, Loader2, Sparkles, Trash2 } from 'lucide-react';
+
+import { useConfirmGate } from '../hooks/useConfirmGate';
 
 const MAX_PROMPT_LENGTH = 1000;
 
@@ -10,6 +12,7 @@ interface PromptInputPanelProps {
   onAnalyze: () => void;
   onClear: () => void;
   isAnalyzing: boolean;
+  hasUnsavedEdits: boolean;
 }
 
 export function PromptInputPanel({
@@ -18,7 +21,10 @@ export function PromptInputPanel({
   onAnalyze,
   onClear,
   isAnalyzing,
+  hasUnsavedEdits,
 }: PromptInputPanelProps) {
+  const { armed, trigger } = useConfirmGate(hasUnsavedEdits);
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-bold text-slate-900">Nhập mô tả strategy</h3>
@@ -39,16 +45,22 @@ export function PromptInputPanel({
       <div className="mt-3 flex gap-3">
         <button
           type="button"
-          onClick={onAnalyze}
+          onClick={() => trigger(onAnalyze)}
           disabled={isAnalyzing || promptText.trim().length === 0}
-          className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-100 transition disabled:cursor-not-allowed disabled:opacity-50"
+          className={`inline-flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition disabled:cursor-not-allowed disabled:opacity-50 ${
+            armed
+              ? 'bg-amber-500 shadow-amber-100'
+              : 'bg-gradient-to-r from-blue-600 to-indigo-600 shadow-blue-100'
+          }`}
         >
           {isAnalyzing ? (
             <Loader2 className="size-4 animate-spin" />
+          ) : armed ? (
+            <AlertTriangle className="size-4" />
           ) : (
             <Sparkles className="size-4" />
           )}
-          Phân tích bằng LLM
+          {armed ? 'Nhấn lại để xác nhận' : 'Phân tích bằng LLM'}
         </button>
         <button
           type="button"

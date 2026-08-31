@@ -216,6 +216,48 @@ describe('Strategies API Integration Tests', () => {
     });
   });
 
+  describe('POST /api/v1/strategies/validate', () => {
+    it('requires authentication', async () => {
+      const res = await request(app)
+        .post('/api/v1/strategies/validate')
+        .send({ params: {} });
+
+      expect(res.status).toBe(401);
+    });
+
+    it('returns valid:true without persisting anything', async () => {
+      const res = await request(app)
+        .post('/api/v1/strategies/validate')
+        .set('Cookie', userCookie)
+        .send({
+          params: {
+            indicators: [{ name: 'RSI', period: 14 }],
+            conditions: {
+              long: [{ indicator: 'RSI', operator: '<', value: 30 }],
+              short: [],
+            },
+            timeframe: '1h',
+          },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data).toEqual({ valid: true });
+    });
+
+    it('returns valid:false with the constructor message on broken params', async () => {
+      const res = await request(app)
+        .post('/api/v1/strategies/validate')
+        .set('Cookie', userCookie)
+        .send({
+          params: { indicators: [], conditions: { long: [], short: [] } },
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.valid).toBe(false);
+      expect(typeof res.body.data.message).toBe('string');
+    });
+  });
+
   describe('POST /api/v1/strategies (save)', () => {
     it('requires authentication', async () => {
       const res = await request(app).post('/api/v1/strategies').send({
