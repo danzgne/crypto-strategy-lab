@@ -1,6 +1,7 @@
 'use client';
 
 import type {
+  StrategyErrorEvent,
   StrategySignalSnapshot,
   StrategySignalUpdate,
   StrategySubscribeRequest,
@@ -19,6 +20,7 @@ export type StrategySignalSocket = AppSocket;
 export interface StrategySignalState {
   latest: StrategySignalUpdate | null;
   history: StrategySignalUpdate[];
+  error: string | null;
 }
 
 export interface UseStrategySignalOptions {
@@ -28,12 +30,14 @@ export interface UseStrategySignalOptions {
   strategyId: string;
   enabled: boolean;
   limit?: number;
+  params?: unknown;
   socketFactory?: () => StrategySignalSocket;
 }
 
 const INITIAL_STATE: StrategySignalState = {
   latest: null,
   history: [],
+  error: null,
 };
 
 export function useStrategySignal({
@@ -43,6 +47,7 @@ export function useStrategySignal({
   strategyId,
   enabled,
   limit = 500,
+  params,
   socketFactory = getRealtimeSocket,
 }: UseStrategySignalOptions): StrategySignalState {
   const subscriptionKey = createSubscriptionKey({
@@ -50,6 +55,7 @@ export function useStrategySignal({
     enabled,
     limit,
     pair,
+    params,
     strategyId,
     timeframe,
   });
@@ -69,6 +75,7 @@ export function useStrategySignal({
       timeframe,
       strategyId,
       limit,
+      ...(params === undefined ? {} : { params }),
     };
     const unsubscribeRequest: StrategyUnsubscribeRequest = {
       chartId,
@@ -92,6 +99,7 @@ export function useStrategySignal({
           current.key === subscriptionKey
             ? upsertSignalHistory(current.history, update, limit)
             : [update],
+        error: null,
       }));
     };
     const handleSnapshot = (snapshot: StrategySignalSnapshot): void => {
@@ -112,12 +120,29 @@ export function useStrategySignal({
         key: subscriptionKey,
         latest: history.at(-1) ?? null,
         history,
+        error: null,
+      });
+    };
+    const handleError = (error: StrategyErrorEvent): void => {
+      if (
+        !active ||
+        error.chartId !== chartId ||
+        error.strategyId !== strategyId
+      ) {
+        return;
+      }
+      setState({
+        key: subscriptionKey,
+        latest: null,
+        history: [],
+        error: error.message,
       });
     };
 
     socket.on('connect', subscribe);
     socket.on('strategy:snapshot', handleSnapshot);
     socket.on('strategy:signal', handleSignal);
+    socket.on('strategy:error', handleError);
     if (socket.connected) {
       subscribe();
     } else {
@@ -129,16 +154,27 @@ export function useStrategySignal({
       socket.off('connect', subscribe);
       socket.off('strategy:snapshot', handleSnapshot);
       socket.off('strategy:signal', handleSignal);
+      socket.off('strategy:error', handleError);
       if (socket.connected) {
         socket.emit('strategy:unsubscribe', unsubscribeRequest);
       }
     };
-  }, [chartId, enabled, limit, pair, strategyId, subscriptionKey, timeframe]);
+  }, [
+    chartId,
+    enabled,
+    limit,
+    pair,
+    params,
+    strategyId,
+    subscriptionKey,
+    timeframe,
+  ]);
 
   if (state.key !== subscriptionKey) return INITIAL_STATE;
   return {
     latest: state.latest,
     history: state.history,
+    error: state.error,
   };
 }
 
@@ -147,13 +183,20 @@ function createSubscriptionKey({
   enabled,
   limit,
   pair,
+  params,
   strategyId,
   timeframe,
 }: Pick<
   UseStrategySignalOptions,
-  'chartId' | 'enabled' | 'limit' | 'pair' | 'strategyId' | 'timeframe'
+  | 'chartId'
+  | 'enabled'
+  | 'limit'
+  | 'pair'
+  | 'params'
+  | 'strategyId'
+  | 'timeframe'
 >): string {
-  return `${chartId}:${pair}:${timeframe}:${strategyId}:${enabled}:${limit}`;
+  return `${chartId}:${pair}:${timeframe}:${strategyId}:${enabled}:${limit}:${JSON.stringify(params ?? null)}`;
 }
 
 function upsertSignalHistory(

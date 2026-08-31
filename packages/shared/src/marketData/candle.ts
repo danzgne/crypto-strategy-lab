@@ -2,6 +2,19 @@ export type Pair = string;
 
 export type Timeframe = '1m' | '5m' | '15m' | '1h' | '4h' | '1d';
 
+export const TIMEFRAMES: readonly Timeframe[] = [
+  '1m',
+  '5m',
+  '15m',
+  '1h',
+  '4h',
+  '1d',
+];
+
+export function isTimeframe(value: unknown): value is Timeframe {
+  return typeof value === 'string' && TIMEFRAMES.includes(value as Timeframe);
+}
+
 export interface MarketKey {
   pair: Pair;
   timeframe: Timeframe;

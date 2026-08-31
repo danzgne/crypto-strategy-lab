@@ -77,12 +77,18 @@ export interface StrategySubscribeRequest extends MarketKey {
   chartId: string;
   strategyId: string;
   limit?: number;
+  params?: unknown;
 }
 
 export type StrategyUnsubscribeRequest = StrategySubscribeRequest;
 
+export interface StrategyCatalogEntry {
+  id: string;
+  requiresParams: boolean;
+}
+
 export interface StrategyCatalog {
-  strategyIds: string[];
+  strategies: StrategyCatalogEntry[];
 }
 
 export interface StrategySignalUpdate extends MarketKey {
@@ -97,6 +103,12 @@ export interface StrategySignalSnapshot extends MarketKey {
   signals: StrategySignalUpdate[];
 }
 
+export interface StrategyErrorEvent {
+  chartId: string;
+  strategyId: string;
+  message: string;
+}
+
 export interface ServerToClientEvents {
   'market-data:status': (status: MarketDataTransportStatus) => void;
   'market:snapshot': (snapshot: MarketSnapshot) => void;
@@ -108,6 +120,7 @@ export interface ServerToClientEvents {
   'strategy:catalog': (catalog: StrategyCatalog) => void;
   'strategy:snapshot': (snapshot: StrategySignalSnapshot) => void;
   'strategy:signal': (update: StrategySignalUpdate) => void;
+  'strategy:error': (error: StrategyErrorEvent) => void;
 }
 
 export interface ClientToServerEvents {

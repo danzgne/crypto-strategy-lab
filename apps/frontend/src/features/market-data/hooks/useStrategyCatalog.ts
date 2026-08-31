@@ -14,7 +14,7 @@ export interface UseStrategyCatalogOptions {
   socketFactory?: () => StrategyCatalogSocket;
 }
 
-const EMPTY_CATALOG: StrategyCatalog = { strategyIds: [] };
+const EMPTY_CATALOG: StrategyCatalog = { strategies: [] };
 
 export function useStrategyCatalog({
   socketFactory = getRealtimeSocket,
@@ -30,7 +30,7 @@ export function useStrategyCatalog({
     };
     const handleCatalog = (nextCatalog: StrategyCatalog): void => {
       if (!active) return;
-      setCatalog({ strategyIds: [...nextCatalog.strategyIds] });
+      setCatalog({ strategies: [...nextCatalog.strategies] });
     };
 
     socket.on('connect', requestCatalog);

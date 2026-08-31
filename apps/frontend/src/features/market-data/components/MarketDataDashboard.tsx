@@ -31,6 +31,10 @@ export function MarketDataDashboard({
   const strategyCatalog = useStrategyCatalog();
   const recentTicks = useRecentTicks({ pair, limit: 5 });
 
+  const runnableStrategies = strategyCatalog.strategies.filter(
+    (entry) => !entry.requiresParams,
+  );
+
   const changeTimeframe = (
     panelIndex: number,
     timeframe: ChartTimeframe,
@@ -96,7 +100,7 @@ export function MarketDataDashboard({
                   value={enabledStrategyId ?? ''}
                 >
                   <option value="">None (No overlay)</option>
-                  {strategyCatalog.strategyIds.map((strategyId) => (
+                  {runnableStrategies.map(({ id: strategyId }) => (
                     <option key={strategyId} value={strategyId}>
                       {formatStrategyName(strategyId)}
                     </option>
@@ -128,6 +132,7 @@ export function MarketDataDashboard({
               </span>
             </div>
           </div>
+
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
