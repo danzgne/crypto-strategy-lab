@@ -183,6 +183,24 @@ crypto-strategy-lab/
 │   │   │   │   │   │   ├── types/
 │   │   │   │   │   │   └── index.ts
 │   │   │   │   │   │
+│   │   │   │   │   ├── admin/
+│   │   │   │   │   │   ├── controllers/
+│   │   │   │   │   │   │   └── adminController.ts
+│   │   │   │   │   │   ├── repositories/
+│   │   │   │   │   │   │   ├── interfaces/
+│   │   │   │   │   │   │   │   └── adminRepository.interface.ts
+│   │   │   │   │   │   │   └── prismaAdminRepository.ts
+│   │   │   │   │   │   ├── routes/
+│   │   │   │   │   │   │   └── v1/
+│   │   │   │   │   │   │       └── admin.routes.ts
+│   │   │   │   │   │   ├── services/
+│   │   │   │   │   │   │   ├── interfaces/
+│   │   │   │   │   │   │   │   └── adminService.interface.ts
+│   │   │   │   │   │   │   └── adminService.ts
+│   │   │   │   │   │   ├── types/
+│   │   │   │   │   │   │   └── admin.dto.ts
+│   │   │   │   │   │   └── index.ts
+│   │   │   │   │   │
 │   │   │   │   │   ├── marketData/
 │   │   │   │   │   ├── strategies/
 │   │   │   │   │   ├── combinations/

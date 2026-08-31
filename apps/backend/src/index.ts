@@ -21,6 +21,12 @@ import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
 import { PrismaAuthRepository, PasswordAuthService } from '@/api/features/auth';
 import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
+import {
+  PrismaNewsRepository,
+  NewsCrawler,
+  NewsScheduler,
+  NewsService,
+} from '@/api/features/news';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -83,6 +89,24 @@ async function startBackend(): Promise<void> {
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
 
+  const newsRepository = new PrismaNewsRepository(prisma);
+  const newsCrawler = new NewsCrawler({
+    newsRepository,
+    eventPublisher: eventBus,
+    logger,
+  });
+  const newsScheduler = new NewsScheduler({
+    crawler: newsCrawler,
+    logger,
+    initialIntervalMinutes: 3,
+    autoStart: true,
+  });
+  const newsService = new NewsService({
+    newsRepository,
+    crawler: newsCrawler,
+    scheduler: newsScheduler,
+  });
+
   await prisma.$connect();
   await healthService.recordStarted(config.instanceId);
 
@@ -102,9 +126,16 @@ async function startBackend(): Promise<void> {
     }
   }
 
+  await newsService.init?.();
+  await newsService.ensureDefaultSources();
+  void newsService.triggerCrawlNow().catch((err: unknown) => {
+    logger.error({ err }, 'Initial background news crawl encountered an error');
+  });
+
   const app = createApp({
     healthRepository,
     authService,
+    newsService,
     sessionMiddleware,
     allowedOrigin: config.frontendOrigin,
     logger,
@@ -136,6 +167,7 @@ async function startBackend(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Backend shutdown started');
 
+    newsScheduler.stop();
     await strategyLiveService.close();
     await marketDataService.close();
     await marketTickService.close();

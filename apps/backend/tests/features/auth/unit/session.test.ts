@@ -1,6 +1,6 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi } from 'vitest';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
+
 import { PrismaClient } from '../../../../../../generated/prisma/client';
 import session from 'express-session';
 import { PrismaSessionStore } from '@quixo3/prisma-session-store';

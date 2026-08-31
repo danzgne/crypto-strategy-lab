@@ -6,3 +6,4 @@ export * from './realtime/transport';
 export * from './auth';
 export * from './strategy';
 export * from './queue';
+export * from './news/types';

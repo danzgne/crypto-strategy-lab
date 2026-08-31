@@ -14,7 +14,10 @@ describe('PostgresJobQueue Integration', () => {
   let strategyVerId: string;
 
   beforeAll(async () => {
-    prisma = createPrismaClient(process.env.DATABASE_URL!);
+    const databaseUrl =
+      process.env.DATABASE_URL ||
+      'postgresql://crypto_lab:crypto_lab@localhost:5434/crypto_strategy_lab?schema=public';
+    prisma = createPrismaClient(databaseUrl);
     const repo = new PrismaJobRepository(prisma);
     queue = new PostgresJobQueue(repo);
 

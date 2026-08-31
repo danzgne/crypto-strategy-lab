@@ -4,6 +4,7 @@ import helmet from 'helmet';
 
 import type { HealthRepository } from '@/api/features/health';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
+import type { NewsServiceInterface } from '@/api/features/news';
 import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
 import { notFoundHandler } from '@/api/middlewares/handlers/notFoundHandler';
 import { requestLogger } from '@/api/middlewares/logging/requestLogger';
@@ -14,6 +15,7 @@ import { createAppLogger, type AppLogger } from '@/utils/logger';
 interface AppDependencies {
   healthRepository: HealthRepository;
   authService: PasswordAuthServiceInterface;
+  newsService?: NewsServiceInterface;
   sessionMiddleware: express.RequestHandler;
   allowedOrigin?: string;
   logger?: AppLogger;
@@ -22,6 +24,7 @@ interface AppDependencies {
 export function createApp({
   healthRepository,
   authService,
+  newsService,
   sessionMiddleware,
   allowedOrigin = 'http://localhost:3000',
   logger = createAppLogger({ service: 'backend-test', enabled: false }),
@@ -35,7 +38,10 @@ export function createApp({
   app.use(requestId);
   app.use(requestLogger(logger));
   app.use(sessionMiddleware);
-  app.use('/api/v1', createV1Router(healthRepository, authService));
+  app.use(
+    '/api/v1',
+    createV1Router(healthRepository, authService, newsService),
+  );
   app.use(notFoundHandler);
   app.use(createErrorHandler(logger));
 

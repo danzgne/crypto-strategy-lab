@@ -79,26 +79,30 @@ export function MarketDataDashboard({
                 timeframe. Matching panels share one backend market stream.
               </p>
             </div>
-            <div className="flex items-end gap-3">
-              {strategyCatalog.strategyIds.map((strategyId) => (
+            <div className="flex flex-wrap items-end gap-3">
+              <div>
                 <label
-                  className="flex items-center gap-2 pb-2 text-xs font-semibold text-slate-700"
-                  key={strategyId}
+                  className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
+                  htmlFor="strategy-overlay"
                 >
-                  <input
-                    aria-label={`Enable ${formatStrategyName(strategyId)} strategy`}
-                    checked={enabledStrategyId === strategyId}
-                    className="size-4 accent-indigo-600"
-                    onChange={() =>
-                      setEnabledStrategyId((current) =>
-                        current === strategyId ? null : strategyId,
-                      )
-                    }
-                    type="checkbox"
-                  />
-                  <span>Enable {formatStrategyName(strategyId)} strategy</span>
+                  Strategy overlay
                 </label>
-              ))}
+                <select
+                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  id="strategy-overlay"
+                  onChange={(event) =>
+                    setEnabledStrategyId(event.target.value || null)
+                  }
+                  value={enabledStrategyId ?? ''}
+                >
+                  <option value="">None (No overlay)</option>
+                  {strategyCatalog.strategyIds.map((strategyId) => (
+                    <option key={strategyId} value={strategyId}>
+                      {formatStrategyName(strategyId)}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <div>
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"

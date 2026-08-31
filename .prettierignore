@@ -9,3 +9,6 @@ CONTEXT.md
 docs/adr/0003-nl-link-strategy-generation-pipeline.md
 docs/agents/triage-labels.md
 imgs/README.md
+diff.txt
+*.txt
+prisma/migrations
