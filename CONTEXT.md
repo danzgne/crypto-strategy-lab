@@ -57,10 +57,10 @@ The one generic Strategy implementation that backs NL/link-authored strategies. 
 `applicability` block (see ADR-0006). Registered once at boot like any hand-written Strategy: authoring a new
 one via natural language or a link never adds a `StrategyRegistry` entry, it only produces a new `params` value
 (and therefore a new Strategy Version) for this one class. `params` carries only what the Strategy *does*: a
-name, Library Version, description, and Provenance are Strategy Library entry fields, so neither renaming an
-entry nor correcting the prompt it came from mints a new Strategy Version (see ADR-0013). Combining multiple
-Strategies' Signals into one decision stays the Combination Engine's job, not something a RuleStrategy does
-internally.
+name, description, tags, and a Provenance are Strategy Library entry fields and a Library Version labels the
+snapshot, so neither renaming an entry nor correcting the prompt it came from mints a new Strategy Version (see
+ADR-0013). Combining multiple Strategies' Signals into one decision stays the Combination Engine's job, not
+something a RuleStrategy does internally.
 
 **Provenance**:
 Where a Strategy Library entry's parameters originated: `USER_PROMPT` for the natural-language pipeline,
@@ -135,14 +135,25 @@ _Avoid_: Library Version (the human-authored label; see below).
 
 **Strategy Library**:
 A User's browsable collection of their own authored Strategy entries, shown alongside the read-only built-in
-Strategies. An entry pairs any Strategy's id with a concrete `params` value, so tuning a built-in's parameters
-produces an entry just as authoring a RuleStrategy does. Entries carry a name, tags, a Library Version, and a
-Provenance, none of which are part of `params`.
+Strategies. An **entry** names one Strategy id and carries a name, description, tags, and a Provenance, none of
+which are part of `params`; it holds one or more Strategy Versions, one per parameter snapshot. Tuning a
+built-in's parameters produces an entry just as authoring a RuleStrategy does, and editing an entry appends a
+Strategy Version rather than replacing one. Provenance and the source input live on the entry, never on a
+version, which is what makes it structurally impossible for a later edit to rewrite where an entry's parameters
+came from (see ADR-0014).
 
 **Library Version**:
-The human-authored semantic-version label on a Strategy Library entry (for example `1.0.0`). Purely descriptive:
-editing parameters always mints a new Strategy Version whether or not anyone bumps the Library Version, and
-Experiments reference the Strategy Version, never this.
+The human-authored semantic-version label on one Strategy Version inside a Strategy Library entry (for example
+`1.0.0`). It labels the parameter snapshot rather than the entry, so one entry's successive versions read
+`1.0.0`, `1.1.0`, and so on. Purely descriptive: editing parameters always mints a new Strategy Version whether
+or not anyone bumps the Library Version, and Experiments reference the Strategy Version, never this.
+
+**Authored Parameters**:
+A `params` value as a person or the generation pipeline wrote it, with optional fields left out. **Resolved
+Parameters** are what a Strategy actually runs with, once its constructor has filled in defaults and computed
+derived values. A Strategy Library entry stores the authored form, because that is what a Strategy Editor edits
+and what a reader recognizes; the Strategy Version tag is computed from the resolved form, so an omitted
+parameter and an explicitly written default are one version, not two.
 
 ### Backtesting & Evaluation
 
