@@ -1,0 +1,3 @@
+# Transactional outbox for Backtest Worker lifecycle events
+
+The Backtest Worker records `BacktestStarted`, `BacktestCompleted`, and `StrategyEvaluated` through a PostgreSQL transactional outbox rather than calling backend services or relying on an in-memory emitter. Completion events are inserted in the same transaction as Trades, Metrics, and completed job state, so a ranking consumer cannot silently miss a completed Experiment; a Backend dispatcher delivers records at least once to the in-memory Domain Event Bus and consumers de-duplicate by event ID. PostgreSQL avoids introducing Redis or Kafka before the system has a demonstrated need for them.

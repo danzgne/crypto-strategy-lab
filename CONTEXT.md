@@ -60,11 +60,11 @@ never by raising from inside `analyze()`.
 **Composite Strategy**:
 At least two unique Strategy Versions combined into one Signal-producing unit. Its immutable definition contains the
 member versions, an explicit `majority` or `weighted` mode, and (for weighted mode) nonnegative normalized weights
-and a threshold. Every member sees the same Context. Majority mode emits BUY or SELL only when that action has a
+and a threshold, plus its own optional Stop Loss and Take Profit ratios. Every member sees the same Context. Majority mode emits BUY or SELL only when that action has a
 strict majority of all member actions; otherwise it emits HOLD. Weighted mode maps BUY/SELL/HOLD to `+1/-1/0`,
 scales by member strength and weight, and emits BUY above the threshold, SELL below its negative, and HOLD otherwise.
-Changing a member Strategy Version, mode, weight, or threshold produces a different Composite Strategy; member order
-alone does not. Its display name includes the member types and parameter summaries (for example,
+Changing a member Strategy Version, mode, weight, threshold, Stop Loss, or Take Profit produces a different Composite Strategy; member order
+alone does not. Stop Loss and Take Profit are decimal ratios from zero up to one, where `0.02` means 2%; zero disables the respective exit. Its display name includes the member types and parameter summaries (for example,
 `MA[fast=20,slow=50] + RSI[period=14] · weighted`), while its machine identity is the canonical definition.
 _Avoid_: Combination (reserve for the Combination Engine, the component that builds Composite Strategies).
 
@@ -74,9 +74,15 @@ single-member, duplicate-member, or otherwise invalid definitions and does not s
 HOLD.
 
 **CandidateStrategy**:
-A frozen Composite Strategy once it has been produced by a StrategyGenerator and submitted to the Backtester/Evaluator
-pipeline. Downstream components (Backtester, Evaluator, Leaderboard, Visualization) treat it as opaque — they don't
-need to know how it was generated.
+A frozen Composite Strategy produced by a StrategyGenerator and submitted to the Backtester/Evaluator pipeline.
+Downstream components treat it as opaque and do not need to know how it was generated.
+_Avoid_: Backtest Target (a user-selected target can also be a single Strategy Version).
+
+**Backtest Target**:
+The inline immutable definition of a Strategy Version or Composite Strategy selected for one manual Experiment.
+The backend resolves it to a canonical private Strategy Version without creating a visible Strategy Library entry.
+It is distinct from a CandidateStrategy, which is specifically an output of a StrategyGenerator; its canonical
+definition is unique per Owner, so an identical target reuses its Strategy Version.
 
 **StrategyGenerator**:
 The interface behind a search algorithm (`RandomGenerator`, `DomainGuidedGenerator`, `GeneticGenerator`, ...).
@@ -106,7 +112,8 @@ An immutable snapshot of a Strategy's parameters at a point in time, identified 
 from the Strategy's id and its canonical parameters. Changing a Strategy's configuration creates a different
 Strategy Version: for example, MA(20,50)+RSI(14) and MA(10,30)+RSI(14) are different versions and therefore
 different Composite Strategies when assembled. Experiments and Leaderboard entries reference a specific version,
-never "the strategy" generically, which is what makes a result reproducible.
+never "the strategy" generically, which is what makes a result reproducible. No Owner may have two versions with
+the same canonical identity, even though the stored record has its own UUID.
 _Avoid_: Library Version (the human-authored label; see below).
 
 **Strategy Library**:
@@ -121,27 +128,102 @@ Experiments reference the Strategy Version, never this.
 ### Backtesting & Evaluation
 
 **Backtester** / **Backtest Worker**:
-Simulates trades for a CandidateStrategy against historical Candles over a date range and Timeframe, producing
-Trades. Runs as an independently-scalable process (see ADR-0001), separate from the request that queued it.
+Simulates Trades for a Backtest Target against historical Candles over a date range and Timeframe. The Worker runs
+as an independently-scalable process (see ADR-0001), separate from the request that queued it. It acts on a Signal
+only at the next closed Candle's open, never at the close that produced that Signal. After an opening fill, it
+checks Stop Loss and Take Profit against that Candle's OHLC; a gap fills at the actual open and an unobservable
+same-Candle conflict resolves to Stop Loss. Any remaining Position closes at the final selected Candle's close.
+
+**Position**:
+The single simulated LONG or SHORT exposure held by a Backtester at a time. It uses the Experiment's full current
+equity; a HOLD retains it and an opposing Signal closes then reverses it at the next Candle open.
+
+**Capital Depletion**:
+The point at which an Experiment's post-Trade equity reaches zero. It ends further position entries but is a
+completed evaluation outcome, not a Backtest Job failure.
 
 **Trade**:
 One simulated entry+exit pair from a backtest run, carrying both `entryTime` and `exitTime`, and its resulting
-profit or loss. Retained in full only while its Experiment is on a Leaderboard or pinned by its owner; otherwise
-pruned after a retention window, while the Experiment and its Metrics are kept permanently (see ADR-0007).
+net profit or loss after Transaction Cost and Slippage on both fills. Retained in full only while its Experiment is on a Leaderboard or pinned by its owner; otherwise
+pruned after a retention window, while the Experiment and its Metrics are kept permanently (see ADR-0007). A
+zero-profit Trade is neither a Win nor a Loss, though it counts toward Number of Trades and the Win Rate denominator.
+Its quantity is opening equity divided by its adjusted entry price; LONG and SHORT profit are respectively the
+exit-minus-entry and entry-minus-exit price difference times that quantity, less costs.
+
+**Fill**:
+One simulated execution price before and after adverse Slippage. A non-gapped Stop Loss or Take Profit fills at its
+configured level; a gap fills at the Candle open. Reversing a Position creates one exit Fill and one entry Fill,
+each with its own Transaction Cost and Slippage.
+
+**Dataset Snapshot**:
+The immutable, ordered set of closed Candles a Backtester uses for one Experiment, including its warm-up history.
+It stores one canonical JSON Candle payload with a fingerprint and is shared by Experiments only when the complete
+Candle series is identical. The Backend obtains and validates it through the Market Data Service before enqueueing
+the Backtest Job; the Frontend and Backtest Worker never contact an Exchange.
+Only its selected-range Candles are returned to the result chart.
+
+**Backtest Range**:
+The UTC time interval an Experiment evaluates: `startTime` is inclusive and `endTime` is exclusive, with both
+aligned to the chosen Timeframe. The range excludes its Dataset Snapshot's warm-up history.
+
+**Transaction Cost**:
+The per-fill fee rate an Experiment applies to trade notional, stored as a decimal ratio (`0.0008` means 0.08%).
+
+**Slippage**:
+The adverse price adjustment an Experiment applies to every fill, stored as an integer count of basis points.
 
 **Evaluator**:
 Computes Metrics (Return, Win Rate, Max Drawdown, Number of Trades, Profit Factor, Sharpe Ratio) from a
-CandidateStrategy's Trades. Kept as a separate component from the Backtester — evaluation logic must be
-swappable without touching simulation logic.
+Backtest Target's Trades. Kept as a separate component from the Backtester — evaluation logic must be swappable
+without touching simulation logic.
 
 **Metrics**:
-The computed performance numbers an Evaluator produces for one CandidateStrategy's backtest run.
+The computed performance numbers an Evaluator produces for one Backtest Target's Experiment. Return is a signed
+decimal ratio and Max Drawdown is a non-negative decimal ratio; Total Profit and Max Drawdown Amount retain their
+corresponding currency values for display. Score, Return, Win Rate, Number of Trades, Wins, Losses, Total Profit,
+both Max Drawdown values, Profit Factor, and Sharpe Ratio are explicit persisted values rather than opaque metadata.
+Max Drawdown is measured from the running peak of initial capital followed by post-Trade equity; Sharpe samples are
+each Trade's net profit divided by its investment.
+
+**Simulation Rules Version**:
+The immutable identifier for the Backtester's execution semantics used by an Experiment, initially `historical-v1`.
+It distinguishes results produced under changed fill, risk, or capital rules.
+
+**Evaluator Version**:
+The immutable identifier for the Metrics calculation used by an Experiment, initially `default-v1`. It preserves the
+meaning of a result when evaluation formulas evolve.
+
+**Profit Factor**:
+Gross profit divided by absolute gross loss for an Experiment. It is a finite non-negative decimal, or
+POSITIVE_INFINITY when there is gross profit but no gross loss; it is zero when both are zero.
 
 **Experiment**:
-One full generate, backtest, evaluate run: a specific CandidateStrategy against a specific Dataset, Timeframe,
-and parameter set, producing a Result (Metrics + Trades). Its inputs include the Transaction Cost and Slippage
-the simulation used, so a result can be reproduced exactly.
+One full generate, backtest, evaluate run: a specific Backtest Target against a specific Dataset Snapshot and
+Backtest Range, producing a Result (Metrics + Trades). Its inputs include initial investment, Transaction Cost,
+and Slippage, so a result can be reproduced exactly. An Experiment always has its own record, even when it reuses
+an identical immutable Strategy Version. It is rejected rather than partially evaluated when its required
+historical Candles are incomplete or not closed. An Experiment with no completed Trades nevertheless completes
+successfully with zero-valued Metrics. It records its Simulation Rules Version and Evaluator Version; a maximum
+configurable Candle count limits the submitted Dataset Snapshot.
 _Avoid_: Run, Job (Job is the queue-level unit of work; Experiment is the domain-level record of what it produced).
+
+**Backtest Job**:
+The queue-level request for a Worker to execute one Experiment. It has the terminal states COMPLETED and FAILED;
+failures retry only a bounded number of times and never produce successful-completion events. A Job claim has a
+Worker owner and renewable lease token; only its current holder may persist a completed result or lifecycle events.
+
+**Backtest Submission**:
+The Backend's atomic durable creation of a canonical Strategy Version, Dataset Snapshot, Experiment, and Backtest
+Job after it has validated the inline target and obtained historical Candles. No partial run is retained if that
+database transaction fails.
+
+**StrategyEvaluated**:
+The event published after an Experiment's Metrics are durably persisted. It names the exact immutable
+`strategyVersionId` and Score, rather than a search-specific Candidate.
+
+**Outbox Record**:
+One durable lifecycle-event envelope awaiting delivery from the Backtest Worker to the Backend's in-memory Domain
+Event Bus. Dispatch is at least once, and consumers de-duplicate it by its event ID.
 
 **Score**:
 The single number a CandidateStrategy is ranked by on the Leaderboard (e.g. a weighted blend of Return, Win
@@ -160,7 +242,11 @@ User's strategy design to everyone (see ADR-0005).
 ### Market Data
 
 **Pair**:
-A tradable symbol, e.g. `BTCUSDT`.
+A tradable symbol, e.g. `BTCUSDT`. Manual backtesting initially permits only Pairs quoted in USDT.
+
+**Quote Currency**:
+The asset in which a Pair's price, investment, profit, and loss are denominated. Manual backtesting uses USDT only;
+it does not convert or label USDT amounts as USD.
 
 **Timeframe**:
 The candle interval a chart or Strategy operates on: 1m/5m/15m/1h/4h/1d.
@@ -185,7 +271,8 @@ Adding a new exchange means adding a new Adapter, not touching the Market Data S
 A frontend-only adapter that renders neutral financial chart data (candles, volume, indicator lines, and markers).
 It has no market-data subscription, exchange, strategy, or network responsibility. The current implementation uses
 TradingView Lightweight Charts behind the `FinancialChartRenderer` interface, so another chart renderer can be
-introduced without changing the Market Data Service or strategy pipeline.
+introduced without changing the Market Data Service or strategy pipeline. It derives historical entry and exit
+markers client-side from separate Trade and selected-range Candle arrays.
 
 **Stream Latency**:
 The delay between the exchange stamping a message and this system receiving it, computed as local receive time
