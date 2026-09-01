@@ -6,11 +6,10 @@ import type {
   SavedStrategy,
 } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
-import { useCallback, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
-import { ManualCompositeBuilder } from '../../combinations';
 import { SUPPORTED_PAIR_OPTIONS } from '../constants';
 import { useSavedStrategies } from '../../strategies';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
@@ -41,8 +40,6 @@ export function MarketDataDashboard({
     INITIAL_PANEL_TIMEFRAMES,
   );
   const [overlayKey, setOverlayKey] = useState('');
-  const [compositeDefinition, setCompositeDefinition] =
-    useState<CompositeStrategyRequest | null>(null);
   const strategyCatalog = useStrategyCatalog();
   const savedStrategies = useSavedStrategies();
   const recentTicks = useRecentTicks({ pair, limit: 5 });
@@ -71,13 +68,6 @@ export function MarketDataDashboard({
   );
   const selectedOverlay = strategyOverlayOptions.find(
     ({ value }) => value === overlayKey,
-  );
-  const handleCompositeChange = useCallback(
-    (nextDefinition: CompositeStrategyRequest | null): void => {
-      setCompositeDefinition(nextDefinition);
-      if (nextDefinition !== null) setOverlayKey('');
-    },
-    [],
   );
 
   const changeTimeframe = (
@@ -144,7 +134,6 @@ export function MarketDataDashboard({
                   id="strategy-overlay"
                   onChange={(event) => {
                     setOverlayKey(event.target.value);
-                    setCompositeDefinition(null);
                   }}
                   value={overlayKey}
                 >
@@ -178,10 +167,6 @@ export function MarketDataDashboard({
               </div>
             </div>
           </div>
-          <ManualCompositeBuilder
-            catalog={strategyCatalog}
-            onCompositeChange={handleCompositeChange}
-          />
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
@@ -192,18 +177,11 @@ export function MarketDataDashboard({
                 }
                 panelNumber={index + 1}
                 pair={pair}
-                composite={
-                  compositeDefinition ?? selectedOverlay?.composite ?? null
-                }
-                {...(compositeDefinition !== null ||
-                selectedOverlay?.params === undefined
+                composite={selectedOverlay?.composite ?? null}
+                {...(selectedOverlay?.params === undefined
                   ? {}
                   : { params: selectedOverlay.params })}
-                strategyId={
-                  compositeDefinition === null
-                    ? (selectedOverlay?.strategyId ?? null)
-                    : null
-                }
+                strategyId={selectedOverlay?.strategyId ?? null}
                 timeframe={timeframe}
               />
             ))}

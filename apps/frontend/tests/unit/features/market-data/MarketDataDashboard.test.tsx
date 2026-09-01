@@ -131,6 +131,9 @@ describe('MarketDataDashboard', () => {
     expect(
       screen.queryByRole('checkbox', { name: /Enable .* strategy/ }),
     ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('manual-composite-builder'),
+    ).not.toBeInTheDocument();
     fireEvent.change(strategySelector, { target: { value: 'builtin:ma' } });
     expect(strategySelector).toHaveValue('builtin:ma');
     expect(timeframeSelectors).toHaveLength(4);
