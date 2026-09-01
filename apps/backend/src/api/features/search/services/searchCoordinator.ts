@@ -8,10 +8,12 @@ import type {
   StopReason,
   StrategyEvaluatedPayload,
   StrategyGenerator,
+  Timeframe,
 } from '@crypto-strategy-lab/shared';
 import {
   createDomainEvent,
   DEFAULT_STOP_POLICY,
+  TIMEFRAME_INTERVAL_MS,
 } from '@crypto-strategy-lab/shared';
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
@@ -185,10 +187,27 @@ export class SearchCoordinator {
     };
 
     const algorithmName = options.algorithmName ?? 'random';
+    const timeframe = options.searchSpace.timeframe as Timeframe;
+    const interval = TIMEFRAME_INTERVAL_MS[timeframe] ?? 3_600_000;
+    const rawEndTime = Number(options.searchSpace.endTime);
+    const rawStartTime = Number(options.searchSpace.startTime);
+    const alignedEndTime = Math.floor(rawEndTime / interval) * interval;
+    let alignedStartTime = Math.floor(rawStartTime / interval) * interval;
+    if (alignedStartTime >= alignedEndTime) {
+      alignedStartTime = alignedEndTime - 30 * 24 * 60 * 60 * 1000;
+      alignedStartTime = Math.floor(alignedStartTime / interval) * interval;
+    }
+
+    const alignedSearchSpace: SearchSpace = {
+      ...options.searchSpace,
+      endTime: alignedEndTime,
+      startTime: alignedStartTime,
+    };
+
     const generator =
       options.generator ??
       new RandomGenerator(
-        options.searchSpace,
+        alignedSearchSpace,
         new MathRandomSource(),
         algorithmName,
       );
@@ -198,10 +217,10 @@ export class SearchCoordinator {
       try {
         const prepared = await this.historyProvider.prepareHistoricalCandles(
           {
-            endTime: options.searchSpace.endTime,
-            pair: options.searchSpace.pair,
-            startTime: options.searchSpace.startTime,
-            timeframe: options.searchSpace.timeframe,
+            endTime: alignedSearchSpace.endTime,
+            pair: alignedSearchSpace.pair,
+            startTime: alignedSearchSpace.startTime,
+            timeframe: alignedSearchSpace.timeframe,
           },
           200,
           100_000,
@@ -209,10 +228,10 @@ export class SearchCoordinator {
 
         const fingerprint = fingerprintDataset({
           candles: prepared.candles,
-          endTime: options.searchSpace.endTime,
-          pair: options.searchSpace.pair,
-          startTime: options.searchSpace.startTime,
-          timeframe: options.searchSpace.timeframe,
+          endTime: alignedSearchSpace.endTime,
+          pair: alignedSearchSpace.pair,
+          startTime: alignedSearchSpace.startTime,
+          timeframe: alignedSearchSpace.timeframe,
           warmupCandleCount: prepared.warmupCandleCount,
         });
 
@@ -220,11 +239,11 @@ export class SearchCoordinator {
           where: { fingerprint },
           create: {
             candles: prepared.candles as unknown as Prisma.InputJsonValue,
-            endTime: BigInt(options.searchSpace.endTime),
+            endTime: BigInt(alignedSearchSpace.endTime),
             fingerprint,
-            pair: options.searchSpace.pair,
-            startTime: BigInt(options.searchSpace.startTime),
-            timeframe: options.searchSpace.timeframe,
+            pair: alignedSearchSpace.pair,
+            startTime: BigInt(alignedSearchSpace.startTime),
+            timeframe: alignedSearchSpace.timeframe,
             warmupCandleCount: prepared.warmupCandleCount,
           },
           update: {},
@@ -233,7 +252,7 @@ export class SearchCoordinator {
         datasetSnapshotId = snapshot ? snapshot.id : null;
       } catch (error) {
         this.logger?.warn(
-          { error, searchSpace: options.searchSpace },
+          { error, searchSpace: alignedSearchSpace },
           'Failed to prepare historical dataset for search run via historyProvider',
         );
       }
@@ -242,10 +261,10 @@ export class SearchCoordinator {
     if (!datasetSnapshotId && this.prisma.datasetSnapshot?.findFirst) {
       const existing = await this.prisma.datasetSnapshot.findFirst({
         where: {
-          endTime: BigInt(options.searchSpace.endTime),
-          pair: options.searchSpace.pair,
-          startTime: BigInt(options.searchSpace.startTime),
-          timeframe: options.searchSpace.timeframe,
+          endTime: BigInt(alignedSearchSpace.endTime),
+          pair: alignedSearchSpace.pair,
+          startTime: BigInt(alignedSearchSpace.startTime),
+          timeframe: alignedSearchSpace.timeframe,
         },
       });
       if (existing) {
@@ -258,7 +277,7 @@ export class SearchCoordinator {
         algorithm: algorithmName,
         ownerId: options.ownerId,
         searchConfig: {
-          searchSpace: options.searchSpace,
+          searchSpace: alignedSearchSpace,
           stopPolicy,
         } as unknown as Prisma.InputJsonValue,
         status: 'RUNNING',

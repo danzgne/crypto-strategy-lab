@@ -1,5 +1,6 @@
 'use client';
 
+import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
 import type {
   Pair,
   StrategyCatalog,
@@ -64,15 +65,20 @@ export function DiscoverySessionControl({
     setSubmitting(true);
     try {
       const enabledStrategies = selectedStrategies.map((id) => ({ id }));
+      const interval = TIMEFRAME_INTERVAL_MS[selectedTimeframe] ?? 3_600_000;
       const now = Date.now();
+      const endTime = Math.floor(now / interval) * interval;
+      const startTime = endTime - 30 * 24 * 60 * 60 * 1000;
+      const alignedStartTime = Math.floor(startTime / interval) * interval;
+
       await discovery.startSession({
         algorithm: 'random',
         searchSpace: {
           enabledStrategies,
-          endTime: now,
+          endTime,
           pair: selectedPair,
           permittedCombinationModes: permittedModes,
-          startTime: now - 30 * 24 * 60 * 60 * 1000,
+          startTime: alignedStartTime,
           timeframe: selectedTimeframe,
         },
         stopPolicy: {
