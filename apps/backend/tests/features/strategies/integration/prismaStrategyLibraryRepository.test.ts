@@ -40,7 +40,14 @@ describe('PrismaStrategyLibraryRepository', () => {
     await prisma.$disconnect();
   });
 
-  async function createEntry(name = 'MA repo test') {
+  function uniqueCanonicalIdentity(name: string): string {
+    return `ma:${name}:${Date.now()}:${Math.random()}`;
+  }
+
+  async function createEntry(
+    name = 'MA repo test',
+    canonicalIdentity = uniqueCanonicalIdentity(name),
+  ) {
     return repository.create({
       ownerId,
       name,
@@ -48,7 +55,7 @@ describe('PrismaStrategyLibraryRepository', () => {
       type: 'ma',
       source: 'MANUAL',
       params: { fast: 20, slow: 50 },
-      canonicalIdentity: `ma:${name}:${Date.now()}:${Math.random()}`,
+      canonicalIdentity,
       versionTag: 'tag-1',
       libraryVersion: '1.0.0',
     });
@@ -138,6 +145,24 @@ describe('PrismaStrategyLibraryRepository', () => {
     expect(second?.outcome).toBe('CREATED');
     if (second?.outcome !== 'CREATED') throw new Error('expected CREATED');
     expect(second.entry.versions).toHaveLength(2);
+  });
+
+  it('relabels the identity-matching version in place when only the Library Version changes', async () => {
+    const canonicalIdentity = uniqueCanonicalIdentity('Relabel-only entry');
+    const entry = await createEntry('Relabel-only entry', canonicalIdentity);
+
+    const result = await repository.addVersion(ownerId, entry.id, {
+      params: entry.latestVersion.params,
+      canonicalIdentity,
+      versionTag: entry.latestVersion.versionTag,
+      libraryVersion: '1.0.1',
+    });
+
+    expect(result?.outcome).toBe('CREATED');
+    if (result?.outcome !== 'CREATED') throw new Error('expected CREATED');
+    expect(result.entry.versions).toHaveLength(1);
+    expect(result.entry.latestVersion.id).toBe(entry.latestVersion.id);
+    expect(result.entry.latestVersion.libraryVersion).toBe('1.0.1');
   });
 
   it('rejects a duplicate Library Version for a genuinely new canonical identity', async () => {

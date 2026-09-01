@@ -152,6 +152,13 @@ export class PrismaStrategyLibraryRepository implements StrategyLibraryRepositor
             canonicalIdentity: input.canonicalIdentity,
           },
         });
+      } else if (existingByIdentity.libraryVersion !== input.libraryVersion) {
+        // The params are unchanged, so this isn't a new Strategy Version; only its
+        // descriptive Library Version label moves.
+        await transaction.strategyVersion.update({
+          where: { id: existingByIdentity.id },
+          data: { libraryVersion: input.libraryVersion },
+        });
       }
 
       const reloaded = await transaction.strategyDefinition.findUniqueOrThrow({
