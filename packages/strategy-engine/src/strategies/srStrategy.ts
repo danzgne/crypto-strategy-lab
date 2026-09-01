@@ -10,6 +10,7 @@ import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
 export const SR_STRATEGY_ID = 'sr';
+export const SUPPORT_RESISTANCE_STRATEGY_ID = 'support-resistance';
 
 export interface SRParams {
   n?: number;
@@ -171,3 +172,4 @@ const createSRStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(SR_STRATEGY_ID, createSRStrategy);
+StrategyRegistry.register(SUPPORT_RESISTANCE_STRATEGY_ID, createSRStrategy);

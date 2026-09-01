@@ -11,6 +11,7 @@ import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
 export const BB_STRATEGY_ID = 'bb';
+export const BOLLINGER_STRATEGY_ID = 'bollinger';
 
 export interface BBParams {
   period?: number;
@@ -133,3 +134,4 @@ const createBBStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(BB_STRATEGY_ID, createBBStrategy);
+StrategyRegistry.register(BOLLINGER_STRATEGY_ID, createBBStrategy);

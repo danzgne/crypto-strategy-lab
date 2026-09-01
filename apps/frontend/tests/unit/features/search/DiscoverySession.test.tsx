@@ -10,13 +10,13 @@ const catalog: StrategyCatalog = {
   strategies: [
     { id: 'ma', paramsSchema: { properties: {}, type: 'object' } },
     { id: 'rsi', paramsSchema: { properties: {}, type: 'object' } },
-    { id: 'bollinger', paramsSchema: { properties: {}, type: 'object' } },
+    { id: 'bb', paramsSchema: { properties: {}, type: 'object' } },
     {
-      id: 'support-resistance',
+      id: 'sr',
       paramsSchema: { properties: {}, type: 'object' },
     },
   ],
-  strategyIds: ['ma', 'rsi', 'bollinger', 'support-resistance'],
+  strategyIds: ['ma', 'rsi', 'bb', 'sr'],
 };
 
 function createMockDiscovery(

@@ -35,8 +35,8 @@ export function DiscoverySessionControl({
   const [selectedStrategies, setSelectedStrategies] = useState<string[]>([
     'ma',
     'rsi',
-    'bollinger',
-    'support-resistance',
+    'bb',
+    'sr',
   ]);
   const [permittedModes, setPermittedModes] = useState<
     ('majority' | 'weighted')[]

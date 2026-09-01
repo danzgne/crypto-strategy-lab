@@ -309,6 +309,17 @@ export class PrismaJobRepository implements JobRepository {
         },
         where: leaseWhere(job),
       });
+
+      if (status === 'FAILED') {
+        await createOutboxEvent(
+          transaction,
+          createDomainEvent('BacktestCompleted', {
+            experimentId: job.experimentId,
+            jobId: job.id,
+          }),
+        );
+      }
+
       return updated.count === 1;
     });
   }
