@@ -25,10 +25,6 @@ import {
   type BacktestServiceInterface,
 } from '@/api/features/backtests';
 import {
-  createStrategyLibraryFeatureRouter,
-  type StrategyLibraryServiceInterface,
-} from '@/api/features/strategies/library';
-import {
   createLeaderboardFeatureRouter,
   LeaderboardController,
   type LeaderboardServiceInterface,
@@ -48,7 +44,6 @@ export function createV1Router(
   authService: PasswordAuthServiceInterface,
   newsService?: NewsServiceInterface,
   strategies?: StrategiesRouterDependencies,
-  strategyLibraryService?: StrategyLibraryServiceInterface,
   backtestService?: BacktestServiceInterface,
   leaderboardService?: LeaderboardServiceInterface,
   searchController?: SearchController,
@@ -75,13 +70,6 @@ export function createV1Router(
     router.use(
       '/strategies',
       createStrategiesFeatureRouter(generationController, libraryController),
-    );
-  } else if (strategyLibraryService !== undefined) {
-    router.use(
-      '/strategies',
-      createStrategyLibraryFeatureRouter(
-        new StrategyLibraryController(strategyLibraryService),
-      ),
     );
   }
   if (backtestService !== undefined) {

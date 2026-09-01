@@ -40,7 +40,7 @@ export class PrismaBacktestRepository implements BacktestRepository {
     return this.prisma.$transaction(async (transaction) => {
       const version =
         input.target.strategyVersionId === undefined
-          ? await findOrCreatePrivateVersion(transaction, ownerId, input)
+          ? await findOrCreateBacktestTarget(transaction, ownerId, input)
           : await transaction.strategyVersion.findFirst({
               where: {
                 id: input.target.strategyVersionId,
@@ -383,38 +383,40 @@ function toInputJson(value: unknown): Prisma.InputJsonValue {
   return stripUndefined(value) as Prisma.InputJsonValue;
 }
 
-async function findOrCreatePrivateVersion(
+async function findOrCreateBacktestTarget(
   transaction: Prisma.TransactionClient,
   ownerId: string,
   input: BacktestSubmissionInput,
 ) {
-  const canonicalIdentity = `private:${input.target.canonicalIdentity}`;
-  const existingPrivate = await transaction.strategyVersion.findFirst({
-    include: { strategyDefinition: true },
-    where: {
-      ownerId,
-      canonicalIdentity: {
-        in: [canonicalIdentity, input.target.canonicalIdentity],
+  const definition =
+    (await transaction.strategyDefinition.findFirst({
+      where: {
+        ownerId,
+        type: input.target.strategyId,
+        recordKind: 'BACKTEST_TARGET',
       },
-      strategyDefinition: { isPrivate: true },
-    },
-  });
-  if (existingPrivate !== null) return existingPrivate;
+    })) ??
+    (await transaction.strategyDefinition.create({
+      data: {
+        recordKind: 'BACKTEST_TARGET',
+        name: `${input.target.strategyId} backtest target`,
+        ownerId,
+        source: 'MANUAL',
+        tags: [],
+        type: input.target.strategyId,
+      },
+    }));
 
-  const definition = await transaction.strategyDefinition.create({
-    data: {
-      isPrivate: true,
-      name: `${input.target.strategyId} backtest target`,
-      ownerId,
-      source: 'USER_PROMPT',
-      sourceInput: `Manual backtest target for ${input.target.strategyId}`,
-      tags: [],
-      type: input.target.strategyId,
+  return transaction.strategyVersion.upsert({
+    where: {
+      ownerId_strategyDefinitionId_canonicalIdentity: {
+        ownerId,
+        strategyDefinitionId: definition.id,
+        canonicalIdentity: input.target.canonicalIdentity,
+      },
     },
-  });
-  return transaction.strategyVersion.create({
-    data: {
-      canonicalIdentity,
+    create: {
+      canonicalIdentity: input.target.canonicalIdentity,
       libraryVersion: '1.0.0',
       ownerId,
       params: toInputJson(input.target.params),
@@ -424,6 +426,7 @@ async function findOrCreatePrivateVersion(
         input.target.params,
       ),
     },
+    update: {},
   });
 }
 

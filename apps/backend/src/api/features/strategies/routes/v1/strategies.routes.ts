@@ -13,8 +13,12 @@ export function createStrategiesFeatureRouter(
 
   router.post('/generate', requireAuth, generationController.generate);
   router.post('/validate', requireAuth, libraryController.validate);
-  router.post('/', requireAuth, libraryController.create);
   router.get('/', requireAuth, libraryController.list);
+  router.post('/', requireAuth, libraryController.create);
+  router.get('/:id', requireAuth, libraryController.get);
+  router.patch('/:id', requireAuth, libraryController.updateMetadata);
+  router.post('/:id/versions', requireAuth, libraryController.addVersion);
+  router.patch('/:id/archive', requireAuth, libraryController.archive);
 
   return router;
 }

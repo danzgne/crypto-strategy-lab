@@ -255,6 +255,7 @@ async function startBackend(): Promise<void> {
     },
     sessionMiddleware,
     strategyLiveService,
+    strategyLibraryService,
   });
 
   await new Promise<void>((resolve, reject) => {

@@ -2,7 +2,11 @@ import type { Pair, Timeframe } from '../marketData/candle';
 
 export const CLOSE_REFERENCE = 'Close';
 
-export const STRATEGY_PROVENANCES = ['USER_PROMPT', 'WEB_IMPORT'] as const;
+export const STRATEGY_PROVENANCES = [
+  'USER_PROMPT',
+  'WEB_IMPORT',
+  'MANUAL',
+] as const;
 
 export type StrategyProvenance = (typeof STRATEGY_PROVENANCES)[number];
 

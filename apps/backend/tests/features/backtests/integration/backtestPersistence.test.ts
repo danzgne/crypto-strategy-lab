@@ -114,8 +114,8 @@ describe('backtest persistence', () => {
     });
     strategyVersionIds.push(version.id);
     strategyDefinitionIds.push(version.strategyDefinitionId);
-    expect(version.strategyDefinition.isPrivate).toBe(true);
-    expect(version.canonicalIdentity).toMatch(/^private:/);
+    expect(version.strategyDefinition.recordKind).toBe('BACKTEST_TARGET');
+    expect(version.strategyDefinition.source).toBe('MANUAL');
 
     const experiments = await prisma.experiment.findMany({
       orderBy: { createdAt: 'asc' },

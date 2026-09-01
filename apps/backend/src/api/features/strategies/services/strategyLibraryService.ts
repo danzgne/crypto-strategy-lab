@@ -1,14 +1,14 @@
 import type {
   CompositeStrategyRequest,
-  RuleStrategyParams,
-  SaveStrategyRequest,
-  SavedStrategy,
+  CreateCompositeLibraryEntryRequest,
+  CreateLibraryEntryRequest,
+  LibraryBuiltin,
   StrategyProvenance,
 } from '@crypto-strategy-lab/shared';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
+import { canonicalStrategyVersionId } from '@crypto-strategy-lab/shared/strategy';
 import {
   CombinationEngine,
-  RULE_STRATEGY_ID,
   RuleStrategy,
   StrategyRegistry,
   type CompositeStrategy,
@@ -16,58 +16,51 @@ import {
 } from '@crypto-strategy-lab/strategy-engine';
 
 import type {
-  CreateStrategyLibraryEntryInput,
-  PersistedStrategyRequest,
-  StrategyLibraryEntry,
+  AddLibraryVersionResult,
+  LibraryEntryDetailRow,
+  LibraryEntryRow,
+  LibraryVersionForOwner,
+  ListLibraryEntriesResult,
   StrategyLibraryRepository,
+  UpdateLibraryEntryMetadataInput,
 } from '../repositories/interfaces/strategyLibraryRepository.interface';
-import type {
-  SaveCompositeStrategyRequest,
-  SaveSingularStrategyRequest,
-} from '@crypto-strategy-lab/shared';
-import type { StrategyLibraryServiceInterface } from './interfaces/strategyLibraryService.interface';
 
 const DEFAULT_LIBRARY_VERSION = '1.0.0';
-const DEFAULT_LIST_LIMIT = 10;
+const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/;
+const NAME_MAX_LENGTH = 200;
 
-export interface SaveStrategyInput {
-  ownerId: string;
-  name: string;
-  description?: string | undefined;
-  tags?: readonly string[] | undefined;
-  source: StrategyProvenance;
-  sourceInput: string;
-  params: unknown;
-  libraryVersion?: string | undefined;
+export interface AddVersionInput {
+  libraryVersion: string;
+  params?: Readonly<Record<string, unknown>>;
+  composite?: CompositeStrategyRequest;
 }
 
-export type SaveStrategyResult =
-  | { readonly outcome: 'SUCCESS'; readonly entry: StrategyLibraryEntry }
-  | { readonly outcome: 'GENERATION_INVALID'; readonly message: string };
+export interface ListEntriesOptions {
+  limit?: number;
+  offset?: number;
+  includeArchived?: boolean;
+}
+
+export interface LibraryListResult {
+  builtins: LibraryBuiltin[];
+  entries: LibraryEntryRow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
 
 export type ValidateStrategyResult =
   | { readonly valid: true }
   | { readonly valid: false; readonly message: string };
 
-type ConstructResult =
-  | { readonly ok: true; readonly strategy: RuleStrategy }
-  | { readonly ok: false; readonly message: string };
-
-export interface StrategyLibraryServiceDependencies {
-  repository: StrategyLibraryRepository;
-}
-
-export type StrategyLibraryRepositoryInput =
-  StrategyLibraryServiceDependencies | StrategyLibraryRepository;
-
-export type StrategyLibraryCreateInput = CreateStrategyLibraryEntryInput;
-
-export type StrategyLibrarySaveRequest = SaveStrategyRequest;
-
-export type StrategyLibrarySavedResult = SavedStrategy;
-
 export type StrategyLibraryValidationCode =
-  'INVALID_NAME' | 'INVALID_REQUEST' | 'UNKNOWN_STRATEGY' | 'INVALID_STRATEGY';
+  | 'INVALID_NAME'
+  | 'INVALID_REQUEST'
+  | 'UNKNOWN_STRATEGY'
+  | 'INVALID_STRATEGY'
+  | 'INVALID_PROVENANCE'
+  | 'INVALID_LIBRARY_VERSION'
+  | 'DUPLICATE_LIBRARY_VERSION';
 
 export class StrategyLibraryValidationError extends Error {
   public readonly code: StrategyLibraryValidationCode;
@@ -83,149 +76,177 @@ export class StrategyLibraryValidationError extends Error {
   }
 }
 
-export class StrategyLibraryService implements StrategyLibraryServiceInterface {
+interface ResolvedStrategyContent {
+  type: string;
+  params: unknown;
+  canonicalIdentity: string;
+  versionTag: string;
+}
+
+export interface StrategyLibraryServiceDependencies {
+  repository: StrategyLibraryRepository;
+  combinationEngine?: CombinationEngine;
+}
+
+export class StrategyLibraryService {
   private readonly repository: StrategyLibraryRepository;
 
   private readonly combinationEngine: CombinationEngine;
 
-  public constructor(
-    dependenciesOrRepository: StrategyLibraryRepositoryInput,
+  public constructor({
+    repository,
     combinationEngine = new CombinationEngine(),
-  ) {
-    this.repository = isServiceDependencies(dependenciesOrRepository)
-      ? dependenciesOrRepository.repository
-      : dependenciesOrRepository;
+  }: StrategyLibraryServiceDependencies) {
+    this.repository = repository;
     this.combinationEngine = combinationEngine;
   }
 
-  public list(ownerId: string): Promise<SavedStrategy[]> {
-    if (this.repository.listByOwner === undefined) {
-      return Promise.reject(
-        new Error(
-          'Strategy library repository does not support saved strategies',
-        ),
-      );
-    }
-    return this.repository.listByOwner(ownerId);
+  public async list(
+    ownerId: string,
+    options: ListEntriesOptions = {},
+  ): Promise<LibraryListResult> {
+    const limit = clamp(options.limit ?? 20, 1, 100);
+    const offset = Math.max(0, options.offset ?? 0);
+    const includeArchived = options.includeArchived ?? false;
+
+    const result: ListLibraryEntriesResult = await this.repository.listEntries(
+      ownerId,
+      { limit, offset, includeArchived },
+    );
+
+    return {
+      builtins: listBuiltins(),
+      entries: result.entries,
+      total: result.total,
+      limit,
+      offset,
+    };
   }
 
-  public async save(input: SaveStrategyInput): Promise<SaveStrategyResult>;
-
-  public async save(
+  public getEntry(
     ownerId: string,
-    request: SaveStrategyRequest,
-  ): Promise<SavedStrategy>;
+    entryId: string,
+  ): Promise<LibraryEntryDetailRow | null> {
+    return this.repository.getEntry(ownerId, entryId);
+  }
 
-  public async save(
-    inputOrOwnerId: SaveStrategyInput | string,
-    request?: SaveStrategyRequest,
-  ): Promise<SaveStrategyResult | SavedStrategy> {
-    if (typeof inputOrOwnerId === 'string') {
-      if (request === undefined) {
-        throw new StrategyLibraryValidationError(
-          'INVALID_REQUEST',
-          'A strategy save request is required',
-        );
-      }
-      return this.saveNamed(inputOrOwnerId, request);
+  public async create(
+    ownerId: string,
+    request: CreateLibraryEntryRequest,
+  ): Promise<LibraryEntryDetailRow> {
+    const name = normalizeName(request.name);
+    const { source, sourceInput } = normalizeProvenance(
+      request.source,
+      request.sourceInput,
+    );
+    const libraryVersion = normalizeLibraryVersion(
+      request.libraryVersion ?? DEFAULT_LIBRARY_VERSION,
+    );
+    const resolved = this.resolveContent(request);
+
+    return this.repository.create({
+      ownerId,
+      name,
+      ...(request.description === undefined
+        ? {}
+        : { description: request.description }),
+      tags: request.tags ?? [],
+      type: resolved.type,
+      source,
+      ...(sourceInput === undefined ? {} : { sourceInput }),
+      params: resolved.params,
+      canonicalIdentity: resolved.canonicalIdentity,
+      versionTag: resolved.versionTag,
+      libraryVersion,
+    });
+  }
+
+  public async addVersion(
+    ownerId: string,
+    entryId: string,
+    input: AddVersionInput,
+  ): Promise<AddLibraryVersionResult | null> {
+    const libraryVersion = normalizeLibraryVersion(input.libraryVersion);
+    const entry = await this.repository.getEntry(ownerId, entryId);
+    if (entry === null) return null;
+
+    const resolved =
+      entry.type === 'composite'
+        ? this.resolveComposite(requireComposite(input.composite, entry.type))
+        : this.resolveSingular(entry.type, input.params ?? {});
+
+    return this.repository.addVersion(ownerId, entryId, {
+      params: resolved.params,
+      canonicalIdentity: resolved.canonicalIdentity,
+      versionTag: resolved.versionTag,
+      libraryVersion,
+    });
+  }
+
+  public updateMetadata(
+    ownerId: string,
+    entryId: string,
+    input: UpdateLibraryEntryMetadataInput,
+  ): Promise<LibraryEntryDetailRow | null> {
+    if (input.name !== undefined) {
+      normalizeName(input.name);
     }
+    return this.repository.updateMetadata(ownerId, entryId, input);
+  }
 
-    return this.saveGenerated(inputOrOwnerId);
+  public setArchived(
+    ownerId: string,
+    entryId: string,
+    archived: boolean,
+  ): Promise<LibraryEntryDetailRow | null> {
+    return this.repository.setArchived(ownerId, entryId, archived);
+  }
+
+  public findVersionForOwner(
+    ownerId: string,
+    versionId: string,
+  ): Promise<LibraryVersionForOwner | null> {
+    return this.repository.findVersionForOwner(ownerId, versionId);
   }
 
   public validate(params: unknown): ValidateStrategyResult {
-    const result = this.tryConstruct(params);
-    return result.ok
-      ? { valid: true }
-      : { valid: false, message: result.message };
+    try {
+      new RuleStrategy(params);
+      return { valid: true };
+    } catch (error) {
+      return {
+        valid: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'Strategy parameters invalid',
+      };
+    }
   }
 
-  public async listRecent(
-    ownerId: string,
-    limit: number = DEFAULT_LIST_LIMIT,
-  ): Promise<StrategyLibraryEntry[]> {
-    if (this.repository.listRecentByOwner === undefined) {
-      throw new Error(
-        'Strategy library repository does not support generated strategy entries',
-      );
+  private resolveContent(
+    request: CreateLibraryEntryRequest,
+  ): ResolvedStrategyContent {
+    if (isCompositeCreateRequest(request)) {
+      return this.resolveComposite(request.composite);
     }
-    return this.repository.listRecentByOwner(ownerId, limit);
+    return this.resolveSingular(request.strategyId, request.params ?? {});
   }
 
-  private async saveGenerated(
-    input: SaveStrategyInput,
-  ): Promise<SaveStrategyResult> {
-    const result = this.tryConstruct(input.params);
-    if (!result.ok) {
-      return { outcome: 'GENERATION_INVALID', message: result.message };
-    }
-    const strategy = result.strategy;
-    const createWithFirstVersion = this.repository.createWithFirstVersion;
-    if (createWithFirstVersion === undefined) {
-      throw new Error(
-        'Strategy library repository does not support generated strategy entries',
-      );
-    }
-
-    const versionTag = computeStrategyVersionTag(
-      RULE_STRATEGY_ID,
-      strategy.params,
-    );
-
-    const entry = await createWithFirstVersion.call(this.repository, {
-      ownerId: input.ownerId,
-      name: input.name,
-      description: input.description,
-      tags: input.tags ?? [],
-      type: RULE_STRATEGY_ID,
-      source: input.source,
-      sourceInput: input.sourceInput,
-      params: input.params as RuleStrategyParams,
-      versionTag,
-      libraryVersion: input.libraryVersion ?? DEFAULT_LIBRARY_VERSION,
-    });
-
-    return { outcome: 'SUCCESS', entry };
-  }
-
-  private async saveNamed(
-    ownerId: string,
-    request: SaveStrategyRequest,
-  ): Promise<SavedStrategy> {
-    const name = normalizeName(request);
-    if (name === null) {
-      throw new StrategyLibraryValidationError(
-        'INVALID_NAME',
-        'Strategy name must be between 1 and 80 characters',
-      );
-    }
-    if (this.repository.create === undefined) {
-      throw new Error(
-        'Strategy library repository does not support named strategy entries',
-      );
-    }
-
-    if (isCompositeSaveRequest(request)) {
-      return this.saveComposite(ownerId, request, name);
-    }
-    return this.saveSingular(ownerId, request, name);
-  }
-
-  private saveSingular(
-    ownerId: string,
-    request: SaveSingularStrategyRequest,
-    name: string,
-  ): Promise<SavedStrategy> {
-    if (StrategyRegistry.get(request.strategyId) === undefined) {
+  private resolveSingular(
+    strategyId: string,
+    params: unknown,
+  ): ResolvedStrategyContent {
+    if (StrategyRegistry.get(strategyId) === undefined) {
       throw new StrategyLibraryValidationError(
         'UNKNOWN_STRATEGY',
-        `Strategy ${request.strategyId} is not registered`,
+        `Strategy ${strategyId} is not registered`,
       );
     }
 
     let strategy: Strategy;
     try {
-      strategy = StrategyRegistry.create(request.strategyId, request.params);
+      strategy = StrategyRegistry.create(strategyId, params);
     } catch (error) {
       throw new StrategyLibraryValidationError(
         'INVALID_STRATEGY',
@@ -234,32 +255,37 @@ export class StrategyLibraryService implements StrategyLibraryServiceInterface {
       );
     }
 
-    const persisted: PersistedStrategyRequest = {
-      ...(request.description === undefined
-        ? {}
-        : { description: request.description }),
-      name,
-      params: toParameterRecord(strategy),
-      strategyId: request.strategyId,
+    const resolvedParams = this.storableParams(strategyId, strategy, params);
+    return {
+      type: strategyId,
+      params: resolvedParams,
+      canonicalIdentity: canonicalStrategyVersionId(strategyId, resolvedParams),
+      versionTag: computeStrategyVersionTag(strategyId, resolvedParams),
     };
-    return this.repository.create!(ownerId, persisted);
   }
 
-  private saveComposite(
-    ownerId: string,
-    request: SaveCompositeStrategyRequest,
-    name: string,
-  ): Promise<SavedStrategy> {
-    if (!isCompositeRequest(request.composite)) {
-      throw new StrategyLibraryValidationError(
-        'INVALID_REQUEST',
-        'Composite strategy definition is required',
-      );
+  // Some Strategies (RuleStrategy) resolve into a shape their own constructor can't re-accept;
+  // round-trip and fall back to the authored input instead of special-casing a Strategy id.
+  private storableParams(
+    strategyId: string,
+    strategy: Strategy,
+    originalParams: unknown,
+  ): Readonly<Record<string, unknown>> {
+    const resolved = isRecord(strategy.params) ? strategy.params : {};
+    try {
+      StrategyRegistry.create(strategyId, resolved);
+      return resolved;
+    } catch {
+      return isRecord(originalParams) ? originalParams : {};
     }
+  }
 
+  private resolveComposite(
+    request: CompositeStrategyRequest,
+  ): ResolvedStrategyContent {
     let composite: CompositeStrategy;
     try {
-      const members = request.composite.members.map((member) => {
+      const members = request.members.map((member) => {
         const strategy = StrategyRegistry.create(
           member.strategyId,
           member.params,
@@ -270,16 +296,16 @@ export class StrategyLibraryService implements StrategyLibraryServiceInterface {
       });
       composite = this.combinationEngine.assemble({
         members,
-        mode: request.composite.mode,
-        ...(request.composite.threshold === undefined
+        mode: request.mode,
+        ...(request.threshold === undefined
           ? {}
-          : { threshold: request.composite.threshold }),
-        ...(request.composite.stopLoss === undefined
+          : { threshold: request.threshold }),
+        ...(request.stopLoss === undefined
           ? {}
-          : { stopLoss: request.composite.stopLoss }),
-        ...(request.composite.takeProfit === undefined
+          : { stopLoss: request.stopLoss }),
+        ...(request.takeProfit === undefined
           ? {}
-          : { takeProfit: request.composite.takeProfit }),
+          : { takeProfit: request.takeProfit }),
       });
     } catch (error) {
       throw new StrategyLibraryValidationError(
@@ -289,80 +315,102 @@ export class StrategyLibraryService implements StrategyLibraryServiceInterface {
       );
     }
 
-    const persisted: PersistedStrategyRequest = {
-      ...(request.description === undefined
+    const persistedComposite: CompositeStrategyRequest = {
+      members: composite.members.map((member) => ({
+        strategyId: member.strategyId,
+        params: member.params,
+        weight: member.weight,
+      })),
+      mode: composite.mode,
+      threshold: composite.threshold,
+      ...(composite.stopLoss === undefined
         ? {}
-        : { description: request.description }),
-      composite: toCompositeRequest(composite),
-      name,
-      strategyId: 'composite',
+        : { stopLoss: composite.stopLoss }),
+      ...(composite.takeProfit === undefined
+        ? {}
+        : { takeProfit: composite.takeProfit }),
     };
-    return this.repository.create!(ownerId, persisted);
-  }
 
-  private tryConstruct(params: unknown): ConstructResult {
-    try {
-      return { ok: true, strategy: new RuleStrategy(params) };
-    } catch (error) {
-      return {
-        ok: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Strategy parameters invalid',
-      };
-    }
+    return {
+      type: 'composite',
+      params: persistedComposite,
+      canonicalIdentity: composite.identity,
+      versionTag: computeStrategyVersionTag('composite', persistedComposite),
+    };
   }
 }
 
-function isServiceDependencies(
-  value: StrategyLibraryRepositoryInput,
-): value is StrategyLibraryServiceDependencies {
-  return typeof value === 'object' && value !== null && 'repository' in value;
+function listBuiltins(): LibraryBuiltin[] {
+  return StrategyRegistry.list()
+    .map((strategyId) => ({
+      strategyId,
+      paramsSchema: StrategyRegistry.get(strategyId)!.paramsSchema,
+    }))
+    .filter((builtin) => (builtin.paramsSchema.required?.length ?? 0) === 0);
 }
 
-function normalizeName(request: SaveStrategyRequest): string | null {
-  if (!isRecord(request) || typeof request.name !== 'string') return null;
-  const name = request.name.trim();
-  return name.length === 0 || name.length > 80 ? null : name;
+function normalizeName(name: string): string {
+  const trimmed = name.trim();
+  if (trimmed.length === 0 || trimmed.length > NAME_MAX_LENGTH) {
+    throw new StrategyLibraryValidationError(
+      'INVALID_NAME',
+      `Strategy name must be between 1 and ${NAME_MAX_LENGTH} characters`,
+    );
+  }
+  return trimmed;
 }
 
-function toParameterRecord(
-  strategy: Strategy,
-): Readonly<Record<string, unknown>> {
-  return isRecord(strategy.params) ? strategy.params : {};
+function normalizeProvenance(
+  source: StrategyProvenance,
+  sourceInput: string | undefined,
+): { source: StrategyProvenance; sourceInput: string | undefined } {
+  if (source === 'MANUAL') {
+    return { source, sourceInput: undefined };
+  }
+  const trimmed = sourceInput?.trim();
+  if (trimmed === undefined || trimmed.length === 0) {
+    throw new StrategyLibraryValidationError(
+      'INVALID_PROVENANCE',
+      `sourceInput is required when source is ${source}`,
+    );
+  }
+  return { source, sourceInput: trimmed };
 }
 
-function toCompositeRequest(
-  composite: CompositeStrategy,
+function normalizeLibraryVersion(libraryVersion: string): string {
+  const trimmed = libraryVersion.trim();
+  if (!SEMVER_PATTERN.test(trimmed)) {
+    throw new StrategyLibraryValidationError(
+      'INVALID_LIBRARY_VERSION',
+      'Library Version must look like a semantic version, e.g. 1.0.0',
+    );
+  }
+  return trimmed;
+}
+
+function isCompositeCreateRequest(
+  request: CreateLibraryEntryRequest,
+): request is CreateCompositeLibraryEntryRequest {
+  return request.strategyId === 'composite';
+}
+
+function requireComposite(
+  composite: CompositeStrategyRequest | undefined,
+  entryType: string,
 ): CompositeStrategyRequest {
-  return {
-    members: composite.members.map((member) => ({
-      params: member.params,
-      strategyId: member.strategyId,
-      weight: member.weight,
-    })),
-    mode: composite.mode,
-    threshold: composite.threshold,
-    ...(composite.stopLoss === undefined
-      ? {}
-      : { stopLoss: composite.stopLoss }),
-    ...(composite.takeProfit === undefined
-      ? {}
-      : { takeProfit: composite.takeProfit }),
-  };
+  if (composite === undefined) {
+    throw new StrategyLibraryValidationError(
+      'INVALID_REQUEST',
+      `Entry of type ${entryType} requires a composite definition`,
+    );
+  }
+  return composite;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
-
-function isCompositeRequest(value: unknown): value is CompositeStrategyRequest {
-  return isRecord(value) && Array.isArray(value.members);
-}
-
-function isCompositeSaveRequest(
-  request: SaveStrategyRequest,
-): request is SaveCompositeStrategyRequest {
-  return request.strategyId === 'composite';
 }
