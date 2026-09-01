@@ -3,12 +3,11 @@
 import type { CreateSingularLibraryEntryRequest } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { createElement, useMemo, useState } from 'react';
+import { createElement, useEffect, useMemo, useState } from 'react';
 
 import { strategyLibraryClient } from '../api/strategyLibraryClient';
 import { DefaultParamsEditor } from '../editors/DefaultParamsEditor';
 import { StrategyEditorRegistry } from '../editors/StrategyEditorRegistry';
-import { emptyRuleParams } from '../editors/ruleEditorModel';
 import { useStrategyLibrary } from '../hooks/useStrategyLibrary';
 import { TagsInput } from './TagsInput';
 
@@ -45,24 +44,45 @@ export function StrategyEntryForm() {
   const [error, setError] = useState<string | null>(null);
   const [prefilled, setPrefilled] = useState(false);
 
-  if (!prefilled && forkKey !== null && library.builtins.length > 0) {
-    if (forkKey.startsWith('builtin:')) {
-      const builtinId = forkKey.slice('builtin:'.length);
-      const builtin = library.builtins.find((b) => b.strategyId === builtinId);
-      if (builtin !== undefined) {
-        setStrategyId(builtinId);
-        setParams({});
-        setName(`${formatStrategyType(builtinId)} (my copy)`);
-      }
+  if (
+    !prefilled &&
+    forkKey !== null &&
+    forkKey.startsWith('builtin:') &&
+    library.builtins.length > 0
+  ) {
+    const builtinId = forkKey.slice('builtin:'.length);
+    const builtin = library.builtins.find((b) => b.strategyId === builtinId);
+    if (builtin !== undefined) {
+      setStrategyId(builtinId);
+      setParams({});
+      setName(`${formatStrategyType(builtinId)} (my copy)`);
     }
     setPrefilled(true);
   }
 
-  const selectedSchema =
-    strategyId === 'rule'
-      ? { type: 'object' as const, properties: {} }
-      : (library.builtins.find((b) => b.strategyId === strategyId)
-          ?.paramsSchema ?? { type: 'object' as const, properties: {} });
+  useEffect(() => {
+    if (prefilled || forkKey === null || !forkKey.startsWith('entry:')) return;
+    const entryId = forkKey.slice('entry:'.length);
+    void (async () => {
+      try {
+        const entry = await strategyLibraryClient.get(entryId);
+        if (entry.kind === 'singular') {
+          setStrategyId(entry.strategyId);
+          setParams(entry.latestVersion.params ?? {});
+          setName(`${entry.name} (my copy)`);
+          setTags(entry.tags);
+        }
+      } catch {
+        // Not found or not owned by this user; leave the form blank.
+      } finally {
+        setPrefilled(true);
+      }
+    })();
+  }, [forkKey, prefilled]);
+
+  const selectedSchema = library.builtins.find(
+    (b) => b.strategyId === strategyId,
+  )?.paramsSchema ?? { type: 'object' as const, properties: {} };
   const EditorComponent = useMemo(
     () => StrategyEditorRegistry.resolve(strategyId, DefaultParamsEditor),
     [strategyId],
@@ -70,11 +90,7 @@ export function StrategyEntryForm() {
 
   const selectStrategy = (nextStrategyId: string): void => {
     setStrategyId(nextStrategyId);
-    setParams(
-      nextStrategyId === 'rule'
-        ? (emptyRuleParams() as unknown as Record<string, unknown>)
-        : {},
-    );
+    setParams({});
   };
 
   const submit = async (): Promise<void> => {

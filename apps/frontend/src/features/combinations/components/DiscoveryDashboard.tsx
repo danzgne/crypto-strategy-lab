@@ -7,6 +7,7 @@ import {
   ArchiveRestore,
   BookMarked,
   Copy,
+  MoreVertical,
   Play,
   Plus,
   RadioTower,
@@ -300,29 +301,39 @@ function EntryCard({
         >
           <Play aria-hidden="true" className="size-3" /> Run
         </Link>
-        <Link
-          aria-label={`Backtest ${entry.name}`}
-          className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-indigo-200"
-          href={`/backtests?strategyVersionId=${entry.latestVersion.id}`}
-        >
-          <TestTubeDiagonal aria-hidden="true" className="size-3" /> Backtest
-        </Link>
-        <button
-          aria-label={
-            entry.archivedAt === null
-              ? `Archive ${entry.name}`
-              : `Unarchive ${entry.name}`
-          }
-          className="ml-auto flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
-          onClick={() => void toggleArchive()}
-          type="button"
-        >
-          {entry.archivedAt === null ? (
-            <Archive aria-hidden="true" className="size-3" />
-          ) : (
-            <ArchiveRestore aria-hidden="true" className="size-3" />
-          )}
-        </button>
+        <details className="relative ml-auto">
+          <summary
+            aria-label={`More actions for ${entry.name}`}
+            className="flex cursor-pointer list-none items-center justify-center rounded-md border border-slate-200 bg-white p-1 text-slate-500 transition hover:border-indigo-200 [&::-webkit-details-marker]:hidden"
+          >
+            <MoreVertical aria-hidden="true" className="size-3.5" />
+          </summary>
+          <div className="absolute right-0 z-10 mt-1 w-36 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+            <Link
+              className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-medium text-slate-700 transition hover:bg-slate-50"
+              href={`/backtests?strategyVersionId=${entry.latestVersion.id}`}
+            >
+              <TestTubeDiagonal aria-hidden="true" className="size-3.5" />
+              Backtest
+            </Link>
+            <button
+              className="flex w-full items-center gap-1.5 rounded-md px-2 py-1 text-left text-[11px] font-medium text-slate-700 transition hover:bg-slate-50"
+              onClick={() => void toggleArchive()}
+              type="button"
+            >
+              {entry.archivedAt === null ? (
+                <>
+                  <Archive aria-hidden="true" className="size-3.5" /> Archive
+                </>
+              ) : (
+                <>
+                  <ArchiveRestore aria-hidden="true" className="size-3.5" />
+                  Unarchive
+                </>
+              )}
+            </button>
+          </div>
+        </details>
       </div>
     </article>
   );

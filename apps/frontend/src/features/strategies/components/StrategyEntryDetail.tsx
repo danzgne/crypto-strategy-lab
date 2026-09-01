@@ -2,7 +2,14 @@
 
 import type { LibraryEntryDetail } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
-import { Archive, ArchiveRestore, Play, TestTubeDiagonal } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  Copy,
+  MoreVertical,
+  Play,
+  TestTubeDiagonal,
+} from 'lucide-react';
 import Link from 'next/link';
 import { createElement, useMemo, useState } from 'react';
 
@@ -11,6 +18,7 @@ import { DefaultParamsEditor } from '../editors/DefaultParamsEditor';
 import { StrategyEditorRegistry } from '../editors/StrategyEditorRegistry';
 import { useLibraryEntry } from '../hooks/useLibraryEntry';
 import { useStrategyLibrary } from '../hooks/useStrategyLibrary';
+import { bumpPatchVersion } from '../libraryVersion';
 import { TagsInput } from './TagsInput';
 
 export function StrategyEntryDetail({ entryId }: { entryId: string }) {
@@ -42,6 +50,7 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
     setName(entry.name);
     setDescription(entry.description ?? '');
     setTags(entry.tags);
+    setNewLibraryVersion(bumpPatchVersion(entry.latestVersion.libraryVersion));
   }
 
   const strategyId = entry?.strategyId;
@@ -169,36 +178,54 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {entry.kind === 'singular' && (
+            <Link
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-200"
+              href={`/strategies/new?fork=entry:${entry.id}`}
+            >
+              <Copy aria-hidden="true" className="size-3.5" /> Fork
+            </Link>
+          )}
           <Link
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
             href={`/?strategyVersionId=${selectedVersion.id}`}
           >
             <Play aria-hidden="true" className="size-3.5" /> Run on chart
           </Link>
-          <Link
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-indigo-200"
-            href={`/backtests?strategyVersionId=${selectedVersion.id}`}
-          >
-            <TestTubeDiagonal aria-hidden="true" className="size-3.5" />{' '}
-            Backtest
-          </Link>
-          <button
-            className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:border-rose-200 hover:text-rose-600 disabled:opacity-50"
-            disabled={archiving}
-            onClick={() => void toggleArchive()}
-            type="button"
-          >
-            {entry.archivedAt === null ? (
-              <>
-                <Archive aria-hidden="true" className="size-3.5" /> Archive
-              </>
-            ) : (
-              <>
-                <ArchiveRestore aria-hidden="true" className="size-3.5" />{' '}
-                Unarchive
-              </>
-            )}
-          </button>
+          <details className="relative">
+            <summary
+              aria-label="More actions"
+              className="flex cursor-pointer list-none items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-600 transition hover:border-indigo-200 [&::-webkit-details-marker]:hidden"
+            >
+              <MoreVertical aria-hidden="true" className="size-4" />
+            </summary>
+            <div className="absolute right-0 z-10 mt-1.5 w-40 rounded-lg border border-slate-200 bg-white p-1 shadow-lg">
+              <Link
+                className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50"
+                href={`/backtests?strategyVersionId=${selectedVersion.id}`}
+              >
+                <TestTubeDiagonal aria-hidden="true" className="size-3.5" />
+                Backtest
+              </Link>
+              <button
+                className="flex w-full items-center gap-1.5 rounded-md px-2.5 py-1.5 text-left text-xs font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+                disabled={archiving}
+                onClick={() => void toggleArchive()}
+                type="button"
+              >
+                {entry.archivedAt === null ? (
+                  <>
+                    <Archive aria-hidden="true" className="size-3.5" /> Archive
+                  </>
+                ) : (
+                  <>
+                    <ArchiveRestore aria-hidden="true" className="size-3.5" />
+                    Unarchive
+                  </>
+                )}
+              </button>
+            </div>
+          </details>
         </div>
       </div>
 
