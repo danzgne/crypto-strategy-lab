@@ -24,12 +24,24 @@ export class InMemoryDomainEventBus implements DomainEventPublisher {
     name: TName,
     handler: DomainEventHandler<TName>,
   ): () => void {
-    this.emitter.on(name, handler);
-    return () => this.emitter.off(name, handler);
+    const consumedEventIds = new Set<string>();
+    const listener = (event: DomainEventEnvelope<TName>): void => {
+      if (consumedEventIds.has(event.eventId)) return;
+      handler(event);
+      consumedEventIds.add(event.eventId);
+    };
+    this.emitter.on(name, listener);
+    return () => this.emitter.off(name, listener);
   }
 
   public subscribeAll(handler: (event: AnyDomainEvent) => void): () => void {
-    this.emitter.on('*', handler);
-    return () => this.emitter.off('*', handler);
+    const consumedEventIds = new Set<string>();
+    const listener = (event: AnyDomainEvent): void => {
+      if (consumedEventIds.has(event.eventId)) return;
+      handler(event);
+      consumedEventIds.add(event.eventId);
+    };
+    this.emitter.on('*', listener);
+    return () => this.emitter.off('*', listener);
   }
 }

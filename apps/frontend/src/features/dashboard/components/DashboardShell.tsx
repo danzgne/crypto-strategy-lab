@@ -34,7 +34,7 @@ const navigation: NavItem[] = [
     implemented: true,
   },
   { label: 'Discovery', icon: Search, href: '/discovery', implemented: true },
-  { label: 'Backtest', icon: BarChart3, href: '#backtest', implemented: false },
+  { label: 'Backtest', icon: BarChart3, href: '/backtests', implemented: true },
   {
     label: 'News Crawler',
     icon: BookOpenText,

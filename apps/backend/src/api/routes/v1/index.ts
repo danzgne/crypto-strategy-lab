@@ -20,6 +20,11 @@ import {
   type StrategyLibraryService,
 } from '@/api/features/strategies';
 import {
+  BacktestController,
+  createBacktestFeatureRouter,
+  type BacktestServiceInterface,
+} from '@/api/features/backtests';
+import {
   createStrategyLibraryFeatureRouter,
   type StrategyLibraryServiceInterface,
 } from '@/api/features/strategies/library';
@@ -35,6 +40,7 @@ export function createV1Router(
   newsService?: NewsServiceInterface,
   strategies?: StrategiesRouterDependencies,
   strategyLibraryService?: StrategyLibraryServiceInterface,
+  backtestService?: BacktestServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
@@ -67,6 +73,11 @@ export function createV1Router(
       ),
     );
   }
-
+  if (backtestService !== undefined) {
+    router.use(
+      '/backtests',
+      createBacktestFeatureRouter(new BacktestController(backtestService)),
+    );
+  }
   return router;
 }

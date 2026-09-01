@@ -170,6 +170,9 @@ importers:
       '@crypto-strategy-lab/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@crypto-strategy-lab/strategy-engine':
+        specifier: workspace:*
+        version: link:../../packages/strategy-engine
       '@prisma/adapter-pg':
         specifier: ^7.9.1
         version: 7.9.1

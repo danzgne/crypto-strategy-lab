@@ -76,15 +76,16 @@ model Session {
 }
 
 model StrategyDefinition {
-  id          String   @id @default(uuid()) @db.Uuid
-  ownerId     String   @db.Uuid
-  owner       User     @relation(fields: [ownerId], references: [id])
+  id          String  @id @default(uuid()) @db.Uuid
+  ownerId     String  @db.Uuid
+  owner       User    @relation(fields: [ownerId], references: [id])
   name        String
   description String?
   type        String
   source      String
   sourceInput String   @db.Text
   tags        String[] @default([])
+  isPrivate   Boolean @default(false)
 
   versions  StrategyVersion[]
   createdAt DateTime          @default(now()) @db.Timestamptz(3)
@@ -102,38 +103,70 @@ model StrategyVersion {
   params               Json
   versionTag           String
   libraryVersion       String
+  canonicalIdentity    String?
 
   experiments Experiment[]
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
+  @@unique([ownerId, canonicalIdentity])
   @@map("strategy_versions")
 }
 
-model Experiment {
-  id                String          @id @default(uuid()) @db.Uuid
-  ownerId           String          @db.Uuid
-  owner             User            @relation(fields: [ownerId], references: [id])
-  strategyVersionId String          @db.Uuid
-  strategyVersion   StrategyVersion @relation(fields: [strategyVersionId], references: [id])
-
+model DatasetSnapshot {
+  id                String       @id @default(uuid()) @db.Uuid
   pair              String
+  timeframe         String
   startTime         BigInt
   endTime           BigInt
-  initialInvestment Decimal @db.Decimal(38, 18)
-  transactionCost   Decimal @db.Decimal(38, 18)
-  slippage          Decimal @db.Decimal(38, 18)
+  warmupCandleCount Int
+  candles           Json
+  fingerprint       String       @unique
+  experiments       Experiment[]
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
 
-  score       Decimal? @db.Decimal(38, 18)
-  return      Decimal? @db.Decimal(38, 18)
-  maxDrawdown Decimal? @db.Decimal(38, 18)
-  winRate     Decimal? @db.Decimal(38, 18)
+  @@index([pair, timeframe, startTime, endTime])
+  @@map("dataset_snapshots")
+}
+
+model Experiment {
+  id                String           @id @default(uuid()) @db.Uuid
+  ownerId           String           @db.Uuid
+  owner             User             @relation(fields: [ownerId], references: [id])
+  strategyVersionId String           @db.Uuid
+  strategyVersion   StrategyVersion  @relation(fields: [strategyVersionId], references: [id])
+  datasetSnapshotId String?          @db.Uuid
+  datasetSnapshot   DatasetSnapshot? @relation(fields: [datasetSnapshotId], references: [id])
+
+  pair                   String
+  timeframe              String  @default("1m")
+  startTime              BigInt
+  endTime                BigInt
+  initialInvestment      Decimal @db.Decimal(38, 18)
+  transactionCost        Decimal @db.Decimal(38, 18)
+  slippage               Decimal @db.Decimal(38, 18)
+  simulationRulesVersion String  @default("historical-v1")
+  evaluatorVersion       String  @default("default-v1")
+
+  score                Decimal? @db.Decimal(38, 18)
+  return               Decimal? @db.Decimal(38, 18)
+  maxDrawdown          Decimal? @db.Decimal(38, 18)
+  winRate              Decimal? @db.Decimal(38, 18)
+  maxDrawdownAmount    Decimal? @db.Decimal(38, 18)
+  totalTrades          Int?
+  wins                 Int?
+  losses               Int?
+  totalProfit          Decimal? @db.Decimal(38, 18)
+  profitFactor         Decimal? @db.Decimal(38, 18)
+  profitFactorInfinite Boolean  @default(false)
+  sharpeRatio          Decimal? @db.Decimal(38, 18)
 
   trades      Trade[]
   backtestJob BacktestJob?
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
+  @@index([ownerId, createdAt])
   @@map("experiments")
 }
 
@@ -156,6 +189,7 @@ model Trade {
   transactionCost Decimal  @db.Decimal(38, 18)
   slippage        Decimal  @db.Decimal(38, 18)
   profit          Decimal? @db.Decimal(38, 18)
+  exitReason      String?
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
@@ -180,21 +214,38 @@ enum JobStatus {
 }
 
 model BacktestJob {
-  id           String     @id @default(uuid()) @db.Uuid
-  ownerId      String     @db.Uuid
-  owner        User       @relation(fields: [ownerId], references: [id])
-  experimentId String     @unique @db.Uuid
-  experiment   Experiment @relation(fields: [experimentId], references: [id])
-  status       JobStatus  @default(PENDING)
-  claimedAt    DateTime?  @db.Timestamptz(3)
-  retryCount   Int        @default(0)
-  error        String?    @db.Text
+  id             String     @id @default(uuid()) @db.Uuid
+  ownerId        String     @db.Uuid
+  owner          User       @relation(fields: [ownerId], references: [id])
+  experimentId   String     @unique @db.Uuid
+  experiment     Experiment @relation(fields: [experimentId], references: [id])
+  status         JobStatus  @default(PENDING)
+  claimedAt      DateTime?  @db.Timestamptz(3)
+  workerId       String?
+  leaseToken     String?    @db.Uuid
+  leaseExpiresAt DateTime?  @db.Timestamptz(3)
+  retryCount     Int        @default(0)
+  error          String?    @db.Text
 
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([status, claimedAt])
   @@map("backtest_jobs")
+}
+
+model OutboxEvent {
+  id          String    @id @default(uuid()) @db.Uuid
+  eventId     String    @unique @db.Uuid
+  name        String
+  version     Int
+  occurredAt  DateTime  @db.Timestamptz(3)
+  payload     Json
+  publishedAt DateTime? @db.Timestamptz(3)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+
+  @@index([publishedAt, createdAt])
+  @@map("event_outbox")
 }
 
 model Leaderboard {

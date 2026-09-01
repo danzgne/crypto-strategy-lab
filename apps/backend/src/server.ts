@@ -6,6 +6,7 @@ import type { HealthRepository } from '@/api/features/health';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
 import type { NewsServiceInterface } from '@/api/features/news';
 import type { StrategyLibraryServiceInterface } from '@/api/features/strategies/library';
+import type { BacktestServiceInterface } from '@/api/features/backtests';
 import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
 import { notFoundHandler } from '@/api/middlewares/handlers/notFoundHandler';
 import { requestLogger } from '@/api/middlewares/logging/requestLogger';
@@ -25,6 +26,7 @@ interface AppDependencies {
   sessionMiddleware: express.RequestHandler;
   allowedOrigin?: string;
   logger?: AppLogger;
+  backtestService?: BacktestServiceInterface;
 }
 
 export function createApp({
@@ -36,6 +38,7 @@ export function createApp({
   sessionMiddleware,
   allowedOrigin = 'http://localhost:3000',
   logger = createAppLogger({ service: 'backend-test', enabled: false }),
+  backtestService,
 }: AppDependencies): Express {
   const app = express();
 
@@ -54,6 +57,7 @@ export function createApp({
       newsService,
       strategies,
       strategyLibraryService,
+      backtestService,
     ),
   );
   app.use(notFoundHandler);

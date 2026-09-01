@@ -274,6 +274,12 @@ export class StrategyLibraryService implements StrategyLibraryServiceInterface {
         ...(request.composite.threshold === undefined
           ? {}
           : { threshold: request.composite.threshold }),
+        ...(request.composite.stopLoss === undefined
+          ? {}
+          : { stopLoss: request.composite.stopLoss }),
+        ...(request.composite.takeProfit === undefined
+          ? {}
+          : { takeProfit: request.composite.takeProfit }),
       });
     } catch (error) {
       throw new StrategyLibraryValidationError(
@@ -338,6 +344,12 @@ function toCompositeRequest(
     })),
     mode: composite.mode,
     threshold: composite.threshold,
+    ...(composite.stopLoss === undefined
+      ? {}
+      : { stopLoss: composite.stopLoss }),
+    ...(composite.takeProfit === undefined
+      ? {}
+      : { takeProfit: composite.takeProfit }),
   };
 }
 

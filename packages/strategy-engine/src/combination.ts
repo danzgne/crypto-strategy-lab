@@ -27,6 +27,8 @@ export interface CompositeStrategyDefinition {
   readonly members: readonly CompositeMember[];
   readonly mode: CombinationMode;
   readonly threshold?: number;
+  readonly stopLoss?: number;
+  readonly takeProfit?: number;
 }
 
 export interface NormalizedCompositeMember {
@@ -40,6 +42,8 @@ export interface NormalizedCompositeStrategyDefinition {
   readonly members: readonly NormalizedCompositeMember[];
   readonly mode: CombinationMode;
   readonly threshold: number;
+  readonly stopLoss: number | undefined;
+  readonly takeProfit: number | undefined;
 }
 
 interface CompositeRuntimeMember {
@@ -99,6 +103,8 @@ export interface CompositeStrategy extends Strategy<NormalizedCompositeStrategyD
   readonly identity: string;
   readonly versionId: string;
   readonly displayName: string;
+  readonly stopLoss: number | undefined;
+  readonly takeProfit: number | undefined;
 }
 
 class CompositeStrategyImplementation implements CompositeStrategy {
@@ -120,6 +126,10 @@ class CompositeStrategyImplementation implements CompositeStrategy {
 
   public readonly displayName: string;
 
+  public readonly stopLoss: number | undefined;
+
+  public readonly takeProfit: number | undefined;
+
   private readonly runtimeMembers: readonly CompositeRuntimeMember[];
 
   public constructor(
@@ -131,16 +141,21 @@ class CompositeStrategyImplementation implements CompositeStrategy {
     const members = Object.freeze(
       definition.members.map((member) => Object.freeze({ ...member })),
     );
-    const normalizedDefinition = Object.freeze({
-      members,
-      mode: definition.mode,
-      threshold: definition.threshold,
-    });
+    const normalizedDefinition: NormalizedCompositeStrategyDefinition =
+      Object.freeze({
+        members,
+        mode: definition.mode,
+        threshold: definition.threshold,
+        stopLoss: definition.stopLoss,
+        takeProfit: definition.takeProfit,
+      });
 
     this.members = members;
     this.mode = normalizedDefinition.mode;
     this.threshold = normalizedDefinition.threshold;
     this.params = normalizedDefinition;
+    this.stopLoss = normalizedDefinition.stopLoss;
+    this.takeProfit = normalizedDefinition.takeProfit;
     this.runtimeMembers = Object.freeze(
       runtimeMembers.map((member) => Object.freeze({ ...member })),
     );
@@ -182,6 +197,12 @@ export class CombinationEngine {
       })),
       mode: normalized.definition.mode,
       threshold: normalized.definition.threshold,
+      ...(normalized.definition.stopLoss === undefined
+        ? {}
+        : { stopLoss: normalized.definition.stopLoss }),
+      ...(normalized.definition.takeProfit === undefined
+        ? {}
+        : { takeProfit: normalized.definition.takeProfit }),
     });
     const displayName = normalized.runtimeMembers
       .map(({ strategy }) => formatStrategyName(strategy))
@@ -302,6 +323,9 @@ function normalizeDefinition(
   const threshold =
     definition.mode === 'weighted' ? resolveThreshold(definition.threshold) : 0;
 
+  const stopLoss = resolveRiskRatio(definition.stopLoss, 'stopLoss');
+  const takeProfit = resolveRiskRatio(definition.takeProfit, 'takeProfit');
+
   const sortedRuntimeMembers = membersWithRawWeights.map((member, index) => ({
     strategy: member.strategy,
     versionId: member.versionId,
@@ -319,6 +343,8 @@ function normalizeDefinition(
       members: normalizedMembers,
       mode: definition.mode,
       threshold,
+      stopLoss,
+      takeProfit,
     },
     runtimeMembers: sortedRuntimeMembers,
   };
@@ -410,6 +436,20 @@ function resolveThreshold(threshold: number | undefined): number {
     );
   }
   return resolved;
+}
+
+function resolveRiskRatio(
+  value: number | undefined,
+  name: 'stopLoss' | 'takeProfit',
+): number | undefined {
+  if (value === undefined) return undefined;
+  if (!Number.isFinite(value) || value < 0 || value >= 1) {
+    throw new CombinationValidationError(
+      'INVALID_THRESHOLD',
+      `Composite Strategy ${name} must be finite and within [0, 1)`,
+    );
+  }
+  return value;
 }
 
 function majoritySignal(signals: readonly Signal[]): Signal {

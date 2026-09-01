@@ -15,6 +15,15 @@ export function isTimeframe(value: unknown): value is Timeframe {
   return typeof value === 'string' && TIMEFRAMES.includes(value as Timeframe);
 }
 
+export const TIMEFRAME_INTERVAL_MS: Readonly<Record<Timeframe, number>> = {
+  '1m': 60_000,
+  '5m': 5 * 60_000,
+  '15m': 15 * 60_000,
+  '1h': 60 * 60_000,
+  '4h': 4 * 60 * 60_000,
+  '1d': 24 * 60 * 60_000,
+};
+
 export interface MarketKey {
   pair: Pair;
   timeframe: Timeframe;

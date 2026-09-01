@@ -375,6 +375,12 @@ export class StrategyLiveService {
         ...(request.composite.threshold === undefined
           ? {}
           : { threshold: request.composite.threshold }),
+        ...(request.composite.stopLoss === undefined
+          ? {}
+          : { stopLoss: request.composite.stopLoss }),
+        ...(request.composite.takeProfit === undefined
+          ? {}
+          : { takeProfit: request.composite.takeProfit }),
       });
       return { strategy: composite, versionId: composite.versionId };
     }

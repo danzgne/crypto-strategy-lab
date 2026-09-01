@@ -156,7 +156,7 @@ describe('PostgresJobQueue Integration', () => {
     const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000);
     await prisma.backtestJob.update({
       where: { id: jobId },
-      data: { claimedAt: sixMinutesAgo },
+      data: { claimedAt: sixMinutesAgo, leaseExpiresAt: sixMinutesAgo },
     });
 
     // Should be able to claim again

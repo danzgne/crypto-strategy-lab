@@ -18,6 +18,7 @@ import { createSocketServer } from '@/realtime/socketServer';
 import { createApp } from '@/server';
 import { createAppLogger } from '@/utils/logger';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
+import { PrismaOutboxDispatcher } from '@/events/prismaOutboxDispatcher';
 import { createSessionMiddleware } from '@/api/middlewares/auth/session';
 import { PrismaAuthRepository, PasswordAuthService } from '@/api/features/auth';
 import { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
@@ -32,6 +33,10 @@ import {
   NewsScheduler,
   NewsService,
 } from '@/api/features/news';
+import {
+  BacktestService,
+  PrismaBacktestRepository,
+} from '@/api/features/backtests';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -48,6 +53,7 @@ async function startBackend(): Promise<void> {
   });
   const prisma = createPrismaClient(config.databaseUrl);
   const eventBus = new InMemoryDomainEventBus();
+  const outboxDispatcher = new PrismaOutboxDispatcher(prisma, eventBus, logger);
   const healthRepository = new PrismaHealthRepository(prisma);
   const healthService = new HealthService(healthRepository);
   const exchangeAdapter = new BinanceAdapter();
@@ -97,6 +103,11 @@ async function startBackend(): Promise<void> {
   const strategyLibraryService = new StrategyLibraryService({
     repository: new PrismaStrategyLibraryRepository(prisma),
   });
+  const backtestService = new BacktestService({
+    historyProvider: marketDataService,
+    maxSelectedCandles: config.maxBacktestCandles,
+    repository: new PrismaBacktestRepository(prisma),
+  });
 
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
@@ -120,6 +131,7 @@ async function startBackend(): Promise<void> {
   });
 
   await prisma.$connect();
+  outboxDispatcher.start();
   await healthService.recordStarted(config.instanceId);
 
   const sessionMiddleware = createSessionMiddleware(prisma, {
@@ -155,6 +167,7 @@ async function startBackend(): Promise<void> {
     sessionMiddleware,
     allowedOrigin: config.frontendOrigin,
     logger,
+    backtestService,
   });
   const httpServer = createServer(app);
   const socketServer = createSocketServer(httpServer, {
@@ -185,6 +198,7 @@ async function startBackend(): Promise<void> {
 
     newsScheduler.stop();
     await strategyLiveService.close();
+    outboxDispatcher.stop();
     await marketDataService.close();
     await marketTickService.close();
     await socketServer.close();

@@ -47,6 +47,7 @@ services:
       BACKEND_HOST: 0.0.0.0
       BACKEND_INSTANCE_ID: ${BACKEND_INSTANCE_ID:-backend-compose-1}
       BACKEND_PORT: 3100
+      BACKTEST_MAX_SELECTED_CANDLES: ${BACKTEST_MAX_SELECTED_CANDLES:-100000}
       FRONTEND_ORIGIN: http://localhost:${FRONTEND_PORT:-3000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       SESSION_SECRET: ${SESSION_SECRET:-super-secret-key-for-dev}
@@ -83,6 +84,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-crypto_lab}:${POSTGRES_PASSWORD:-crypto_lab}@postgres:5432/${POSTGRES_DB:-crypto_strategy_lab}?schema=public
       WORKER_ID: ${WORKER_ID:-backtest-worker-compose-1}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-10000}
+      WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
+      WORKER_LEASE_DURATION_MS: ${WORKER_LEASE_DURATION_MS:-300000}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       NODE_OPTIONS: '--max-http-header-size=131072'
     depends_on:

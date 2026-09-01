@@ -7,3 +7,4 @@ export * from './auth';
 export * from './strategy';
 export * from './queue';
 export * from './news/types';
+export * from './backtest';

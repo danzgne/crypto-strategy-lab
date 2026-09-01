@@ -19,6 +19,7 @@ const CHART_HEIGHT = 320;
 
 export interface CandlestickChartProperties {
   candles: Candle[];
+  chartData?: FinancialChartData;
   onRequestOlderHistory?: () => void;
   pair: string;
   renderer?: FinancialChartRenderer;
@@ -28,6 +29,7 @@ export interface CandlestickChartProperties {
 
 export function CandlestickChart({
   candles,
+  chartData: suppliedChartData,
   onRequestOlderHistory,
   pair,
   renderer = defaultChartRenderer,
@@ -40,8 +42,8 @@ export function CandlestickChart({
   const renderedChartDataRef = useRef<FinancialChartData | null>(null);
   const requestOlderHistoryRef = useRef(onRequestOlderHistory);
   const chartData = useMemo(
-    () => toMarketChartData(candles, strategySignals),
-    [candles, strategySignals],
+    () => suppliedChartData ?? toMarketChartData(candles, strategySignals),
+    [candles, strategySignals, suppliedChartData],
   );
   const hasData = chartData.candles.length > 0;
 

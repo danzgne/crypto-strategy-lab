@@ -108,6 +108,8 @@ export interface CompositeStrategyRequest {
   mode: 'majority' | 'weighted';
   members: CompositeStrategyMemberRequest[];
   threshold?: number;
+  stopLoss?: number;
+  takeProfit?: number;
 }
 
 export interface StrategyCatalogEntry {

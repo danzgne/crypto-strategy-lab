@@ -1,0 +1,172 @@
+import type { Candle } from '@crypto-strategy-lab/shared';
+import { describe, expect, it, vi } from 'vitest';
+
+import {
+  BacktestService,
+  BacktestValidationError,
+} from '../../../../src/api/features/backtests';
+import type {
+  BacktestHistoryProvider,
+  BacktestRepository,
+} from '../../../../src/api/features/backtests';
+
+const candles: Candle[] = [candle(0), candle(60_000), candle(120_000)];
+
+describe('BacktestService', () => {
+  it('prepares a closed dataset and enqueues an owner-scoped experiment', async () => {
+    const repository = createRepository();
+    const historyProvider: BacktestHistoryProvider = {
+      prepareHistoricalCandles: vi.fn().mockResolvedValue({
+        candles,
+        selectedCandles: candles,
+        warmupCandleCount: 0,
+      }),
+    };
+    const service = new BacktestService({ historyProvider, repository });
+
+    const result = await service.submit('owner-1', {
+      endTime: 180_000,
+      initialInvestment: '1000',
+      pair: 'btcusdt',
+      params: { fast: 2, slow: 3 },
+      slippage: '5',
+      startTime: 0,
+      strategyId: 'ma',
+      timeframe: '1m',
+      transactionCost: '0.0008',
+    });
+
+    expect(result).toEqual({
+      experimentId: 'experiment-1',
+      jobId: 'job-1',
+      status: 'queued',
+    });
+    expect(historyProvider.prepareHistoricalCandles).toHaveBeenCalledWith(
+      { endTime: 180_000, pair: 'BTCUSDT', startTime: 0, timeframe: '1m' },
+      4,
+      100_000,
+    );
+    expect(repository.createSubmission).toHaveBeenCalledWith(
+      'owner-1',
+      expect.objectContaining({
+        initialInvestment: '1000',
+        pair: 'BTCUSDT',
+        slippage: 5,
+        transactionCost: '0.0008',
+      }),
+    );
+  });
+
+  it('rejects unsupported pairs and misaligned ranges before fetching data', async () => {
+    const historyProvider: BacktestHistoryProvider = {
+      prepareHistoricalCandles: vi.fn(),
+    };
+    const service = new BacktestService({
+      historyProvider,
+      repository: createRepository(),
+    });
+
+    await expect(
+      service.submit('owner-1', {
+        endTime: 180_001,
+        initialInvestment: 1000,
+        pair: 'BTCUSD',
+        slippage: 0,
+        startTime: 1,
+        strategyId: 'ma',
+        timeframe: '1m',
+        transactionCost: 0,
+      }),
+    ).rejects.toBeInstanceOf(BacktestValidationError);
+    expect(historyProvider.prepareHistoricalCandles).not.toHaveBeenCalled();
+  });
+
+  it('returns selected candles, trades, and only the public six-card metrics in a result DTO', async () => {
+    const repository = createRepository();
+    repository.findResource = vi.fn().mockResolvedValue({
+      candles,
+      datasetFingerprint: 'fingerprint',
+      endTime: 180_000,
+      evaluatorVersion: 'default-v1',
+      experimentId: 'experiment-1',
+      failureReason: null,
+      initialInvestment: '1000',
+      jobId: 'job-1',
+      metrics: {
+        losses: 0,
+        maxDrawdown: '0',
+        maxDrawdownAmount: '0',
+        profitFactor: '0',
+        profitFactorInfinite: true,
+        return: '0.1',
+        score: '0.4',
+        sharpeRatio: '0',
+        totalProfit: '100',
+        totalTrades: 1,
+        winRate: '1',
+        wins: 1,
+      },
+      pair: 'BTCUSDT',
+      simulationRulesVersion: 'historical-v1',
+      slippage: '5',
+      startTime: 0,
+      status: 'completed',
+      strategyId: 'ma',
+      strategyParams: { fast: 2, slow: 3 },
+      strategyVersionId: 'version-1',
+      timeframe: '1m',
+      trades: [],
+      transactionCost: '0.0008',
+    });
+    const service = new BacktestService({
+      historyProvider: {
+        prepareHistoricalCandles: vi.fn(),
+      },
+      repository,
+    });
+
+    const result = await service.get('owner-1', 'experiment-1');
+
+    expect(result).toMatchObject({
+      candles: expect.arrayContaining([
+        expect.objectContaining({ close: '100', openTime: 0 }),
+      ]),
+      metrics: {
+        maxDrawdown: '0',
+        profitFactor: null,
+        profitFactorInfinite: true,
+        totalTrades: 1,
+        winRate: '1',
+      },
+      status: 'completed',
+    });
+    expect(result?.metrics).not.toHaveProperty('ranking');
+  });
+});
+
+function createRepository(): BacktestRepository {
+  return {
+    createSubmission: vi.fn().mockResolvedValue({
+      experimentId: 'experiment-1',
+      jobId: 'job-1',
+      strategyVersionId: 'version-1',
+    }),
+    findResource: vi.fn().mockResolvedValue(null),
+    findStrategyVersion: vi.fn().mockResolvedValue(null),
+  };
+}
+
+function candle(openTime: number): Candle {
+  return {
+    close: 100,
+    closeTime: openTime + 59_999,
+    high: 101,
+    isClosed: true,
+    low: 99,
+    open: 100,
+    openTime,
+    pair: 'BTCUSDT',
+    timeframe: '1m',
+    volume: 10,
+  };
+}

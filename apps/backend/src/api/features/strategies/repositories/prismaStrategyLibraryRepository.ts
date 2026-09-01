@@ -5,6 +5,10 @@ import type {
   SavedStrategyParams,
 } from '@crypto-strategy-lab/shared';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
+import {
+  canonicalStrategyVersionId,
+  canonicalizeValue,
+} from '@crypto-strategy-lab/shared/strategy';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 import type { AppPrismaClient } from '@/database/prismaClient';
@@ -36,7 +40,9 @@ interface StrategyDefinitionRow {
   }>;
 }
 
-export class PrismaStrategyLibraryRepository implements StrategyLibraryRepository {
+export class PrismaStrategyLibraryRepository
+  implements StrategyLibraryRepository
+{
   public constructor(private readonly prisma: AppPrismaClient) {}
 
   public async createWithFirstVersion(
@@ -86,7 +92,7 @@ export class PrismaStrategyLibraryRepository implements StrategyLibraryRepositor
     const versions = await this.prisma.strategyVersion.findMany({
       include: { strategyDefinition: true },
       orderBy: { createdAt: 'desc' },
-      where: { ownerId },
+      where: { ownerId, strategyDefinition: { isPrivate: false } },
     });
 
     return versions.map((version) =>
@@ -107,27 +113,44 @@ export class PrismaStrategyLibraryRepository implements StrategyLibraryRepositor
     const versionTag =
       request.versionTag ??
       computeStrategyVersionTag(request.strategyId, params);
+    const canonicalIdentity = canonicalIdentityForRequest(request);
     const record = await this.prisma.$transaction(async (transaction) => {
-      const definition = await transaction.strategyDefinition.create({
-        data: {
-          description: request.description ?? null,
-          name: request.name,
-          ownerId,
-          source: request.source ?? 'USER_PROMPT',
-          sourceInput: request.sourceInput ?? request.name,
-          tags: [...(request.tags ?? [])],
-          type: request.strategyId,
+      const existing = await transaction.strategyVersion.findUnique({
+        include: { strategyDefinition: true },
+        where: {
+          ownerId_canonicalIdentity: { canonicalIdentity, ownerId },
         },
       });
-      const version = await transaction.strategyVersion.create({
-        data: {
-          libraryVersion: request.libraryVersion ?? '1.0.0',
-          ownerId,
-          params: toInputJson(params),
-          strategyDefinitionId: definition.id,
-          versionTag,
-        },
-      });
+      const version =
+        existing?.strategyDefinition.isPrivate === false
+          ? existing
+          : await (async () => {
+              const definition = await transaction.strategyDefinition.create({
+                data: {
+                  description: request.description ?? null,
+                  isPrivate: false,
+                  name: request.name,
+                  ownerId,
+                  source: request.source ?? 'USER_PROMPT',
+                  sourceInput: request.sourceInput ?? request.name,
+                  tags: [...(request.tags ?? [])],
+                  type: request.strategyId,
+                },
+              });
+              return transaction.strategyVersion.create({
+                data: {
+                  canonicalIdentity,
+                  libraryVersion: request.libraryVersion ?? '1.0.0',
+                  ownerId,
+                  params: toInputJson(params),
+                  strategyDefinitionId: definition.id,
+                  versionTag,
+                },
+              });
+            })();
+      const definition = await transaction.strategyDefinition.findUniqueOrThrow(
+        { where: { id: version.strategyDefinitionId } },
+      );
 
       return {
         createdAt: version.createdAt,
@@ -172,6 +195,31 @@ function mapEntry(row: StrategyDefinitionRow): StrategyLibraryEntry {
       createdAt: latest.createdAt,
     },
   };
+}
+
+function canonicalIdentityForRequest(
+  request: PersistedStrategyRequest,
+): string {
+  if (!('composite' in request)) {
+    return canonicalStrategyVersionId(request.strategyId, request.params);
+  }
+
+  const members = request.composite.members
+    .map((member) => ({
+      versionId: canonicalStrategyVersionId(
+        member.strategyId,
+        member.params ?? {},
+      ),
+      weight: member.weight ?? 1,
+    }))
+    .sort((left, right) => left.versionId.localeCompare(right.versionId));
+  return canonicalizeValue({
+    members,
+    mode: request.composite.mode,
+    stopLoss: request.composite.stopLoss,
+    takeProfit: request.composite.takeProfit,
+    threshold: request.composite.threshold ?? 0.3,
+  });
 }
 
 function toInputJson(value: unknown): Prisma.InputJsonValue {
