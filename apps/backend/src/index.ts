@@ -37,6 +37,10 @@ import {
   BacktestService,
   PrismaBacktestRepository,
 } from '@/api/features/backtests';
+import {
+  PrismaLeaderboardRepository,
+  RankingService,
+} from '@/api/features/leaderboard';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -109,6 +113,11 @@ async function startBackend(): Promise<void> {
     repository: new PrismaBacktestRepository(prisma),
     logger,
   });
+  const leaderboardService = new RankingService({
+    eventBus,
+    repository: new PrismaLeaderboardRepository(prisma, config.leaderboardTopK),
+    topK: config.leaderboardTopK,
+  });
 
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
@@ -133,6 +142,7 @@ async function startBackend(): Promise<void> {
 
   await prisma.$connect();
   await backtestService.start();
+  await leaderboardService.start();
   outboxDispatcher.start();
   await healthService.recordStarted(config.instanceId);
 
@@ -170,6 +180,7 @@ async function startBackend(): Promise<void> {
     allowedOrigin: config.frontendOrigin,
     logger,
     backtestService,
+    leaderboardService,
   });
   const httpServer = createServer(app);
   const socketServer = createSocketServer(httpServer, {
@@ -180,6 +191,7 @@ async function startBackend(): Promise<void> {
     marketDataSource: 'Binance API + WebSocket',
     marketTickService,
     strategyLiveService,
+    leaderboardEventBus: eventBus,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -201,6 +213,7 @@ async function startBackend(): Promise<void> {
     newsScheduler.stop();
     await strategyLiveService.close();
     outboxDispatcher.stop();
+    leaderboardService.stop();
     await backtestService.stop();
     await marketDataService.close();
     await marketTickService.close();

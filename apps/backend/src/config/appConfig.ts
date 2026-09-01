@@ -13,6 +13,7 @@ const appConfigSchema = z
       .int()
       .min(1)
       .default(100_000),
+    LEADERBOARD_TOP_K: z.coerce.number().int().min(1).default(10),
     DATABASE_URL: z.string().min(1),
     FRONTEND_ORIGIN: z.url().default('http://localhost:3000'),
     LOG_LEVEL: z
@@ -51,6 +52,7 @@ export type AppConfig = {
   instanceId: string;
   port: number;
   maxBacktestCandles: number;
+  leaderboardTopK: number;
   databaseUrl: string;
   frontendOrigin: string;
   logLevel: z.infer<typeof appConfigSchema>['LOG_LEVEL'];
@@ -73,6 +75,7 @@ export function readAppConfig(
     instanceId: parsed.BACKEND_INSTANCE_ID,
     port: parsed.BACKEND_PORT,
     maxBacktestCandles: parsed.BACKTEST_MAX_SELECTED_CANDLES,
+    leaderboardTopK: parsed.LEADERBOARD_TOP_K,
     databaseUrl: parsed.DATABASE_URL,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     logLevel: parsed.LOG_LEVEL,

@@ -28,6 +28,11 @@ import {
   createStrategyLibraryFeatureRouter,
   type StrategyLibraryServiceInterface,
 } from '@/api/features/strategies/library';
+import {
+  createLeaderboardFeatureRouter,
+  LeaderboardController,
+  type LeaderboardServiceInterface,
+} from '@/api/features/leaderboard';
 
 export interface StrategiesRouterDependencies {
   generationService: StrategyGenerationService;
@@ -41,6 +46,7 @@ export function createV1Router(
   strategies?: StrategiesRouterDependencies,
   strategyLibraryService?: StrategyLibraryServiceInterface,
   backtestService?: BacktestServiceInterface,
+  leaderboardService?: LeaderboardServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
@@ -77,6 +83,14 @@ export function createV1Router(
     router.use(
       '/backtests',
       createBacktestFeatureRouter(new BacktestController(backtestService)),
+    );
+  }
+  if (leaderboardService !== undefined) {
+    router.use(
+      '/leaderboard',
+      createLeaderboardFeatureRouter(
+        new LeaderboardController(leaderboardService),
+      ),
     );
   }
   return router;

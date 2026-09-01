@@ -155,7 +155,9 @@ describe('backtest job lifecycle integration', () => {
     );
     expect(evaluated?.payload).toMatchObject({
       experimentId: first.id,
-      score: 0.4,
+      ownerId,
+      score: '0.4',
+      strategyKind: 'singular',
       strategyVersionId,
     });
 

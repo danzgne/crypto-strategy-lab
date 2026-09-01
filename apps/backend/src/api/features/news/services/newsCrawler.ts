@@ -101,7 +101,7 @@ export class NewsCrawler implements NewsCrawlerInterface {
           newsItemId: item.id,
           provider: source.providerType,
         });
-        this.eventPublisher.publish(event);
+        await this.eventPublisher.publish(event);
       }
 
       await this.newsRepository.recordCrawlAttempt({
@@ -240,7 +240,7 @@ export class NewsCrawler implements NewsCrawlerInterface {
       newsItemId: item.id,
       provider: 'HTML',
     });
-    this.eventPublisher.publish(event);
+    await this.eventPublisher.publish(event);
 
     return item;
   }

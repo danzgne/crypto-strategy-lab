@@ -61,7 +61,7 @@ model User {
   trades              Trade[]
   searchRuns          SearchRun[]
   backtestJobs        BacktestJob[]
-  leaderboardEntries  Leaderboard[]
+  leaderboard         Leaderboard?
 
   @@map("users")
 }
@@ -76,16 +76,16 @@ model Session {
 }
 
 model StrategyDefinition {
-  id          String  @id @default(uuid()) @db.Uuid
-  ownerId     String  @db.Uuid
-  owner       User    @relation(fields: [ownerId], references: [id])
+  id          String   @id @default(uuid()) @db.Uuid
+  ownerId     String   @db.Uuid
+  owner       User     @relation(fields: [ownerId], references: [id])
   name        String
   description String?
   type        String
   source      String
   sourceInput String   @db.Text
   tags        String[] @default([])
-  isPrivate   Boolean @default(false)
+  isPrivate   Boolean  @default(false)
 
   versions  StrategyVersion[]
   createdAt DateTime          @default(now()) @db.Timestamptz(3)
@@ -161,10 +161,11 @@ model Experiment {
   profitFactorInfinite Boolean  @default(false)
   sharpeRatio          Decimal? @db.Decimal(38, 18)
 
-  trades      Trade[]
-  backtestJob BacktestJob?
-  createdAt   DateTime     @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
+  trades             Trade[]
+  backtestJob        BacktestJob?
+  leaderboardEntries LeaderboardEntry[]
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
 
   @@index([ownerId, createdAt])
   @@map("experiments")
@@ -249,11 +250,54 @@ model OutboxEvent {
 }
 
 model Leaderboard {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+  id            String                    @id @default(uuid()) @db.Uuid
+  ownerId       String                    @unique @db.Uuid
+  owner         User                      @relation(fields: [ownerId], references: [id])
+  entries       LeaderboardEntry[]
+  eventReceipts LeaderboardEventReceipt[]
+  createdAt     DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime                  @updatedAt @db.Timestamptz(3)
 
   @@map("leaderboard")
+}
+
+model LeaderboardEntry {
+  id                  String      @id @default(uuid()) @db.Uuid
+  leaderboardId       String      @db.Uuid
+  leaderboard         Leaderboard @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  experimentId        String      @db.Uuid
+  experiment          Experiment  @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  rank                Int
+  strategyVersionId   String      @db.Uuid
+  strategyDisplayName String
+  memberStrategies    Json
+  pair                String
+  timeframe           String
+  startTime           BigInt
+  endTime             BigInt
+  score               Decimal     @db.Decimal(38, 18)
+  return              Decimal     @db.Decimal(38, 18)
+  winRate             Decimal     @db.Decimal(38, 18)
+  maxDrawdown         Decimal     @db.Decimal(38, 18)
+  totalProfit         Decimal     @db.Decimal(38, 18)
+  totalTrades         Int
+  createdAt           DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime    @updatedAt @db.Timestamptz(3)
+
+  @@unique([leaderboardId, experimentId])
+  @@index([leaderboardId, rank])
+  @@map("leaderboard_entries")
+}
+
+model LeaderboardEventReceipt {
+  id            String      @id @default(uuid()) @db.Uuid
+  leaderboardId String      @db.Uuid
+  leaderboard   Leaderboard @relation(fields: [leaderboardId], references: [id], onDelete: Cascade)
+  eventId       String      @unique @db.Uuid
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+
+  @@index([leaderboardId, createdAt])
+  @@map("leaderboard_event_receipts")
 }
 
 enum NewsProviderType {

@@ -15,6 +15,10 @@ import { registerMarketTickGateway } from '@/api/features/marketData/realtime/ma
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
 import { registerStrategyGateway } from '@/api/features/strategies/realtime/strategyGateway';
+import {
+  registerLeaderboardGateway,
+  type LeaderboardRealtimeEventBus,
+} from '@/api/features/leaderboard/realtime/leaderboardGateway';
 import { createAppLogger, type AppLogger } from '@/utils/logger';
 
 interface SocketServerOptions {
@@ -25,6 +29,7 @@ interface SocketServerOptions {
   marketDataSource?: string;
   marketTickService?: MarketTickService;
   strategyLiveService?: StrategyLiveService;
+  leaderboardEventBus?: LeaderboardRealtimeEventBus;
 }
 
 export function createSocketServer(
@@ -37,6 +42,7 @@ export function createSocketServer(
     marketDataSource,
     marketTickService,
     strategyLiveService,
+    leaderboardEventBus,
   }: SocketServerOptions,
 ): Server<
   ClientToServerEvents,
@@ -100,5 +106,12 @@ export function createSocketServer(
     logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
     strategyLiveService,
   );
+  if (leaderboardEventBus !== undefined) {
+    registerLeaderboardGateway(
+      socketServer,
+      leaderboardEventBus,
+      logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
+    );
+  }
   return socketServer;
 }

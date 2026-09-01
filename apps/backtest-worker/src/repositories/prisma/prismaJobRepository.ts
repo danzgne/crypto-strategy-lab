@@ -1,7 +1,15 @@
 import { randomUUID } from 'node:crypto';
 
-import type { AnyDomainEvent, Candle, Job } from '@crypto-strategy-lab/shared';
-import { createDomainEvent } from '@crypto-strategy-lab/shared';
+import type {
+  AnyDomainEvent,
+  Candle,
+  Job,
+  Timeframe,
+} from '@crypto-strategy-lab/shared';
+import {
+  createDomainEvent,
+  formatCompositeStrategyDisplay,
+} from '@crypto-strategy-lab/shared';
 import { Prisma } from '../../../../../generated/prisma/client';
 
 import type { WorkerPrismaClient } from '../../database/prismaClient';
@@ -161,10 +169,27 @@ export class PrismaJobRepository implements JobRepository {
   ): Promise<boolean> {
     return this.prisma.$transaction(async (transaction) => {
       const experiment = await transaction.experiment.findUnique({
-        select: { ownerId: true, strategyVersionId: true },
+        select: {
+          endTime: true,
+          ownerId: true,
+          pair: true,
+          startTime: true,
+          strategyVersion: {
+            select: {
+              params: true,
+              strategyDefinition: { select: { name: true, type: true } },
+            },
+          },
+          strategyVersionId: true,
+          timeframe: true,
+        },
         where: { id: job.experimentId },
       });
       if (experiment === null) return false;
+      const strategyDisplay = formatCompositeStrategyDisplay(
+        experiment.strategyVersion.params,
+        experiment.strategyVersion.strategyDefinition.name,
+      );
 
       const claimed = await transaction.backtestJob.updateMany({
         data: {
@@ -231,9 +256,25 @@ export class PrismaJobRepository implements JobRepository {
       await createOutboxEvent(
         transaction,
         createDomainEvent('StrategyEvaluated', {
+          endTime: Number(experiment.endTime),
           experimentId: job.experimentId,
-          score: outcome.metrics.score,
+          maxDrawdown: decimalString(outcome.metrics.maxDrawdown),
+          memberStrategies: strategyDisplay.members,
+          ownerId: experiment.ownerId,
+          pair: experiment.pair,
+          return: decimalString(outcome.metrics.return),
+          score: decimalString(outcome.metrics.score),
+          startTime: Number(experiment.startTime),
+          strategyDisplayName: strategyDisplay.name,
+          strategyKind:
+            experiment.strategyVersion.strategyDefinition.type === 'composite'
+              ? 'composite'
+              : 'singular',
           strategyVersionId: experiment.strategyVersionId,
+          timeframe: experiment.timeframe as Timeframe,
+          totalProfit: decimalString(outcome.metrics.totalProfit),
+          totalTrades: outcome.metrics.totalTrades,
+          winRate: decimalString(outcome.metrics.winRate),
         }),
       );
       return true;
@@ -376,4 +417,8 @@ function numberValue(value: unknown): number | null {
 function toNumber(value: unknown): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function decimalString(value: number): string {
+  return String(value);
 }

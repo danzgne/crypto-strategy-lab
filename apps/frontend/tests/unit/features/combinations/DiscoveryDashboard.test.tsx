@@ -42,6 +42,10 @@ vi.mock('../../../../src/features/strategies', () => ({
   }),
 }));
 
+vi.mock('../../../../src/features/leaderboard', () => ({
+  LeaderboardPanel: () => <div data-testid="leaderboard-panel" />,
+}));
+
 import { DiscoveryDashboard } from '../../../../src/features/combinations';
 
 describe('DiscoveryDashboard', () => {

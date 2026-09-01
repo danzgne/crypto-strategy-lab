@@ -216,10 +216,20 @@ _Avoid_: Rank (Rank is the resulting position; Score is the number that determin
 A normalized [0, 1] measure of risk quality derived from Max Drawdown for Leaderboard scoring; higher means
 lower drawdown and therefore safer performance.
 
+**Leaderboard Entry**:
+The item shown on a User's Leaderboard: one successful completed Composite Strategy Experiment with its rank,
+strategy display information, and evaluation metrics. It points to that Experiment rather than replacing it, so
+the full backtest result remains available through the Experiment detail.
+
 **Leaderboard**:
-One User's ranked Top-K list of their own evaluated CandidateStrategies, ordered by Score. Private per User:
-there is no global Leaderboard, because an entry names its member Strategies and would otherwise publish one
-User's strategy design to everyone (see ADR-0005).
+One User's ranked Top-K list of successful completed Composite Strategy Experiments, ordered by Score. It spans
+the User's evaluated pairs, timeframes, and date ranges, and is private per User: there is no global Leaderboard,
+because an entry names its member Strategies and would otherwise publish one User's strategy design to everyone
+(see ADR-0005).
+
+**Ranking Service**:
+The component that consumes StrategyEvaluated facts, selects a User's highest-scoring eligible Experiments, and
+maintains the User's Leaderboard. It does not run backtests or recompute evaluation Scores.
 
 ### Market Data
 

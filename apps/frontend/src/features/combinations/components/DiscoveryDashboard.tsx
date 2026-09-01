@@ -12,6 +12,7 @@ import { useState } from 'react';
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { useSavedStrategies } from '../../strategies';
 import { useStrategyCatalog } from '../../market-data/hooks/useStrategyCatalog';
+import { LeaderboardPanel } from '../../leaderboard';
 import { ManualCompositeBuilder } from './ManualCompositeBuilder';
 import { SingularStrategyBuilder } from './SingularStrategyBuilder';
 
@@ -73,6 +74,7 @@ export function DiscoveryDashboard() {
         loading={saved.loading}
         strategies={saved.strategies}
       />
+      <LeaderboardPanel />
     </div>
   );
 }
