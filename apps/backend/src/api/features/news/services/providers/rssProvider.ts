@@ -6,7 +6,7 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import type { NewsProvider } from '../interfaces/newsProvider.interface';
 
-import { stripHtml } from '../../utils/htmlSanitizer';
+import { stripHtml } from '@/utils/htmlSanitizer';
 import { extractRelatedCoins } from '../../utils/coinExtractor';
 
 export class RssNewsProvider implements NewsProvider {

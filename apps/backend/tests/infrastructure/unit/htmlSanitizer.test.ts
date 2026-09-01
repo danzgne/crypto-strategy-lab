@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { stripHtml } from '@/api/features/news/utils/htmlSanitizer';
+import { stripHtml } from '@/utils/htmlSanitizer';
 
 describe('stripHtml', () => {
   it('should return empty string for empty input', () => {

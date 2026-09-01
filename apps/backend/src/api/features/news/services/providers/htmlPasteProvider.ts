@@ -7,7 +7,7 @@ import type { NewsProvider } from '../interfaces/newsProvider.interface';
 import type { ingestHtmlSchema } from '../../types/news.dto';
 import type { z } from 'zod';
 
-import { stripHtml } from '../../utils/htmlSanitizer';
+import { stripHtml } from '@/utils/htmlSanitizer';
 import { extractRelatedCoins } from '../../utils/coinExtractor';
 
 export type IngestHtmlInput = z.input<typeof ingestHtmlSchema>;
