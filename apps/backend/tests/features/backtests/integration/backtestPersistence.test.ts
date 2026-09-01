@@ -91,6 +91,7 @@ describe('backtest persistence', () => {
 
     const first = await service.submit(ownerId, request);
     const second = await service.submit(ownerId, request);
+    await service.stop();
     experimentIds.push(first.experimentId, second.experimentId);
 
     expect(second.experimentId).not.toBe(first.experimentId);

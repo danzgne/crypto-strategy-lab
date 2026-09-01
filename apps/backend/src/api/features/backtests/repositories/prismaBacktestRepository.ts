@@ -2,6 +2,8 @@ import type {
   BacktestRepository,
   BacktestSubmissionInput,
   BacktestSubmissionResult,
+  PendingBacktestSubmission,
+  PreparedDataset,
   StoredBacktestHistoryItem,
   StoredBacktestResource,
   StoredStrategyVersion,
@@ -49,23 +51,8 @@ export class PrismaBacktestRepository implements BacktestRepository {
         throw new Error('Backtest target strategy version no longer exists');
       }
 
-      const snapshot = await transaction.datasetSnapshot.upsert({
-        where: { fingerprint: input.dataset.fingerprint },
-        create: {
-          candles: toInputJson(input.dataset.candles),
-          endTime: BigInt(input.dataset.endTime),
-          fingerprint: input.dataset.fingerprint,
-          pair: input.dataset.pair,
-          startTime: BigInt(input.dataset.startTime),
-          timeframe: input.dataset.timeframe,
-          warmupCandleCount: input.dataset.warmupCandleCount,
-        },
-        update: {},
-      });
-
       const experiment = await transaction.experiment.create({
         data: {
-          datasetSnapshotId: snapshot.id,
           endTime: BigInt(input.endTime),
           evaluatorVersion: 'default-v1',
           initialInvestment: input.initialInvestment,
@@ -92,6 +79,109 @@ export class PrismaBacktestRepository implements BacktestRepository {
         jobId: job.id,
         strategyVersionId: version.id,
       };
+    });
+  }
+
+  public async attachDataset(
+    ownerId: string,
+    experimentId: string,
+    dataset: PreparedDataset,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (transaction) => {
+      const pending = await transaction.experiment.updateMany({
+        data: { updatedAt: new Date() },
+        where: { datasetSnapshotId: null, id: experimentId, ownerId },
+      });
+      if (pending.count !== 1) return false;
+      const job = await transaction.backtestJob.findFirst({
+        select: { status: true },
+        where: { experimentId, ownerId },
+      });
+      if (job === null || job.status !== 'PENDING') return false;
+
+      const snapshot = await transaction.datasetSnapshot.upsert({
+        where: { fingerprint: dataset.fingerprint },
+        create: {
+          candles: toInputJson(dataset.candles),
+          endTime: BigInt(dataset.endTime),
+          fingerprint: dataset.fingerprint,
+          pair: dataset.pair,
+          startTime: BigInt(dataset.startTime),
+          timeframe: dataset.timeframe,
+          warmupCandleCount: dataset.warmupCandleCount,
+        },
+        update: {},
+      });
+      const updated = await transaction.experiment.updateMany({
+        data: { datasetSnapshotId: snapshot.id },
+        where: {
+          datasetSnapshotId: null,
+          id: experimentId,
+          ownerId,
+        },
+      });
+      return updated.count === 1;
+    });
+  }
+
+  public async failPreparation(
+    ownerId: string,
+    experimentId: string,
+    reason: string,
+  ): Promise<boolean> {
+    return this.prisma.$transaction(async (transaction) => {
+      const pending = await transaction.experiment.updateMany({
+        data: { updatedAt: new Date() },
+        where: { datasetSnapshotId: null, id: experimentId, ownerId },
+      });
+      if (pending.count !== 1) return false;
+
+      const updated = await transaction.backtestJob.updateMany({
+        data: {
+          error: reason,
+          status: 'FAILED',
+          updatedAt: new Date(),
+        },
+        where: {
+          experimentId,
+          ownerId,
+          status: 'PENDING',
+        },
+      });
+      return updated.count === 1;
+    });
+  }
+
+  public async findPendingSubmissions(): Promise<PendingBacktestSubmission[]> {
+    const experiments = await this.prisma.experiment.findMany({
+      include: {
+        backtestJob: true,
+        strategyVersion: { include: { strategyDefinition: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+      where: { datasetSnapshotId: null },
+    });
+
+    return experiments.flatMap((experiment) => {
+      const job = experiment.backtestJob;
+      if (job === null || job.status !== 'PENDING') return [];
+      return [
+        {
+          endTime: Number(experiment.endTime),
+          experimentId: experiment.id,
+          ownerId: experiment.ownerId,
+          pair: experiment.pair,
+          startTime: Number(experiment.startTime),
+          strategyVersion: {
+            canonicalIdentity: experiment.strategyVersion.canonicalIdentity,
+            id: experiment.strategyVersion.id,
+            params: experiment.strategyVersion.params,
+            strategyId: experiment.strategyVersion.strategyDefinition.type,
+          },
+          timeframe:
+            experiment.timeframe as PendingBacktestSubmission['timeframe'],
+        },
+      ];
     });
   }
 

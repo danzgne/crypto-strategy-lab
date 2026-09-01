@@ -24,11 +24,13 @@ import type {
   BacktestHistoryProvider,
   BacktestRepository,
   BacktestSubmissionInput,
+  PendingBacktestSubmission,
   PreparedDataset,
   ResolvedBacktestTarget,
   StoredStrategyVersion,
 } from '../types';
 import type { BacktestServiceInterface } from './interfaces/backtestService.interface';
+import type { AppLogger } from '@/utils/logger';
 
 const DEFAULT_MAX_SELECTED_CANDLES = 100_000;
 
@@ -42,6 +44,7 @@ export interface BacktestServiceDependencies {
   repository: BacktestRepository;
   historyProvider: BacktestHistoryProvider;
   combinationEngine?: CombinationEngine;
+  logger?: AppLogger;
   maxSelectedCandles?: number;
 }
 
@@ -49,6 +52,10 @@ export class BacktestService implements BacktestServiceInterface {
   private readonly combinationEngine: CombinationEngine;
 
   private readonly maxSelectedCandles: number;
+
+  private readonly preparationTasks = new Set<Promise<void>>();
+
+  private acceptingPreparations = true;
 
   public constructor(
     private readonly dependencies: BacktestServiceDependencies,
@@ -58,6 +65,20 @@ export class BacktestService implements BacktestServiceInterface {
     this.maxSelectedCandles = resolveMaxSelectedCandles(
       dependencies.maxSelectedCandles,
     );
+  }
+
+  public async start(): Promise<void> {
+    this.acceptingPreparations = true;
+    const pendingSubmissions =
+      await this.dependencies.repository.findPendingSubmissions();
+    for (const pending of pendingSubmissions) {
+      this.schedulePreparation(() => this.preparePendingSubmission(pending));
+    }
+  }
+
+  public async stop(): Promise<void> {
+    this.acceptingPreparations = false;
+    await Promise.allSettled([...this.preparationTasks]);
   }
 
   public async submit(
@@ -94,47 +115,7 @@ export class BacktestService implements BacktestServiceInterface {
       );
     }
 
-    let prepared;
-    try {
-      prepared =
-        await this.dependencies.historyProvider.prepareHistoricalCandles(
-          {
-            endTime: normalized.endTime,
-            pair: normalized.pair,
-            startTime: normalized.startTime,
-            timeframe: normalized.timeframe,
-          },
-          target.requiredHistory,
-          this.maxSelectedCandles,
-        );
-    } catch (error) {
-      if (error instanceof BacktestValidationError) throw error;
-      throw new BacktestValidationError(
-        error instanceof Error
-          ? error.message
-          : 'Historical candles could not be prepared',
-        'BACKTEST_DATASET_INVALID',
-      );
-    }
-
-    const dataset: PreparedDataset = {
-      candles: prepared.candles,
-      endTime: normalized.endTime,
-      fingerprint: fingerprintDataset({
-        candles: prepared.candles,
-        endTime: normalized.endTime,
-        pair: normalized.pair,
-        startTime: normalized.startTime,
-        timeframe: normalized.timeframe,
-        warmupCandleCount: prepared.warmupCandleCount,
-      }),
-      pair: normalized.pair,
-      startTime: normalized.startTime,
-      timeframe: normalized.timeframe,
-      warmupCandleCount: prepared.warmupCandleCount,
-    };
     const input: BacktestSubmissionInput = {
-      dataset,
       endTime: normalized.endTime,
       initialInvestment: normalized.initialInvestment,
       pair: normalized.pair,
@@ -147,6 +128,17 @@ export class BacktestService implements BacktestServiceInterface {
     const created = await this.dependencies.repository.createSubmission(
       ownerId,
       input,
+    );
+    this.schedulePreparation(() =>
+      this.prepareDataset({
+        endTime: normalized.endTime,
+        experimentId: created.experimentId,
+        ownerId,
+        pair: normalized.pair,
+        requiredHistory: target.requiredHistory,
+        startTime: normalized.startTime,
+        timeframe: normalized.timeframe,
+      }),
     );
     return {
       experimentId: created.experimentId,
@@ -225,6 +217,112 @@ export class BacktestService implements BacktestServiceInterface {
 
   public list(ownerId: string): Promise<BacktestHistoryResponse> {
     return this.dependencies.repository.findHistory(ownerId);
+  }
+
+  private async preparePendingSubmission(
+    pending: PendingBacktestSubmission,
+  ): Promise<void> {
+    try {
+      const strategy = this.createStrategyFromStoredVersion(
+        pending.strategyVersion,
+        pending.pair,
+        pending.timeframe,
+      );
+      await this.prepareDataset({
+        endTime: pending.endTime,
+        experimentId: pending.experimentId,
+        ownerId: pending.ownerId,
+        pair: pending.pair,
+        requiredHistory: strategy.requiredHistory,
+        startTime: pending.startTime,
+        timeframe: pending.timeframe,
+      });
+    } catch (error) {
+      await this.recordPreparationFailure(
+        pending.ownerId,
+        pending.experimentId,
+        toPreparationError(error),
+      );
+    }
+  }
+
+  private async prepareDataset(
+    request: DatasetPreparationRequest,
+  ): Promise<void> {
+    try {
+      const prepared =
+        await this.dependencies.historyProvider.prepareHistoricalCandles(
+          {
+            endTime: request.endTime,
+            pair: request.pair,
+            startTime: request.startTime,
+            timeframe: request.timeframe,
+          },
+          request.requiredHistory,
+          this.maxSelectedCandles,
+        );
+      const dataset: PreparedDataset = {
+        candles: prepared.candles,
+        endTime: request.endTime,
+        fingerprint: fingerprintDataset({
+          candles: prepared.candles,
+          endTime: request.endTime,
+          pair: request.pair,
+          startTime: request.startTime,
+          timeframe: request.timeframe,
+          warmupCandleCount: prepared.warmupCandleCount,
+        }),
+        pair: request.pair,
+        startTime: request.startTime,
+        timeframe: request.timeframe,
+        warmupCandleCount: prepared.warmupCandleCount,
+      };
+      await this.dependencies.repository.attachDataset(
+        request.ownerId,
+        request.experimentId,
+        dataset,
+      );
+    } catch (error) {
+      await this.recordPreparationFailure(
+        request.ownerId,
+        request.experimentId,
+        toPreparationError(error),
+      );
+    }
+  }
+
+  private schedulePreparation(taskFactory: () => Promise<void>): void {
+    if (!this.acceptingPreparations) return;
+    const task = taskFactory();
+    this.preparationTasks.add(task);
+    void task
+      .finally(() => this.preparationTasks.delete(task))
+      .catch(() => undefined);
+  }
+
+  private async recordPreparationFailure(
+    ownerId: string,
+    experimentId: string,
+    error: Error,
+  ): Promise<void> {
+    try {
+      const recorded = await this.dependencies.repository.failPreparation(
+        ownerId,
+        experimentId,
+        error.message,
+      );
+      if (recorded) {
+        this.dependencies.logger?.error(
+          { err: error, experimentId, ownerId },
+          'Backtest dataset preparation failed',
+        );
+      }
+    } catch (persistenceError: unknown) {
+      this.dependencies.logger?.error(
+        { err: persistenceError, experimentId, ownerId },
+        'Backtest dataset preparation failure could not be recorded',
+      );
+    }
   }
 
   private async resolveTarget(
@@ -619,8 +717,28 @@ interface DatasetFingerprintInput {
   candles: readonly Candle[];
 }
 
+interface DatasetPreparationRequest {
+  ownerId: string;
+  experimentId: string;
+  pair: string;
+  timeframe: Timeframe;
+  startTime: number;
+  endTime: number;
+  requiredHistory: number;
+}
+
 export function fingerprintDataset(input: DatasetFingerprintInput): string {
   return createHash('sha256').update(canonicalizeValue(input)).digest('hex');
+}
+
+function toPreparationError(error: unknown): Error {
+  if (error instanceof BacktestValidationError) return error;
+  return new BacktestValidationError(
+    error instanceof Error
+      ? error.message
+      : 'Historical candles could not be prepared',
+    'BACKTEST_DATASET_INVALID',
+  );
 }
 
 function toCandleResponse(candle: Candle) {

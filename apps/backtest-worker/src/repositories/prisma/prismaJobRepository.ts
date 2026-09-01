@@ -49,9 +49,18 @@ export class PrismaJobRepository implements JobRepository {
       WHERE id = (
         SELECT id
         FROM backtest_jobs
-        WHERE status = 'PENDING'
-           OR (
-             status = 'CLAIMED'
+        WHERE (
+          (
+            status = 'PENDING'
+            AND EXISTS (
+              SELECT 1
+              FROM experiments
+              WHERE experiments.id = backtest_jobs."experimentId"
+                AND experiments."datasetSnapshotId" IS NOT NULL
+            )
+          )
+          OR (
+            status = 'CLAIMED'
             AND (
               "leaseExpiresAt" < NOW()
               OR (
@@ -59,7 +68,8 @@ export class PrismaJobRepository implements JobRepository {
                 AND "claimedAt" < NOW() - (${this.leaseDurationMs} * INTERVAL '1 millisecond')
               )
             )
-           )
+          )
+        )
         ORDER BY "createdAt", id
         FOR UPDATE SKIP LOCKED
         LIMIT 1

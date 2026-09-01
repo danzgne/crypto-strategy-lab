@@ -126,16 +126,19 @@ The manual backtest feature keeps the request path separate from simulation work
 POST /api/v1/backtests
   → BacktestController + owner authorization
   → BacktestService
-  → MarketDataService.prepareHistoricalCandles
-  → PrismaBacktestRepository
-  → DatasetSnapshot + Experiment + BacktestJob
+  → PrismaBacktestRepository creates queued Experiment + BacktestJob
+  → 202 response
+  → BacktestService prepares data asynchronously through MarketDataService
+  → PrismaBacktestRepository attaches DatasetSnapshot
 ```
 
 `MarketDataService` fetches the selected UTC start-inclusive/end-exclusive range through the exchange adapter,
 rejects forming, incomplete, or non-contiguous candles, prepends the strategy's required warm-up history, and
-returns the immutable input to the backtest repository. The service accepts a singular Strategy Version, an inline
-strategy target, or a Composite Strategy; inline targets are reused as owner-scoped private versions. Every submit
-still creates a new Experiment so historical results are never overwritten.
+returns the immutable input to the backtest repository. The submit endpoint returns the queued Experiment before
+this potentially slow preparation finishes; the backend resumes queued Experiments without snapshots after restart,
+and the worker cannot claim one until its snapshot is attached. The service accepts a singular Strategy Version, an
+inline strategy target, or a Composite Strategy; inline targets are reused as owner-scoped private versions. Every
+submit still creates a new Experiment so historical results are never overwritten.
 
 `GET /api/v1/backtests/:experimentId` is owner-scoped and returns a queued/running/failed status until the worker
 has persisted the selected-range candles, Trades, and all Metrics. The Backend never runs the simulation inline and

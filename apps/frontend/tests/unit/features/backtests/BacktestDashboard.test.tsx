@@ -1,14 +1,29 @@
-import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: vi.fn() }),
+const { historyRefresh } = vi.hoisted(() => ({
+  historyRefresh: vi.fn(),
 }));
 
 vi.mock(
   '../../../../src/features/market-data/hooks/useStrategyCatalog',
   () => ({
-    useStrategyCatalog: () => ({ strategyIds: ['ma'], strategies: [] }),
+    useStrategyCatalog: () => ({
+      strategyIds: ['ma'],
+      strategies: [
+        {
+          id: 'ma',
+          paramsSchema: { properties: {}, type: 'object' },
+          requiresParams: false,
+        },
+      ],
+    }),
   }),
 );
 
@@ -27,13 +42,17 @@ vi.mock('../../../../src/features/backtests/hooks/useBacktestHistory', () => ({
     error: null,
     items: [],
     loading: false,
-    refresh: vi.fn(),
+    refresh: historyRefresh,
   }),
 }));
 
 import { BacktestDashboard } from '../../../../src/features/backtests/components/BacktestDashboard';
 
 describe('BacktestDashboard', () => {
+  beforeEach(() => {
+    historyRefresh.mockClear();
+  });
+
   it('uses a pair combobox with the supported market choices and shows history', () => {
     render(<BacktestDashboard />);
 
@@ -47,5 +66,30 @@ describe('BacktestDashboard', () => {
     expect(
       screen.getByRole('heading', { name: 'Backtest history' }),
     ).toBeInTheDocument();
+  });
+
+  it('refreshes history and stays on the dashboard after queuing a backtest', async () => {
+    const client = {
+      get: vi.fn(),
+      list: vi.fn(),
+      submit: vi.fn().mockResolvedValue({
+        experimentId: 'experiment-1',
+        jobId: 'job-1',
+        status: 'queued' as const,
+      }),
+    };
+
+    render(<BacktestDashboard client={client} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Run Backtest' }));
+
+    await waitFor(() => expect(client.submit).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(historyRefresh).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole('button', { name: 'Run Backtest' })).toBeEnabled();
+    expect(screen.getByRole('status')).toHaveTextContent('Backtest queued');
+    expect(screen.getByRole('link', { name: 'View progress' })).toHaveAttribute(
+      'href',
+      '/backtests/experiment-1',
+    );
   });
 });

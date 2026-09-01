@@ -35,6 +35,7 @@ describe('BacktestService', () => {
       timeframe: '1m',
       transactionCost: '0.0008',
     });
+    await service.stop();
 
     expect(result).toEqual({
       experimentId: 'experiment-1',
@@ -54,6 +55,137 @@ describe('BacktestService', () => {
         slippage: 5,
         transactionCost: '0.0008',
       }),
+    );
+    expect(repository.attachDataset).toHaveBeenCalledWith(
+      'owner-1',
+      'experiment-1',
+      expect.objectContaining({
+        fingerprint: expect.any(String),
+        warmupCandleCount: 0,
+      }),
+    );
+  });
+
+  it('returns the queued resource while slow historical preparation continues', async () => {
+    let resolvePreparation!: (value: {
+      candles: Candle[];
+      selectedCandles: Candle[];
+      warmupCandleCount: number;
+    }) => void;
+    const preparation = new Promise<{
+      candles: Candle[];
+      selectedCandles: Candle[];
+      warmupCandleCount: number;
+    }>((resolve) => {
+      resolvePreparation = resolve;
+    });
+    const repository = createRepository();
+    const historyProvider: BacktestHistoryProvider = {
+      prepareHistoricalCandles: vi.fn().mockReturnValue(preparation),
+    };
+    const service = new BacktestService({ historyProvider, repository });
+
+    const submission = service.submit('owner-1', {
+      endTime: 180_000,
+      initialInvestment: '1000',
+      pair: 'BTCUSDT',
+      params: { fast: 2, slow: 3 },
+      slippage: '5',
+      startTime: 0,
+      strategyId: 'ma',
+      timeframe: '1m',
+      transactionCost: '0.0008',
+    });
+    const timeout = Symbol('submission-timeout');
+    const result = await Promise.race([
+      submission,
+      new Promise<typeof timeout>((resolve) =>
+        setTimeout(() => resolve(timeout), 100),
+      ),
+    ]);
+
+    expect(result).not.toBe(timeout);
+    expect(result).toMatchObject({
+      experimentId: 'experiment-1',
+      status: 'queued',
+    });
+
+    resolvePreparation({
+      candles,
+      selectedCandles: candles,
+      warmupCandleCount: 0,
+    });
+    await service.stop();
+  });
+
+  it('records a historical preparation failure on the queued resource', async () => {
+    const repository = createRepository();
+    const historyProvider: BacktestHistoryProvider = {
+      prepareHistoricalCandles: vi
+        .fn()
+        .mockRejectedValue(new Error('exchange history unavailable')),
+    };
+    const service = new BacktestService({ historyProvider, repository });
+
+    await service.submit('owner-1', {
+      endTime: 180_000,
+      initialInvestment: '1000',
+      pair: 'BTCUSDT',
+      params: { fast: 2, slow: 3 },
+      slippage: '5',
+      startTime: 0,
+      strategyId: 'ma',
+      timeframe: '1m',
+      transactionCost: '0.0008',
+    });
+    await service.stop();
+
+    expect(repository.failPreparation).toHaveBeenCalledWith(
+      'owner-1',
+      'experiment-1',
+      'exchange history unavailable',
+    );
+  });
+
+  it('resumes queued dataset preparation after a backend restart', async () => {
+    const repository = createRepository();
+    vi.mocked(repository.findPendingSubmissions).mockResolvedValue([
+      {
+        endTime: 180_000,
+        experimentId: 'experiment-1',
+        ownerId: 'owner-1',
+        pair: 'BTCUSDT',
+        startTime: 0,
+        strategyVersion: {
+          canonicalIdentity: null,
+          id: 'version-1',
+          params: { fast: 2, slow: 3 },
+          strategyId: 'ma',
+        },
+        timeframe: '1m',
+      },
+    ]);
+    const historyProvider: BacktestHistoryProvider = {
+      prepareHistoricalCandles: vi.fn().mockResolvedValue({
+        candles,
+        selectedCandles: candles,
+        warmupCandleCount: 0,
+      }),
+    };
+    const service = new BacktestService({ historyProvider, repository });
+
+    await service.start();
+    await service.stop();
+
+    expect(historyProvider.prepareHistoricalCandles).toHaveBeenCalledWith(
+      { endTime: 180_000, pair: 'BTCUSDT', startTime: 0, timeframe: '1m' },
+      4,
+      100_000,
+    );
+    expect(repository.attachDataset).toHaveBeenCalledWith(
+      'owner-1',
+      'experiment-1',
+      expect.objectContaining({ fingerprint: expect.any(String) }),
     );
   });
 
@@ -183,12 +315,15 @@ describe('BacktestService', () => {
 
 function createRepository(): BacktestRepository {
   return {
+    attachDataset: vi.fn().mockResolvedValue(true),
     createSubmission: vi.fn().mockResolvedValue({
       experimentId: 'experiment-1',
       jobId: 'job-1',
       strategyVersionId: 'version-1',
     }),
+    failPreparation: vi.fn().mockResolvedValue(true),
     findHistory: vi.fn().mockResolvedValue([]),
+    findPendingSubmissions: vi.fn().mockResolvedValue([]),
     findResource: vi.fn().mockResolvedValue(null),
     findStrategyVersion: vi.fn().mockResolvedValue(null),
   };

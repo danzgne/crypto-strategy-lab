@@ -13,6 +13,7 @@ describe('PostgresJobQueue Integration', () => {
   let strategyDefId: string;
   let strategyVerId: string;
   const experimentIds: string[] = [];
+  const snapshotIds: string[] = [];
 
   beforeAll(async () => {
     const databaseUrl =
@@ -76,6 +77,9 @@ describe('PostgresJobQueue Integration', () => {
     await prisma.experiment.deleteMany({
       where: { id: { in: experimentIds } },
     });
+    await prisma.datasetSnapshot.deleteMany({
+      where: { id: { in: snapshotIds } },
+    });
     await prisma.strategyVersion.deleteMany({ where: { id: strategyVerId } });
     await prisma.strategyDefinition.deleteMany({
       where: { id: strategyDefId },
@@ -94,12 +98,29 @@ describe('PostgresJobQueue Integration', () => {
     await prisma.experiment.deleteMany({
       where: { id: { in: experimentIds } },
     });
+    await prisma.datasetSnapshot.deleteMany({
+      where: { id: { in: snapshotIds } },
+    });
     experimentIds.length = 0;
+    snapshotIds.length = 0;
   });
 
   async function createExperiment() {
+    const snapshot = await prisma.datasetSnapshot.create({
+      data: {
+        candles: [],
+        endTime: 1_000,
+        fingerprint: `queue-test-${Date.now()}-${snapshotIds.length}`,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        timeframe: '1m',
+        warmupCandleCount: 0,
+      },
+    });
+    snapshotIds.push(snapshot.id);
     const experiment = await prisma.experiment.create({
       data: {
+        datasetSnapshotId: snapshot.id,
         ownerId,
         strategyVersionId: strategyVerId,
         pair: 'BTCUSDT',
@@ -122,6 +143,25 @@ describe('PostgresJobQueue Integration', () => {
     expect(claimed).not.toBeNull();
     expect(claimed!.id).toBe(jobId);
     expect(claimed!.status).toBe('CLAIMED');
+  });
+
+  it('does not claim a job until the backend attaches a dataset snapshot', async () => {
+    const experiment = await prisma.experiment.create({
+      data: {
+        ownerId,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        endTime: 1_000,
+        initialInvestment: 100,
+        transactionCost: 0,
+        slippage: 0,
+        strategyVersionId: strategyVerId,
+      },
+    });
+    experimentIds.push(experiment.id);
+    await queue.enqueue(experiment.id, ownerId);
+
+    await expect(queue.claim('worker-1')).resolves.toBeNull();
   });
 
   it('should not allow concurrent claims of the same job (SKIP LOCKED)', async () => {

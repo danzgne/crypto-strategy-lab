@@ -7,9 +7,9 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import { ArrowRight, BarChart3, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
 import type { FormEvent, ReactNode } from 'react';
 import { useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
 
 import {
   catalogEntries,
@@ -31,7 +31,6 @@ export interface BacktestDashboardProperties {
 export function BacktestDashboard({
   client = backtestClient,
 }: BacktestDashboardProperties) {
-  const router = useRouter();
   const catalog = useStrategyCatalog();
   const saved = useSavedStrategies();
   const history = useBacktestHistory({ client });
@@ -49,6 +48,9 @@ export function BacktestDashboard({
   const [transactionCostPercent, setTransactionCostPercent] = useState('0.08');
   const [slippage, setSlippage] = useState('5');
   const [submitting, setSubmitting] = useState(false);
+  const [submittedExperimentId, setSubmittedExperimentId] = useState<
+    string | null
+  >(null);
   const [error, setError] = useState<string | null>(null);
 
   const effectiveStrategyId =
@@ -118,6 +120,7 @@ export function BacktestDashboard({
 
     setSubmitting(true);
     setError(null);
+    setSubmittedExperimentId(null);
     try {
       const target =
         selectedSavedStrategy === undefined
@@ -137,7 +140,8 @@ export function BacktestDashboard({
         transactionCost: String(Number(transactionCostPercent) / 100),
       };
       const created = await clientRef.current.submit(request);
-      router.push(`/backtests/${created.experimentId}`);
+      setSubmittedExperimentId(created.experimentId);
+      void history.refresh();
     } catch (reason: unknown) {
       setError(
         reason instanceof Error ? reason.message : 'Unable to create backtest',
@@ -370,11 +374,30 @@ export function BacktestDashboard({
             }
             type="submit"
           >
-            {submitting ? 'Submitting…' : 'Run Backtest'}
+            {submitting ? 'Queueing…' : 'Run Backtest'}
             <ArrowRight aria-hidden="true" className="size-4" />
           </button>
         </div>
       </form>
+
+      {submittedExperimentId !== null && (
+        <div
+          aria-live="polite"
+          className="mt-5 flex flex-col gap-2 rounded-xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-sm text-indigo-900 sm:flex-row sm:items-center sm:justify-between"
+          role="status"
+        >
+          <span>
+            Backtest queued. History refreshes automatically while data is
+            prepared and the worker runs the simulation.
+          </span>
+          <Link
+            className="shrink-0 font-semibold text-indigo-700 hover:text-indigo-900"
+            href={`/backtests/${encodeURIComponent(submittedExperimentId)}`}
+          >
+            View progress
+          </Link>
+        </div>
+      )}
 
       <BacktestHistoryList
         error={history.error}

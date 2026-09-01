@@ -12,6 +12,7 @@ export type {
   BacktestRepository,
   BacktestSubmissionInput,
   BacktestSubmissionResult,
+  PendingBacktestSubmission,
   PreparedDataset,
   ResolvedBacktestTarget,
   StoredBacktestResource,

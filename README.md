@@ -181,14 +181,17 @@ historical indicator points in one `strategy:snapshot`, then streams new closed-
 Manual Backtest UI
   → POST /api/v1/backtests (owner-scoped)
   → Backtest Service
+  → validate target/range and create queued Experiment + PENDING Backtest Job
+  → 202 response; history polls while preparation continues
+  → Backend preparation coordinator
   → Market Data Service → Exchange Adapter → Binance
   → validate closed/contiguous UTC candles and prepend warm-up
-  → immutable Dataset Snapshot + Experiment + PENDING Backtest Job
+  → attach immutable Dataset Snapshot; worker claim becomes eligible
   → Backtest Worker claims a lease
   → Backtester → Evaluator
   → Trades + Metrics + completed Job + lifecycle events in one transaction
   → Backend outbox dispatcher → in-memory Domain Event Bus
-  → GET /api/v1/backtests/:experimentId (1s frontend polling)
+  → GET /api/v1/backtests and /api/v1/backtests/:experimentId (1s frontend polling)
 ```
 
 The worker never fetches Binance data: it consumes the exact Dataset Snapshot selected by the backend. Strategy

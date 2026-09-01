@@ -107,6 +107,7 @@ async function startBackend(): Promise<void> {
     historyProvider: marketDataService,
     maxSelectedCandles: config.maxBacktestCandles,
     repository: new PrismaBacktestRepository(prisma),
+    logger,
   });
 
   const authRepository = new PrismaAuthRepository(prisma);
@@ -131,6 +132,7 @@ async function startBackend(): Promise<void> {
   });
 
   await prisma.$connect();
+  await backtestService.start();
   outboxDispatcher.start();
   await healthService.recordStarted(config.instanceId);
 
@@ -199,6 +201,7 @@ async function startBackend(): Promise<void> {
     newsScheduler.stop();
     await strategyLiveService.close();
     outboxDispatcher.stop();
+    await backtestService.stop();
     await marketDataService.close();
     await marketTickService.close();
     await socketServer.close();

@@ -31,7 +31,6 @@ export interface ResolvedBacktestTarget {
 
 export interface BacktestSubmissionInput {
   target: ResolvedBacktestTarget;
-  dataset: PreparedDataset;
   pair: string;
   timeframe: Timeframe;
   startTime: number;
@@ -45,6 +44,16 @@ export interface BacktestSubmissionResult {
   experimentId: string;
   jobId: string;
   strategyVersionId: string;
+}
+
+export interface PendingBacktestSubmission {
+  experimentId: string;
+  ownerId: string;
+  strategyVersion: StoredStrategyVersion;
+  pair: string;
+  timeframe: Timeframe;
+  startTime: number;
+  endTime: number;
 }
 
 export interface StoredStrategyVersion {
@@ -139,6 +148,17 @@ export interface BacktestRepository {
     ownerId: string,
     input: BacktestSubmissionInput,
   ): Promise<BacktestSubmissionResult>;
+  attachDataset(
+    ownerId: string,
+    experimentId: string,
+    dataset: PreparedDataset,
+  ): Promise<boolean>;
+  failPreparation(
+    ownerId: string,
+    experimentId: string,
+    reason: string,
+  ): Promise<boolean>;
+  findPendingSubmissions(): Promise<PendingBacktestSubmission[]>;
   findResource(
     ownerId: string,
     experimentId: string,

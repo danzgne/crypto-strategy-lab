@@ -6,6 +6,7 @@ import type { BacktestHistoryItem } from '@crypto-strategy-lab/shared';
 
 export interface UseBacktestHistoryOptions {
   client?: BacktestClient;
+  pollIntervalMs?: number;
 }
 
 export interface BacktestHistoryState {
@@ -17,20 +18,27 @@ export interface BacktestHistoryState {
 
 export function useBacktestHistory({
   client = backtestClient,
+  pollIntervalMs = 1_000,
 }: UseBacktestHistoryOptions = {}): BacktestHistoryState {
   const clientRef = useRef(client);
   const mountedRef = useRef(true);
+  const loadedRef = useRef(false);
+  const requestInFlightRef = useRef(false);
   const [items, setItems] = useState<BacktestHistoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async (): Promise<void> => {
-    setLoading(true);
+    if (requestInFlightRef.current) return;
+    requestInFlightRef.current = true;
+    const showLoading = !loadedRef.current;
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const nextItems = await clientRef.current.list();
       if (!mountedRef.current) return;
       setItems(nextItems);
+      loadedRef.current = true;
     } catch (reason: unknown) {
       if (!mountedRef.current) return;
       setError(
@@ -39,34 +47,20 @@ export function useBacktestHistory({
           : 'Unable to load backtest history',
       );
     } finally {
-      if (mountedRef.current) setLoading(false);
+      requestInFlightRef.current = false;
+      if (mountedRef.current && showLoading) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     mountedRef.current = true;
-    void clientRef.current
-      .list()
-      .then((nextItems) => {
-        if (!mountedRef.current) return;
-        setItems(nextItems);
-        setError(null);
-      })
-      .catch((reason: unknown) => {
-        if (!mountedRef.current) return;
-        setError(
-          reason instanceof Error
-            ? reason.message
-            : 'Unable to load backtest history',
-        );
-      })
-      .finally(() => {
-        if (mountedRef.current) setLoading(false);
-      });
+    void refresh();
+    const timer = setInterval(() => void refresh(), pollIntervalMs);
     return () => {
       mountedRef.current = false;
+      clearInterval(timer);
     };
-  }, [refresh]);
+  }, [pollIntervalMs, refresh]);
 
   return { error, items, loading, refresh };
 }
