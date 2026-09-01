@@ -23,6 +23,9 @@ describe('backtest job lifecycle integration', () => {
       'postgresql://crypto_lab:crypto_lab@localhost:5434/crypto_strategy_lab?schema=public';
     prisma = createPrismaClient(databaseUrl);
     await prisma.$connect();
+    await prisma.backtestJob.deleteMany({
+      where: { status: { in: ['PENDING', 'CLAIMED'] } },
+    });
 
     const user = await prisma.user.create({
       data: {

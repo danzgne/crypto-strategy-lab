@@ -1,0 +1,345 @@
+'use client';
+
+import type {
+  Pair,
+  StrategyCatalog,
+  Timeframe,
+} from '@crypto-strategy-lab/shared';
+import {
+  Sparkles,
+  Play,
+  Pause,
+  Square,
+  Dna,
+  Compass,
+  Shuffle,
+} from 'lucide-react';
+import { useState } from 'react';
+import type { UseDiscoverySessionResult } from '../hooks/useDiscoverySession';
+
+const AVAILABLE_PAIRS: Pair[] = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
+const AVAILABLE_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
+
+interface DiscoverySessionControlProps {
+  catalog: StrategyCatalog;
+  discovery: UseDiscoverySessionResult;
+}
+
+export function DiscoverySessionControl({
+  catalog,
+  discovery,
+}: DiscoverySessionControlProps) {
+  const [selectedPair, setSelectedPair] = useState<Pair>('BTCUSDT');
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1h');
+  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([
+    'ma',
+    'rsi',
+    'bollinger',
+    'support-resistance',
+  ]);
+  const [permittedModes, setPermittedModes] = useState<
+    ('majority' | 'weighted')[]
+  >(['majority', 'weighted']);
+  const [maxCandidates, setMaxCandidates] = useState<number>(100);
+  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState<number>(15);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isSessionActive = discovery.session?.status === 'ACTIVE';
+  const isSessionPaused = discovery.session?.status === 'PAUSED';
+
+  const toggleStrategy = (id: string) => {
+    setSelectedStrategies((prev) =>
+      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
+    );
+  };
+
+  const toggleMode = (mode: 'majority' | 'weighted') => {
+    setPermittedModes((prev) =>
+      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode],
+    );
+  };
+
+  const handleStart = async () => {
+    if (selectedStrategies.length === 0 || permittedModes.length === 0) return;
+    setSubmitting(true);
+    try {
+      const enabledStrategies = selectedStrategies.map((id) => ({ id }));
+      const now = Date.now();
+      await discovery.startSession({
+        algorithm: 'random',
+        searchSpace: {
+          enabledStrategies,
+          endTime: now,
+          pair: selectedPair,
+          permittedCombinationModes: permittedModes,
+          startTime: now - 30 * 24 * 60 * 60 * 1000,
+          timeframe: selectedTimeframe,
+        },
+        stopPolicy: {
+          maxCandidates,
+          timeBudgetMs: timeBudgetMinutes * 60 * 1000,
+        },
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <section
+      aria-labelledby="discovery-controls-heading"
+      className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      data-testid="discovery-session-control"
+    >
+      <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex size-9 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600">
+            <Sparkles className="size-5" />
+          </span>
+          <div>
+            <h2
+              className="text-base font-semibold text-slate-900"
+              id="discovery-controls-heading"
+            >
+              Search Engine &amp; Strategy Discovery
+            </h2>
+            <p className="text-xs text-slate-500">
+              Configure continuous strategy discovery sessions
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Algorithm Method Selector */}
+      <div className="mt-4">
+        <label className="text-xs font-semibold text-slate-700">
+          Discovery Method
+        </label>
+        <div className="mt-2 grid grid-cols-3 gap-2.5">
+          <button
+            type="button"
+            className="flex items-center justify-center gap-2 rounded-xl border border-indigo-600 bg-indigo-50/50 px-3 py-2.5 text-xs font-semibold text-indigo-700 shadow-sm"
+          >
+            <Shuffle className="size-3.5 text-indigo-600" />
+            <span>Random Search</span>
+            <span className="rounded-full bg-indigo-600/10 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+              Active
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled
+            className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs font-medium text-slate-400 opacity-80"
+            title="Swappable Generator plugin interface ready for DomainGuidedGenerator"
+          >
+            <Compass className="size-3.5 text-slate-400" />
+            <span>Domain-guided</span>
+            <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500">
+              Soon
+            </span>
+          </button>
+
+          <button
+            type="button"
+            disabled
+            className="flex cursor-not-allowed items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2.5 text-xs font-medium text-slate-400 opacity-80"
+            title="Swappable Generator plugin interface ready for GeneticGenerator"
+          >
+            <Dna className="size-3.5 text-slate-400" />
+            <span>Genetic</span>
+            <span className="rounded-full bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-500">
+              Soon
+            </span>
+          </button>
+        </div>
+      </div>
+
+      {/* Search Space Settings */}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label className="text-xs font-semibold text-slate-700">
+            Market Pair
+          </label>
+          <select
+            disabled={isSessionActive || isSessionPaused}
+            value={selectedPair}
+            onChange={(e) => setSelectedPair(e.target.value as Pair)}
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
+          >
+            {AVAILABLE_PAIRS.map((pair) => (
+              <option key={pair} value={pair}>
+                {pair}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="text-xs font-semibold text-slate-700">
+            Timeframe
+          </label>
+          <select
+            disabled={isSessionActive || isSessionPaused}
+            value={selectedTimeframe}
+            onChange={(e) => setSelectedTimeframe(e.target.value as Timeframe)}
+            className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
+          >
+            {AVAILABLE_TIMEFRAMES.map((tf) => (
+              <option key={tf} value={tf}>
+                {tf}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Standalone Strategies Pool */}
+      <div className="mt-4">
+        <label className="text-xs font-semibold text-slate-700">
+          Strategy Candidates Pool ({selectedStrategies.length} selected)
+        </label>
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {catalog.strategies.map((strat) => {
+            const isSelected = selectedStrategies.includes(strat.id);
+            return (
+              <button
+                key={strat.id}
+                type="button"
+                disabled={isSessionActive || isSessionPaused}
+                onClick={() => toggleStrategy(strat.id)}
+                className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
+                  isSelected
+                    ? 'border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                } disabled:pointer-events-none disabled:opacity-60`}
+              >
+                <input
+                  type="checkbox"
+                  checked={isSelected}
+                  readOnly
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span className="truncate">{strat.id.toUpperCase()}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Combination Modes */}
+      <div className="mt-4 flex flex-wrap items-center gap-4">
+        <label className="text-xs font-semibold text-slate-700">
+          Combination Modes:
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            disabled={isSessionActive || isSessionPaused}
+            checked={permittedModes.includes('majority')}
+            onChange={() => toggleMode('majority')}
+            className="rounded border-slate-300 text-indigo-600"
+          />
+          Majority Vote
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            disabled={isSessionActive || isSessionPaused}
+            checked={permittedModes.includes('weighted')}
+            onChange={() => toggleMode('weighted')}
+            className="rounded border-slate-300 text-indigo-600"
+          />
+          Weighted Score
+        </label>
+      </div>
+
+      {/* Stop Policy Controls */}
+      <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
+        <div>
+          <label className="text-[11px] font-medium text-slate-500">
+            Max Candidates / Run
+          </label>
+          <input
+            type="number"
+            min={10}
+            max={500}
+            disabled={isSessionActive || isSessionPaused}
+            value={maxCandidates}
+            onChange={(e) => setMaxCandidates(Number(e.target.value))}
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label className="text-[11px] font-medium text-slate-500">
+            Time Budget (min)
+          </label>
+          <input
+            type="number"
+            min={1}
+            max={60}
+            disabled={isSessionActive || isSessionPaused}
+            value={timeBudgetMinutes}
+            onChange={(e) => setTimeBudgetMinutes(Number(e.target.value))}
+            className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
+          />
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="mt-5 flex items-center gap-3">
+        {!isSessionActive && !isSessionPaused ? (
+          <button
+            type="button"
+            disabled={submitting || selectedStrategies.length === 0}
+            onClick={handleStart}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700 disabled:opacity-50"
+          >
+            <Play className="size-4" />
+            <span>
+              {submitting ? 'Starting Session…' : 'Start Discovery Session'}
+            </span>
+          </button>
+        ) : isSessionActive ? (
+          <>
+            <button
+              type="button"
+              onClick={discovery.pauseSession}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <Pause className="size-4" />
+              <span>Pause Discovery</span>
+            </button>
+            <button
+              type="button"
+              onClick={discovery.stopSession}
+              className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
+            >
+              <Square className="size-4" />
+              <span>Stop Session</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={discovery.resumeSession}
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            >
+              <Play className="size-4" />
+              <span>Resume Discovery</span>
+            </button>
+            <button
+              type="button"
+              onClick={discovery.stopSession}
+              className="flex items-center justify-center gap-2 rounded-xl bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-rose-700"
+            >
+              <Square className="size-4" />
+              <span>Stop Session</span>
+            </button>
+          </>
+        )}
+      </div>
+    </section>
+  );
+}

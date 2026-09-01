@@ -33,6 +33,10 @@ import {
   LeaderboardController,
   type LeaderboardServiceInterface,
 } from '@/api/features/leaderboard';
+import {
+  createSearchFeatureRouter,
+  SearchController,
+} from '@/api/features/search';
 
 export interface StrategiesRouterDependencies {
   generationService: StrategyGenerationService;
@@ -47,6 +51,7 @@ export function createV1Router(
   strategyLibraryService?: StrategyLibraryServiceInterface,
   backtestService?: BacktestServiceInterface,
   leaderboardService?: LeaderboardServiceInterface,
+  searchController?: SearchController,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
@@ -92,6 +97,9 @@ export function createV1Router(
         new LeaderboardController(leaderboardService),
       ),
     );
+  }
+  if (searchController !== undefined) {
+    router.use('/search', createSearchFeatureRouter(searchController));
   }
   return router;
 }

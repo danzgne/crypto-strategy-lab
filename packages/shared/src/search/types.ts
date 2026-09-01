@@ -96,3 +96,52 @@ export type StopReason =
   | 'NO_IMPROVEMENT'
   | 'CONSECUTIVE_FAILURES'
   | 'USER_STOPPED';
+
+export type DiscoverySessionStatus = 'ACTIVE' | 'PAUSED' | 'STOPPED';
+
+export interface DiscoverySessionState {
+  readonly sessionId: string;
+  readonly userId: string;
+  readonly status: DiscoverySessionStatus;
+  readonly algorithm: 'random' | 'domain-guided' | 'genetic';
+  readonly searchSpace: SearchSpace;
+  readonly stopPolicy: StopPolicy;
+  readonly currentRunId?: string | undefined;
+  readonly totalRunsCompleted: number;
+  readonly totalAcceptedCandidates: number;
+  readonly bestScore: number | null;
+  readonly startedAt: number;
+  readonly lastRunStopReason?: StopReason | undefined;
+}
+
+export interface SearchRunSummary {
+  readonly id: string;
+  readonly ownerId: string;
+  readonly status: SearchRunStatus;
+  readonly algorithm: string;
+  readonly acceptedCandidates: number;
+  readonly bestScore: number | null;
+  readonly stopReason: StopReason | null;
+  readonly startedAt: string;
+  readonly stoppedAt: string | null;
+}
+
+export interface DiscoveryProgressPayload {
+  readonly sessionId: string;
+  readonly userId: string;
+  readonly currentRunId?: string | undefined;
+  readonly runStatus?: SearchRunStatus | undefined;
+  readonly sessionStatus: DiscoverySessionStatus;
+  readonly acceptedCandidates: number;
+  readonly maxCandidates: number;
+  readonly bestScore: number | null;
+  readonly inFlightJobs: number;
+  readonly stopReason?: StopReason | undefined;
+  readonly totalRunsCompleted: number;
+}
+
+export interface StartDiscoverySessionInput {
+  readonly searchSpace: SearchSpace;
+  readonly algorithm?: 'random' | 'domain-guided' | 'genetic' | undefined;
+  readonly stopPolicy?: StopPolicy | undefined;
+}

@@ -227,8 +227,67 @@ export class SearchCoordinator {
     await this.transitionToStopping(run, reason);
   }
 
+  public getRun(searchRunId: string): ActiveRunState | undefined {
+    return this.activeRuns.get(searchRunId);
+  }
+
   public getRunState(searchRunId: string): ActiveRunState | undefined {
     return this.activeRuns.get(searchRunId);
+  }
+
+  public async waitForRunCompletion(searchRunId: string): Promise<{
+    id: string;
+    ownerId: string;
+    status: SearchRunStatus;
+    stopReason: StopReason | null;
+    acceptedCandidates: number;
+    bestScore: number | null;
+    startedAt: number;
+  }> {
+    const run = this.activeRuns.get(searchRunId);
+    if (!run) {
+      const dbRun = await this.prisma.searchRun.findUnique({
+        where: { id: searchRunId },
+      });
+      if (!dbRun) {
+        throw new Error(`SearchRun not found: ${searchRunId}`);
+      }
+      return {
+        acceptedCandidates: dbRun.acceptedCandidates,
+        bestScore: dbRun.bestScore ? Number(dbRun.bestScore) : null,
+        id: dbRun.id,
+        ownerId: dbRun.ownerId,
+        startedAt: dbRun.startedAt.getTime(),
+        status: dbRun.status as SearchRunStatus,
+        stopReason: dbRun.stopReason as StopReason | null,
+      };
+    }
+
+    if (run.status === 'COMPLETED' || run.status === 'FAILED') {
+      return {
+        acceptedCandidates: run.acceptedCandidates,
+        bestScore: run.bestScore,
+        id: run.searchRunId,
+        ownerId: run.ownerId,
+        startedAt: run.startedAt,
+        status: run.status,
+        stopReason: run.stopReason,
+      };
+    }
+
+    await new Promise<void>((resolve) => {
+      run.drainResolvers.push(resolve);
+    });
+
+    return {
+      acceptedCandidates: run.acceptedCandidates,
+      bestScore: run.bestScore,
+      id: run.searchRunId,
+      ownerId: run.ownerId,
+      startedAt: run.startedAt,
+      status: run.status,
+      stopReason: run.stopReason,
+    };
   }
 
   private async runGenerationLoop(run: ActiveRunState): Promise<void> {

@@ -2,6 +2,7 @@ import type { Server as HttpServer } from 'node:http';
 
 import type {
   ClientToServerEvents,
+  DiscoveryProgressPayload,
   InterServerEvents,
   ServerToClientEvents,
   SocketData,
@@ -19,6 +20,7 @@ import {
   registerLeaderboardGateway,
   type LeaderboardRealtimeEventBus,
 } from '@/api/features/leaderboard/realtime/leaderboardGateway';
+import { registerDiscoveryGateway } from '@/api/features/search/realtime/discoveryGateway';
 import { createAppLogger, type AppLogger } from '@/utils/logger';
 
 interface SocketServerOptions {
@@ -30,6 +32,9 @@ interface SocketServerOptions {
   marketTickService?: MarketTickService;
   strategyLiveService?: StrategyLiveService;
   leaderboardEventBus?: LeaderboardRealtimeEventBus;
+  onDiscoveryGatewayRegistered?: (
+    emitter: (progress: DiscoveryProgressPayload) => void,
+  ) => void;
 }
 
 export function createSocketServer(
@@ -43,6 +48,7 @@ export function createSocketServer(
     marketTickService,
     strategyLiveService,
     leaderboardEventBus,
+    onDiscoveryGatewayRegistered,
   }: SocketServerOptions,
 ): Server<
   ClientToServerEvents,
@@ -113,5 +119,14 @@ export function createSocketServer(
       logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
     );
   }
+
+  const discoveryGateway = registerDiscoveryGateway(
+    socketServer,
+    logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
+  );
+  if (onDiscoveryGatewayRegistered) {
+    onDiscoveryGatewayRegistered(discoveryGateway.emitProgress);
+  }
+
   return socketServer;
 }

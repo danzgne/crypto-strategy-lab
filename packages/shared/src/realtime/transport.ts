@@ -2,6 +2,7 @@ import type { Candle, MarketKey } from '../marketData/candle';
 import type { Tick } from '../marketData/tick';
 import type { Signal, StrategyParamsSchema } from '../strategy/types';
 import type { LeaderboardSnapshot } from '../leaderboard/types';
+import type { DiscoveryProgressPayload } from '../search/types';
 
 export interface MarketDataTransportStatus {
   status: 'ready';
@@ -158,6 +159,7 @@ export interface ServerToClientEvents {
   'strategy:signal': (update: StrategySignalUpdate) => void;
   'strategy:error': (error: StrategyErrorEvent) => void;
   'leaderboard:updated': (snapshot: LeaderboardSnapshot) => void;
+  'discovery:progress': (progress: DiscoveryProgressPayload) => void;
 }
 
 export interface ClientToServerEvents {
