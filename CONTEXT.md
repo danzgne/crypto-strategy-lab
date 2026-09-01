@@ -69,14 +69,16 @@ Composite Strategy). Immutable, so editing a generated strategy never rewrites w
 only: it is entry metadata, never part of `params` and never part of the Strategy Version. The entry's **source
 input**, the original prompt text or URL, is present exactly when Provenance is `USER_PROMPT` or `WEB_IMPORT`, and
 absent for `MANUAL` (see ADR-0021).
-_Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source), Origin (a different
+_Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source), Record Kind (a different
 property; see below).
 
-**Origin**:
+**Record Kind**:
 Why a Strategy definition record exists at all: `LIBRARY_ENTRY` for one a User curated, `BACKTEST_TARGET` for one
 minted only so an ad-hoc backtest has a Strategy Version to reference. Only `LIBRARY_ENTRY` records appear in the
-Strategy Library.
-_Avoid_: Provenance (that is where an entry's *parameters* came from; Origin is why the *record* exists).
+Strategy Library, so this never reaches a client payload.
+_Avoid_: Provenance (that is where an entry's *parameters* came from; Record Kind is why the *record* exists),
+Origin (rejected: too close to Provenance to be told apart in reading), and the entry's own singular-or-composite
+kind, which is a different distinction on a record whose Record Kind is always `LIBRARY_ENTRY`.
 
 **Strategy Editor**:
 The UI surface for viewing and changing a Strategy's parameters, whether or not they are saved yet. Reached by

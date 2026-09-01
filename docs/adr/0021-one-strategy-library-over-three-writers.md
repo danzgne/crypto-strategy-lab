@@ -41,15 +41,17 @@ authoring path with no LLM step at all" and #48 introduces three of them at once
 built-in's parameters, and building a composite by hand. ADR-0014 rejected nullability on the grounds that it
 "makes 'is this row a library entry' an implicit question every read re-answers with a null check", but that
 argument was made about `source` and assumed every entry has an origin text. A forked built-in has none, and the
-question ADR-0014 was protecting is answered by `origin` below rather than by a non-null string. The invariant is
-that `sourceInput` is non-null exactly when Provenance is `USER_PROMPT` or `WEB_IMPORT`.
+question ADR-0014 was protecting is answered by `recordKind` below rather than by a non-null string. The invariant
+is that `sourceInput` is non-null exactly when Provenance is `USER_PROMPT` or `WEB_IMPORT`.
 
-**`isPrivate` becomes `origin: LIBRARY_ENTRY | BACKTEST_TARGET`.** It is already load-bearing and already means
+**`isPrivate` becomes `recordKind: LIBRARY_ENTRY | BACKTEST_TARGET`.** It is already load-bearing and already means
 this; naming it honestly is the whole change. An enum rather than a boolean because ADR-0014 anticipated that
 "when the SearchCoordinator persists candidates it will need a `StrategyDefinition` row with no user-facing
-provenance", so `SEARCH_CANDIDATE` arrives at #39 as one value rather than as a second boolean. `origin` and
-Provenance are close enough to be confused and `CONTEXT.md` carries an `_Avoid_` line separating them: Provenance
-is where an entry's _parameters_ came from, `origin` is why the _record_ exists.
+provenance", so `SEARCH_CANDIDATE` arrives at #39 as one value rather than as a second boolean. It is named
+`recordKind` rather than `origin`, which was considered and rejected: `origin` and Provenance are near-synonyms in
+plain English and would be read as the same property, where `recordKind` cannot be. `CONTEXT.md` carries an
+`_Avoid_` line either way: Provenance is where an entry's _parameters_ came from, `recordKind` is why the _record_
+exists. It is a database-side discriminator only, since a client is never served anything but `LIBRARY_ENTRY` rows.
 
 **Uniqueness rescopes to `(ownerId, strategyDefinitionId, canonicalIdentity)`.** Per-owner-global uniqueness made
 a duplicate save silently return the pre-existing entry under its old name, forced #37 into the `private:` prefix,
@@ -117,7 +119,7 @@ to get a clean slate would take every developer's backtest history with it throu
   into one entry shape. Every consumer moves with them, including the backtest dashboard.
 - Deleting `strategy:catalog` removes a socket event, its gateway handler, `useStrategyCatalog`, and their tests.
   The realtime transport contract shrinks rather than grows.
-- `findOrCreatePrivateVersion` keeps minting rows for ad-hoc backtest targets, but with `origin: BACKTEST_TARGET`
+- `findOrCreatePrivateVersion` keeps minting rows for ad-hoc backtest targets, but with `recordKind: BACKTEST_TARGET`
   and `source: 'MANUAL'` instead of a fabricated prompt, and without the `private:` identity prefix.
 - The `StrategyDefinition` fixture in `apps/backtest-worker/tests/integration/PostgresJobQueue.test.ts` moves
   again, for the same reason ADR-0014 predicted the first time.
