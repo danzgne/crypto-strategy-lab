@@ -1,5 +1,7 @@
 'use client';
 
+import '../editors/registerBuiltinEditors';
+
 import type { CreateSingularLibraryEntryRequest } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import { useRouter, useSearchParams } from 'next/navigation';

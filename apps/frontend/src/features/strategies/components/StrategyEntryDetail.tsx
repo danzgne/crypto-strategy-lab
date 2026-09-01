@@ -1,5 +1,7 @@
 'use client';
 
+import '../editors/registerBuiltinEditors';
+
 import type { LibraryEntryDetail } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import {
@@ -62,6 +64,9 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
         : StrategyEditorRegistry.resolve(strategyId, DefaultParamsEditor),
     [kind, strategyId],
   );
+  const editorSchema = library.builtins.find(
+    (builtin) => builtin.strategyId === strategyId,
+  )?.paramsSchema ?? { type: 'object' as const, properties: {} };
 
   if (loading && entry === null) {
     return <p className="text-sm text-slate-500">Loading strategy…</p>;
@@ -85,6 +90,10 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
     entry.versions.find((version) => version.id === selectedVersionId) ??
     entry.latestVersion;
   const isLatest = selectedVersion.id === entry.latestVersion.id;
+  const effectiveParams =
+    Object.keys(draftParams).length === 0
+      ? (selectedVersion.params ?? {})
+      : draftParams;
 
   const saveMetadata = async (): Promise<void> => {
     setSavingMetadata(true);
@@ -113,7 +122,7 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
       } else {
         await strategyLibraryClient.addVersion(entry.id, {
           libraryVersion: newLibraryVersion.trim(),
-          params: draftParams,
+          params: effectiveParams,
         });
       }
       setNewLibraryVersion('');
@@ -306,11 +315,8 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
                 createElement(EditorComponent, {
                   idPrefix: `entry-${entry.id}`,
                   onChange: setDraftParams,
-                  params:
-                    Object.keys(draftParams).length === 0
-                      ? (selectedVersion.params ?? {})
-                      : draftParams,
-                  paramsSchema: { type: 'object', properties: {} },
+                  params: effectiveParams,
+                  paramsSchema: editorSchema,
                 })
               )}
             </div>
