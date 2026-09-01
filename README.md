@@ -253,6 +253,6 @@ ESLint.
 5. Inspect the selected-range chart, LONG/SHORT entry and exit markers, risk lines, six metric cards, paginated trade
    history, and the **Cách tính Profit** / **Giả định Backtest** panels.
 
-The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, followed by
-`GET /api/v1/backtests/:experimentId`. The Leaderboard is intentionally out of scope for this slice and consumes
-`StrategyEvaluated` in a later issue.
+The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, `GET /api/v1/backtests` for
+owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. The Leaderboard is intentionally out of
+scope for this slice and consumes `StrategyEvaluated` in a later issue.

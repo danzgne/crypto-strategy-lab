@@ -53,7 +53,7 @@ describe('useBacktest', () => {
       .fn<BacktestClient['get']>()
       .mockResolvedValueOnce(queuedResult)
       .mockResolvedValueOnce(completedResult);
-    const client: BacktestClient = { get, submit: vi.fn() };
+    const client: BacktestClient = { get, list: vi.fn(), submit: vi.fn() };
     const { result, unmount } = renderHook(() =>
       useBacktest('experiment-1', { client, pollIntervalMs: 10 }),
     );

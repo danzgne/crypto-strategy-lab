@@ -69,4 +69,26 @@ export class BacktestController {
       next(error);
     }
   };
+
+  public list = async (
+    request: Request,
+    response: Response,
+    next: NextFunction,
+  ): Promise<void> => {
+    const ownerId = request.session.userId;
+    if (ownerId === undefined) {
+      sendError(
+        response,
+        { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+        401,
+      );
+      return;
+    }
+
+    try {
+      sendSuccess(response, await this.service.list(ownerId));
+    } catch (error) {
+      next(error);
+    }
+  };
 }

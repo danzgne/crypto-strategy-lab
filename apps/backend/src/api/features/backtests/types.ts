@@ -1,4 +1,5 @@
 import type {
+  BacktestHistoryResponse,
   BacktestResourceStatus,
   BacktestResultResponse,
   BacktestSubmissionRequest,
@@ -76,6 +77,27 @@ export interface StoredBacktestResource {
   datasetFingerprint: string | null;
 }
 
+export interface StoredBacktestHistoryItem {
+  experimentId: string;
+  jobId: string;
+  status: BacktestResourceStatus;
+  strategyVersionId: string;
+  strategyId: string;
+  strategyName: string;
+  pair: string;
+  timeframe: Timeframe;
+  startTime: number;
+  endTime: number;
+  createdAt: number;
+  failureReason: string | null;
+  metrics: {
+    return: string;
+    totalProfit: string;
+    totalTrades: number;
+    winRate: string;
+  } | null;
+}
+
 export interface StoredBacktestMetrics {
   return: string;
   winRate: string;
@@ -121,6 +143,7 @@ export interface BacktestRepository {
     ownerId: string,
     experimentId: string,
   ): Promise<StoredBacktestResource | null>;
+  findHistory(ownerId: string): Promise<StoredBacktestHistoryItem[]>;
 }
 
 export interface BacktestHistoryProvider {
@@ -143,3 +166,4 @@ export interface BacktestHistoryProvider {
 export type BacktestRequest = BacktestSubmissionRequest;
 export type BacktestSubmission = BacktestSubmissionResponse;
 export type BacktestResult = BacktestResultResponse;
+export type BacktestHistory = BacktestHistoryResponse;

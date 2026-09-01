@@ -137,6 +137,31 @@ export interface BacktestResultResponse {
   datasetFingerprint: string | null;
 }
 
+export interface BacktestHistoryMetricsResponse {
+  return: string;
+  totalProfit: string;
+  totalTrades: number;
+  winRate: string;
+}
+
+export interface BacktestHistoryItem {
+  experimentId: string;
+  jobId: string;
+  status: BacktestResourceStatus;
+  strategyVersionId: string;
+  strategyId: string;
+  strategyName: string;
+  pair: Pair;
+  timeframe: Timeframe;
+  startTime: number;
+  endTime: number;
+  createdAt: number;
+  failureReason: string | null;
+  metrics: BacktestHistoryMetricsResponse | null;
+}
+
+export type BacktestHistoryResponse = BacktestHistoryItem[];
+
 export function backtestCandleFromResponse(
   candle: BacktestCandleResponse,
 ): Candle {

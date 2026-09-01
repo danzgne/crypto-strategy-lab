@@ -9,6 +9,7 @@ export function createBacktestFeatureRouter(
   const router = Router();
   router.use(requireOwner());
   router.post('/', controller.create);
+  router.get('/', controller.list);
   router.get('/:experimentId', controller.get);
   return router;
 }

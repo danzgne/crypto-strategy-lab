@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import type {
+  BacktestHistoryResponse,
   BacktestResultResponse,
   BacktestSubmissionResponse,
   Candle,
@@ -220,6 +221,10 @@ export class BacktestService implements BacktestServiceInterface {
       })),
       transactionCost: resource.transactionCost,
     };
+  }
+
+  public list(ownerId: string): Promise<BacktestHistoryResponse> {
+    return this.dependencies.repository.findHistory(ownerId);
   }
 
   private async resolveTarget(

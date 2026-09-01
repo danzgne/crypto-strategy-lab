@@ -15,5 +15,6 @@ export type {
   PreparedDataset,
   ResolvedBacktestTarget,
   StoredBacktestResource,
+  StoredBacktestHistoryItem,
   StoredStrategyVersion,
 } from './types';

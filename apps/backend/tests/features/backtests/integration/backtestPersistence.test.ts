@@ -65,6 +65,7 @@ describe('backtest persistence', () => {
   });
 
   it('atomically reuses a private target version while preserving exact input decimals per Experiment', async () => {
+    const repository = new PrismaBacktestRepository(prisma);
     const provider: BacktestHistoryProvider = {
       prepareHistoricalCandles: vi.fn().mockResolvedValue({
         candles,
@@ -74,7 +75,7 @@ describe('backtest persistence', () => {
     };
     const service = new BacktestService({
       historyProvider: provider,
-      repository: new PrismaBacktestRepository(prisma),
+      repository,
     });
     const request = {
       endTime: 180_000,
@@ -138,6 +139,24 @@ describe('backtest persistence', () => {
       slippage: '5',
       transactionCost: '0.000800000000000001',
     });
+
+    const history = await repository.findHistory(ownerId);
+    expect(history).toHaveLength(2);
+    expect(history.map((item) => item.experimentId)).toEqual(
+      expect.arrayContaining(experimentIds),
+    );
+    expect(history).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          metrics: null,
+          pair: 'BTCUSDT',
+          status: 'queued',
+          strategyId: 'ma',
+          strategyName: 'ma backtest target',
+          timeframe: '1m',
+        }),
+      ]),
+    );
   });
 });
 

@@ -98,11 +98,12 @@ app/(dashboard)/backtests/[experimentId]/page.tsx
 
 ### Manual backtest flow
 
-`features/backtests` owns the manual request form, result polling, chart-data mapping, and trade table. The form
-calls the Express `POST /api/v1/backtests` client, then navigates to `/backtests/[experimentId]`; the result hook
-polls the owner-scoped GET endpoint once per second until `completed` or `failed`. The form supports both inline
-strategy parameters and immutable saved Strategy Versions, including saved Composite Strategies. It never calls
-Binance or runs strategy logic in the browser.
+`features/backtests` owns the manual request form, pair combobox, owner-scoped run history, result polling, chart-data
+mapping, and trade table. The form calls the Express `POST /api/v1/backtests` client, then navigates to
+`/backtests/[experimentId]`; the dashboard loads `GET /api/v1/backtests` to show prior runs and the result hook polls
+the owner-scoped detail endpoint once per second until `completed` or `failed`. The form supports both inline strategy
+parameters and immutable saved Strategy Versions, including saved Composite Strategies. It never calls Binance or
+runs strategy logic in the browser.
 
 Completed results pass selected-range candles and Trades separately to `toBacktestChartData`, which derives two
 markers per closed Trade and optional stop-loss/take-profit lines before handing neutral data to the existing

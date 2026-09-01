@@ -142,6 +142,43 @@ describe('BacktestService', () => {
     });
     expect(result?.metrics).not.toHaveProperty('ranking');
   });
+
+  it('returns the owner-scoped history summaries from the repository', async () => {
+    const repository = createRepository();
+    repository.findHistory = vi.fn().mockResolvedValue([
+      {
+        createdAt: 1_000,
+        endTime: 180_000,
+        experimentId: 'experiment-1',
+        failureReason: null,
+        jobId: 'job-1',
+        metrics: {
+          return: '0.1',
+          totalProfit: '100',
+          totalTrades: 2,
+          winRate: '0.5',
+        },
+        pair: 'BTCUSDT',
+        startTime: 0,
+        status: 'completed',
+        strategyId: 'ma',
+        strategyName: 'Moving Average',
+        strategyVersionId: 'version-1',
+        timeframe: '1m',
+      },
+    ]);
+    const service = new BacktestService({
+      historyProvider: {
+        prepareHistoricalCandles: vi.fn(),
+      },
+      repository,
+    });
+
+    await expect(service.list('owner-1')).resolves.toEqual([
+      expect.objectContaining({ experimentId: 'experiment-1' }),
+    ]);
+    expect(repository.findHistory).toHaveBeenCalledWith('owner-1');
+  });
 });
 
 function createRepository(): BacktestRepository {
@@ -151,6 +188,7 @@ function createRepository(): BacktestRepository {
       jobId: 'job-1',
       strategyVersionId: 'version-1',
     }),
+    findHistory: vi.fn().mockResolvedValue([]),
     findResource: vi.fn().mockResolvedValue(null),
     findStrategyVersion: vi.fn().mockResolvedValue(null),
   };

@@ -2,6 +2,7 @@ import type {
   BacktestRepository,
   BacktestSubmissionInput,
   BacktestSubmissionResult,
+  StoredBacktestHistoryItem,
   StoredBacktestResource,
   StoredStrategyVersion,
 } from '../types';
@@ -163,6 +164,54 @@ export class PrismaBacktestRepository implements BacktestRepository {
         : [],
     };
   }
+
+  public async findHistory(
+    ownerId: string,
+  ): Promise<StoredBacktestHistoryItem[]> {
+    const experiments = await this.prisma.experiment.findMany({
+      include: {
+        backtestJob: true,
+        strategyVersion: { include: { strategyDefinition: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      where: { ownerId },
+    });
+
+    return experiments
+      .filter((experiment) => experiment.backtestJob !== null)
+      .map((experiment) => {
+        const job = experiment.backtestJob!;
+        const status = mapStatus(job.status);
+        return {
+          createdAt: experiment.createdAt.getTime(),
+          endTime: Number(experiment.endTime),
+          experimentId: experiment.id,
+          failureReason: job.error,
+          jobId: job.id,
+          metrics: status === 'completed' ? toHistoryMetrics(experiment) : null,
+          pair: experiment.pair,
+          startTime: Number(experiment.startTime),
+          status,
+          strategyId: experiment.strategyVersion.strategyDefinition.type,
+          strategyName: experiment.strategyVersion.strategyDefinition.name,
+          strategyVersionId: experiment.strategyVersionId,
+          timeframe:
+            experiment.timeframe as StoredBacktestHistoryItem['timeframe'],
+        };
+      });
+  }
+}
+
+function toHistoryMetrics(
+  experiment: Awaited<ReturnType<AppPrismaClient['experiment']['findFirst']>>,
+) {
+  if (experiment === null) return null;
+  return {
+    return: toDecimalString(experiment.return),
+    totalProfit: toDecimalString(experiment.totalProfit),
+    totalTrades: experiment.totalTrades ?? 0,
+    winRate: toDecimalString(experiment.winRate),
+  };
 }
 
 function toMetrics(

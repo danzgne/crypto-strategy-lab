@@ -18,8 +18,11 @@ import {
 } from '../../combinations/strategyForm';
 import { StrategyParameterFields } from '../../combinations/components/StrategyParameterFields';
 import { useStrategyCatalog } from '../../market-data/hooks/useStrategyCatalog';
+import { SUPPORTED_PAIR_OPTIONS } from '../../market-data/constants';
 import { useSavedStrategies } from '../../strategies';
 import { backtestClient, type BacktestClient } from '../api/backtestClient';
+import { BacktestHistoryList } from './BacktestHistoryList';
+import { useBacktestHistory } from '../hooks/useBacktestHistory';
 
 export interface BacktestDashboardProperties {
   client?: BacktestClient;
@@ -31,6 +34,7 @@ export function BacktestDashboard({
   const router = useRouter();
   const catalog = useStrategyCatalog();
   const saved = useSavedStrategies();
+  const history = useBacktestHistory({ client });
   const entries = useMemo(() => catalogEntries(catalog), [catalog]);
   const clientRef = useRef(client);
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
@@ -194,13 +198,18 @@ export function BacktestDashboard({
 
         <div className="mt-6 grid gap-5 lg:grid-cols-3">
           <Field label="Pair" htmlFor="backtest-pair">
-            <input
+            <select
               className={inputClass}
               id="backtest-pair"
-              onChange={(event) => setPair(event.target.value.toUpperCase())}
-              spellCheck={false}
+              onChange={(event) => setPair(event.target.value)}
               value={pair}
-            />
+            >
+              {SUPPORTED_PAIR_OPTIONS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Timeframe" htmlFor="backtest-timeframe">
             <select
@@ -365,6 +374,13 @@ export function BacktestDashboard({
           </button>
         </div>
       </form>
+
+      <BacktestHistoryList
+        error={history.error}
+        items={history.items}
+        loading={history.loading}
+        onRetry={history.refresh}
+      />
 
       <div className="mt-5 grid gap-4 md:grid-cols-3">
         <InfoTile

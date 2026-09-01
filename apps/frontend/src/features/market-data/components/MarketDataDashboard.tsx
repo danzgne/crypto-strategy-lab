@@ -11,6 +11,7 @@ import { useCallback, useMemo, useState } from 'react';
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
 import { ManualCompositeBuilder } from '../../combinations';
+import { SUPPORTED_PAIR_OPTIONS } from '../constants';
 import { useSavedStrategies } from '../../strategies';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
 import { useRecentTicks } from '../hooks/useRecentTicks';
@@ -18,7 +19,6 @@ import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RecentTicksCard } from './RecentTicksCard';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
-const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
 const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
 
 interface StrategyOverlayOption {
@@ -36,7 +36,7 @@ export interface MarketDataDashboardProperties {
 export function MarketDataDashboard({
   chartRenderer,
 }: MarketDataDashboardProperties) {
-  const [pair, setPair] = useState<string>(PAIR_OPTIONS[0]);
+  const [pair, setPair] = useState<string>(SUPPORTED_PAIR_OPTIONS[0]);
   const [panelTimeframes, setPanelTimeframes] = useState<ChartTimeframe[]>(
     INITIAL_PANEL_TIMEFRAMES,
   );
@@ -169,7 +169,7 @@ export function MarketDataDashboard({
                   onChange={(event) => setPair(event.target.value)}
                   value={pair}
                 >
-                  {PAIR_OPTIONS.map((option) => (
+                  {SUPPORTED_PAIR_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
