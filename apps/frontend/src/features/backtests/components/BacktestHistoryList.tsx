@@ -38,7 +38,7 @@ export function BacktestHistoryList({
               Backtest history
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Các phiên backtest của tài khoản này, mới nhất ở trên.
+              Runs for this account, newest first.
             </p>
           </div>
         </div>
@@ -72,7 +72,7 @@ export function BacktestHistoryList({
         </div>
       ) : items.length === 0 ? (
         <p className="mt-6 rounded-xl border border-dashed border-slate-200 px-4 py-5 text-center text-sm text-slate-500">
-          Chưa có backtest nào. Chạy phiên đầu tiên bằng form ở trên.
+          No backtests yet. Run your first one using the form above.
         </p>
       ) : (
         <div className="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100">

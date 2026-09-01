@@ -112,7 +112,7 @@ export function BacktestDashboard({
       selectedSavedStrategy === undefined &&
       (selectedEntry === undefined || resolvedParameters === null)
     ) {
-      setError('Chọn một chiến lược và kiểm tra lại tham số.');
+      setError('Choose a strategy and check the parameters.');
       return;
     }
 
@@ -140,7 +140,7 @@ export function BacktestDashboard({
       router.push(`/backtests/${created.experimentId}`);
     } catch (reason: unknown) {
       setError(
-        reason instanceof Error ? reason.message : 'Không thể tạo backtest',
+        reason instanceof Error ? reason.message : 'Unable to create backtest',
       );
     } finally {
       setSubmitting(false);
@@ -158,8 +158,8 @@ export function BacktestDashboard({
             Backtest &amp; Results
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Mô phỏng một phiên bản chiến lược trên dữ liệu nến lịch sử đã được
-            chụp cố định, sau đó xem giao dịch và các chỉ số đánh giá.
+            Simulate a strategy version on a fixed snapshot of historical
+            candles, then review trades and evaluation metrics.
           </p>
         </div>
         <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
@@ -190,8 +190,8 @@ export function BacktestDashboard({
               Manual backtest
             </h2>
             <p className="mt-0.5 text-xs text-slate-500">
-              Chọn cặp, khoảng thời gian, chi phí và đúng strategy version cần
-              mô phỏng.
+              Choose a pair, date range, costs, and the exact strategy version
+              to simulate.
             </p>
           </div>
         </div>
@@ -357,8 +357,9 @@ export function BacktestDashboard({
 
         <div className="mt-7 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="max-w-xl text-xs leading-5 text-slate-500">
-            Backend sẽ tải dữ liệu qua Market Data Service, kiểm tra nến
-            đóng/liền mạch và đưa công việc vào hàng đợi cho Backtest Worker.
+            The backend loads data through the Market Data Service, validates
+            closed and contiguous candles, and queues the job for the Backtest
+            Worker.
           </p>
           <button
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"

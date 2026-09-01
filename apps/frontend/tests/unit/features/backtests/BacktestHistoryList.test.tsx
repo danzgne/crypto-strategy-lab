@@ -34,7 +34,7 @@ describe('BacktestHistoryList', () => {
 
     expect(
       screen.getByText(
-        'Chưa có backtest nào. Chạy phiên đầu tiên bằng form ở trên.',
+        'No backtests yet. Run your first one using the form above.',
       ),
     ).toBeInTheDocument();
   });
