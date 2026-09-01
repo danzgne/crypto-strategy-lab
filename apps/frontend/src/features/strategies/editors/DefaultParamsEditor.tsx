@@ -1,7 +1,7 @@
 'use client';
 
 import type { StrategyParamsSchema } from '@crypto-strategy-lab/shared';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { StrategyEditorProps } from './StrategyEditorRegistry';
 import { StrategyParameterFields } from './StrategyParameterFields';
@@ -22,25 +22,34 @@ export function DefaultParamsEditor({
     toTextValues(params, paramsSchema),
   );
   const [syncedParams, setSyncedParams] = useState(params);
-  const [initializedFor, setInitializedFor] = useState<string | null>(null);
 
   if (params !== syncedParams) {
     setSyncedParams(params);
     setText(toTextValues(params, paramsSchema));
   }
 
-  if (initializedFor !== idPrefix) {
-    setInitializedFor(idPrefix);
-    // Push resolved defaults up once per mounted editor instance, so a freshly-added
-    // member/entry has real params instead of {} before the user touches a field.
-    if (Object.keys(params).length === 0) {
-      const resolved = resolveParameters(
-        createDefaultParameterValues(paramsSchema),
-        paramsSchema,
-      );
-      if (resolved !== null) onChange(resolved);
-    }
-  }
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const initializedFor = useRef<string | null>(null);
+
+  useEffect(() => {
+    // Notify the parent with resolved defaults once per mounted editor instance, so a
+    // freshly-added member/entry has real params instead of {} before the user touches a
+    // field. Reading from a ref keeps this from re-firing on every parent re-render.
+    if (initializedFor.current === idPrefix) return;
+    initializedFor.current = idPrefix;
+    if (Object.keys(params).length > 0) return;
+    const resolved = resolveParameters(
+      createDefaultParameterValues(paramsSchema),
+      paramsSchema,
+    );
+    if (resolved !== null) onChangeRef.current(resolved);
+    // idPrefix identifies the editor instance; params/paramsSchema are read once via the
+    // closure above and don't need to retrigger this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idPrefix]);
 
   if (Object.keys(paramsSchema.properties).length === 0) {
     return (
