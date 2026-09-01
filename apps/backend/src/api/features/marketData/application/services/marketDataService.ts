@@ -571,7 +571,7 @@ export class MarketDataService {
         await this.candleRepository.upsertClosed(candle);
       }
     } else {
-      this.publishDomainEvent(
+      await this.publishDomainEvent(
         createDomainEvent('MarketPriceUpdated', {
           pair: candle.pair,
           timeframe: candle.timeframe,
@@ -585,7 +585,7 @@ export class MarketDataService {
     this.trimState(state);
     for (const listener of state.candleListeners) listener(candle);
     if (candle.isClosed && isFirstClosedUpdate) {
-      this.publishDomainEvent(
+      await this.publishDomainEvent(
         createDomainEvent('CandleClosed', {
           pair: candle.pair,
           timeframe: candle.timeframe,
@@ -621,7 +621,7 @@ export class MarketDataService {
         state.closedOpenTimes.add(candle.openTime);
         await this.candleRepository.upsertClosed(candle);
       } else {
-        this.publishDomainEvent(
+        await this.publishDomainEvent(
           createDomainEvent('MarketPriceUpdated', {
             pair: candle.pair,
             timeframe: candle.timeframe,
@@ -635,7 +635,7 @@ export class MarketDataService {
       this.trimState(state);
       for (const listener of state.candleListeners) listener(candle);
       if (candle.isClosed && isFirstClosedUpdate) {
-        this.publishDomainEvent(
+        await this.publishDomainEvent(
           createDomainEvent('CandleClosed', {
             pair: candle.pair,
             timeframe: candle.timeframe,
@@ -865,8 +865,8 @@ export class MarketDataService {
     await state.recoveryPromise?.catch(() => undefined);
   }
 
-  private publishDomainEvent(event: AnyDomainEvent): void {
-    this.eventPublisher.publish(event);
+  private async publishDomainEvent(event: AnyDomainEvent): Promise<void> {
+    await this.eventPublisher.publish(event);
   }
 
   private updateStatus(

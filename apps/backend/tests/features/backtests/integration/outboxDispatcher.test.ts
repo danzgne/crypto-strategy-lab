@@ -31,9 +31,25 @@ describe('PrismaOutboxDispatcher integration', () => {
 
   it('retries after delivery-before-ack and each consumer handles the event once', async () => {
     const event = createDomainEvent('StrategyEvaluated', {
+      endTime: 2,
       experimentId: `issue37-outbox-${Date.now()}`,
-      score: 0.4,
+      maxDrawdown: '0.1',
+      memberStrategies: [
+        { label: 'MA', strategyId: 'ma' },
+        { label: 'RSI', strategyId: 'rsi' },
+      ],
+      ownerId: 'owner-1',
+      pair: 'BTCUSDT',
+      return: '0.2',
+      score: '0.4',
+      startTime: 1,
+      strategyDisplayName: 'MA + RSI',
+      strategyKind: 'composite',
       strategyVersionId: 'strategy-version-1',
+      timeframe: '1m',
+      totalProfit: '100',
+      totalTrades: 4,
+      winRate: '0.75',
     });
     eventIds.push(event.eventId);
     await prisma.outboxEvent.create({
@@ -49,15 +65,16 @@ describe('PrismaOutboxDispatcher integration', () => {
     const consumerBus = new InMemoryDomainEventBus();
     const consumed: AnyDomainEvent[] = [];
     const unsubscribe = consumerBus.subscribeAll((received) => {
-      consumed.push(received);
+      if (received.eventId === event.eventId) consumed.push(received);
     });
     let publishAttempts = 0;
     const dispatcher = new PrismaOutboxDispatcher(
       prisma,
       {
         publish: (received) => {
-          publishAttempts += 1;
           consumerBus.publish(received);
+          if (received.eventId !== event.eventId) return;
+          publishAttempts += 1;
           if (publishAttempts === 1) {
             throw new Error('simulated acknowledgement failure');
           }
