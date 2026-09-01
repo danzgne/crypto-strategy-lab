@@ -22,7 +22,10 @@ describe('backtest persistence', () => {
   const strategyVersionIds: string[] = [];
 
   beforeAll(async () => {
-    prisma = createPrismaClient(process.env.DATABASE_URL!);
+    const databaseUrl =
+      process.env.DATABASE_URL ||
+      'postgresql://crypto_lab:crypto_lab@localhost:5434/crypto_strategy_lab?schema=public';
+    prisma = createPrismaClient(databaseUrl);
     await prisma.$connect();
     const user = await prisma.user.create({
       data: {

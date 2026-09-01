@@ -9,3 +9,4 @@ export * from './queue';
 export * from './news/types';
 export * from './backtest';
 export * from './leaderboard/types';
+export * from './search';
