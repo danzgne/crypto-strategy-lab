@@ -65,15 +65,16 @@ describe('PrismaOutboxDispatcher integration', () => {
     const consumerBus = new InMemoryDomainEventBus();
     const consumed: AnyDomainEvent[] = [];
     const unsubscribe = consumerBus.subscribeAll((received) => {
-      consumed.push(received);
+      if (received.eventId === event.eventId) consumed.push(received);
     });
     let publishAttempts = 0;
     const dispatcher = new PrismaOutboxDispatcher(
       prisma,
       {
         publish: (received) => {
-          publishAttempts += 1;
           consumerBus.publish(received);
+          if (received.eventId !== event.eventId) return;
+          publishAttempts += 1;
           if (publishAttempts === 1) {
             throw new Error('simulated acknowledgement failure');
           }

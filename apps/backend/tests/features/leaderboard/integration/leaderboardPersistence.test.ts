@@ -24,6 +24,9 @@ describe('leaderboard persistence', () => {
   let experimentId: string;
   let strategyVersionId: string;
   let strategyDefinitionId: string;
+  let singularExperimentId: string;
+  let singularStrategyVersionId: string;
+  let singularStrategyDefinitionId: string;
 
   beforeAll(async () => {
     prisma = createPrismaClient(process.env.DATABASE_URL!);
@@ -94,6 +97,58 @@ describe('leaderboard persistence', () => {
         status: 'COMPLETED',
       },
     });
+
+    const singularDefinition = await prisma.strategyDefinition.create({
+      data: {
+        name: 'Customized SMA',
+        ownerId,
+        source: 'USER_PROMPT',
+        sourceInput: 'Issue 38 singular leaderboard fixture',
+        tags: ['custom'],
+        type: 'singular',
+      },
+    });
+    singularStrategyDefinitionId = singularDefinition.id;
+
+    const singularVersion = await prisma.strategyVersion.create({
+      data: {
+        libraryVersion: '1.0.0',
+        ownerId,
+        params: { fast: 10, slow: 30 },
+        strategyDefinitionId: singularStrategyDefinitionId,
+        versionTag: 'issue38-singular-leaderboard-fixture',
+      },
+    });
+    singularStrategyVersionId = singularVersion.id;
+
+    const singularExperiment = await prisma.experiment.create({
+      data: {
+        endTime: 2,
+        evaluatorVersion: 'default-v1',
+        initialInvestment: '1000',
+        maxDrawdown: '0.2',
+        ownerId,
+        pair: 'BTCUSDT',
+        return: '0.1',
+        score: '0.7',
+        slippage: '0',
+        startTime: 1,
+        strategyVersionId: singularStrategyVersionId,
+        timeframe: '1m',
+        totalProfit: '10',
+        totalTrades: 2,
+        transactionCost: '0',
+        winRate: '0.5',
+      },
+    });
+    singularExperimentId = singularExperiment.id;
+    await prisma.backtestJob.create({
+      data: {
+        experimentId: singularExperimentId,
+        ownerId,
+        status: 'COMPLETED',
+      },
+    });
   });
 
   afterAll(async () => {
@@ -110,17 +165,27 @@ describe('leaderboard persistence', () => {
       await prisma.outboxEvent.deleteMany({ where: { id: { in: eventIds } } });
     }
     await prisma.leaderboard.deleteMany({ where: { ownerId } });
-    await prisma.backtestJob.deleteMany({ where: { experimentId } });
-    await prisma.experiment.deleteMany({ where: { id: experimentId } });
+    await prisma.backtestJob.deleteMany({
+      where: { experimentId: { in: [experimentId, singularExperimentId] } },
+    });
+    await prisma.experiment.deleteMany({
+      where: { id: { in: [experimentId, singularExperimentId] } },
+    });
     await prisma.strategyVersion.delete({ where: { id: strategyVersionId } });
+    await prisma.strategyVersion.delete({
+      where: { id: singularStrategyVersionId },
+    });
     await prisma.strategyDefinition.delete({
       where: { id: strategyDefinitionId },
+    });
+    await prisma.strategyDefinition.delete({
+      where: { id: singularStrategyDefinitionId },
     });
     await prisma.user.delete({ where: { id: ownerId } });
     await prisma.$disconnect();
   });
 
-  it('reconciles completed composites into one owner-scoped projection and outbox snapshot', async () => {
+  it('reconciles completed singular and composite strategies into one owner-scoped snapshot', async () => {
     const eventBus = new InMemoryDomainEventBus();
     const service = new RankingService({
       eventBus,
@@ -133,17 +198,26 @@ describe('leaderboard persistence', () => {
       include: { entries: true },
       where: { ownerId },
     });
-    const entry = board.entries[0];
-    expect(entry?.experimentId).toBe(experimentId);
-    expect(entry?.maxDrawdown.toString()).toBe('0.1');
-    expect(entry?.rank).toBe(1);
-    expect(entry?.score.toString()).toBe('0.8');
-    expect(entry?.strategyDisplayName).toBe('MA + RSI');
-    expect(entry?.totalTrades).toBe(0);
-    expect(entry?.memberStrategies).toEqual([
+    expect(board.entries).toHaveLength(2);
+    const compositeEntry = board.entries.find(
+      (entry) => entry.experimentId === experimentId,
+    );
+    expect(compositeEntry?.maxDrawdown.toString()).toBe('0.1');
+    expect(compositeEntry?.rank).toBe(1);
+    expect(compositeEntry?.score.toString()).toBe('0.8');
+    expect(compositeEntry?.strategyDisplayName).toBe('MA + RSI');
+    expect(compositeEntry?.totalTrades).toBe(0);
+    expect(compositeEntry?.memberStrategies).toEqual([
       { label: 'MA', strategyId: 'ma' },
       { label: 'RSI', strategyId: 'rsi' },
     ]);
+    const singularEntry = board.entries.find(
+      (entry) => entry.experimentId === singularExperimentId,
+    );
+    expect(singularEntry?.rank).toBe(2);
+    expect(singularEntry?.score.toString()).toBe('0.7');
+    expect(singularEntry?.strategyDisplayName).toBe('Customized SMA');
+    expect(singularEntry?.memberStrategies).toEqual([]);
 
     const events = await prisma.outboxEvent.findMany({
       where: { name: 'LeaderboardUpdated' },

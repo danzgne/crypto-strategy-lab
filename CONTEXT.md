@@ -217,14 +217,14 @@ A normalized [0, 1] measure of risk quality derived from Max Drawdown for Leader
 lower drawdown and therefore safer performance.
 
 **Leaderboard Entry**:
-The item shown on a User's Leaderboard: one successful completed Composite Strategy Experiment with its rank,
-strategy display information, and evaluation metrics. It points to that Experiment rather than replacing it, so
+The item shown on a User's Leaderboard: one successful completed singular or composite Strategy Experiment with its
+rank, strategy display information, and evaluation metrics. It points to that Experiment rather than replacing it, so
 the full backtest result remains available through the Experiment detail.
 
 **Leaderboard**:
-One User's ranked Top-K list of successful completed Composite Strategy Experiments, ordered by Score. It spans
-the User's evaluated pairs, timeframes, and date ranges, and is private per User: there is no global Leaderboard,
-because an entry names its member Strategies and would otherwise publish one User's strategy design to everyone
+One User's ranked Top-K list of successful completed singular and composite Strategy Experiments, ordered by Score. It
+spans the User's evaluated pairs, timeframes, and date ranges, and is private per User: there is no global Leaderboard,
+because an entry may name private member Strategies and would otherwise publish one User's strategy design to everyone
 (see ADR-0005).
 
 **Ranking Service**:

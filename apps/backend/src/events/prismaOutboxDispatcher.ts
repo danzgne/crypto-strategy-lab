@@ -6,7 +6,7 @@ import type {
 import {
   createDomainEvent,
   DOMAIN_EVENT_VERSIONS,
-  formatCompositeStrategyDisplay,
+  formatStrategyDisplay,
   isStrategyEvaluatedPayload,
 } from '@crypto-strategy-lab/shared';
 
@@ -177,7 +177,12 @@ async function upcastStrategyEvaluated(
   if (experiment === null) return null;
   if (experiment.strategyVersionId !== strategyVersionId) return null;
 
-  const display = formatCompositeStrategyDisplay(
+  const strategyKind =
+    experiment.strategyVersion.strategyDefinition.type === 'composite'
+      ? 'composite'
+      : 'singular';
+  const display = formatStrategyDisplay(
+    strategyKind,
     experiment.strategyVersion.params,
     experiment.strategyVersion.strategyDefinition.name,
   );
@@ -194,10 +199,7 @@ async function upcastStrategyEvaluated(
       score: String(score),
       startTime: Number(experiment.startTime),
       strategyDisplayName: display.name,
-      strategyKind:
-        experiment.strategyVersion.strategyDefinition.type === 'composite'
-          ? 'composite'
-          : 'singular',
+      strategyKind,
       strategyVersionId,
       timeframe: experiment.timeframe as Timeframe,
       totalProfit: decimalString(experiment.totalProfit),

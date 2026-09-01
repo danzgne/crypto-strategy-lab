@@ -8,7 +8,7 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import {
   createDomainEvent,
-  formatCompositeStrategyDisplay,
+  formatStrategyDisplay,
 } from '@crypto-strategy-lab/shared';
 import { Prisma } from '../../../../../generated/prisma/client';
 
@@ -186,7 +186,12 @@ export class PrismaJobRepository implements JobRepository {
         where: { id: job.experimentId },
       });
       if (experiment === null) return false;
-      const strategyDisplay = formatCompositeStrategyDisplay(
+      const strategyKind =
+        experiment.strategyVersion.strategyDefinition.type === 'composite'
+          ? 'composite'
+          : 'singular';
+      const strategyDisplay = formatStrategyDisplay(
+        strategyKind,
         experiment.strategyVersion.params,
         experiment.strategyVersion.strategyDefinition.name,
       );
@@ -266,10 +271,7 @@ export class PrismaJobRepository implements JobRepository {
           score: decimalString(outcome.metrics.score),
           startTime: Number(experiment.startTime),
           strategyDisplayName: strategyDisplay.name,
-          strategyKind:
-            experiment.strategyVersion.strategyDefinition.type === 'composite'
-              ? 'composite'
-              : 'singular',
+          strategyKind,
           strategyVersionId: experiment.strategyVersionId,
           timeframe: experiment.timeframe as Timeframe,
           totalProfit: decimalString(outcome.metrics.totalProfit),

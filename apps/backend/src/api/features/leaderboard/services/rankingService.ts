@@ -79,7 +79,7 @@ export class RankingService {
 
   private handleEvaluation(event: StrategyEvaluatedEvent): Promise<void> {
     const payload = event.payload;
-    if (!isEligibleCompositeEvaluation(payload)) return Promise.resolve();
+    if (!isEligibleStrategyEvaluation(payload)) return Promise.resolve();
 
     return this.enqueue(payload.ownerId, async () => {
       await this.applyEvaluation(
@@ -151,14 +151,13 @@ export class RankingService {
   }
 }
 
-function isEligibleCompositeEvaluation(
+function isEligibleStrategyEvaluation(
   payload: unknown,
 ): payload is StrategyEvaluatedEvent['payload'] {
-  return (
-    isStrategyEvaluatedPayload(payload) &&
-    payload.strategyKind === 'composite' &&
-    payload.memberStrategies.length >= 2
-  );
+  if (!isStrategyEvaluatedPayload(payload)) return false;
+  return payload.strategyKind === 'singular'
+    ? payload.memberStrategies.length === 0
+    : payload.memberStrategies.length >= 2;
 }
 
 export type LeaderboardServiceInterface = Pick<RankingService, 'get'>;

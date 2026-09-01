@@ -4,15 +4,26 @@ export function formatStrategyType(strategyId: string): string {
   return strategyId.replaceAll(/[-_]+/g, ' ').toUpperCase();
 }
 
-export interface CompositeStrategyDisplay {
+export interface StrategyDisplay {
   name: string;
   members: { strategyId: string; label: string }[];
+}
+
+export function formatStrategyDisplay(
+  strategyKind: 'singular' | 'composite',
+  params: unknown,
+  fallback: string,
+): StrategyDisplay {
+  if (strategyKind === 'singular') {
+    return { members: [], name: fallback };
+  }
+  return formatCompositeStrategyDisplay(params, fallback);
 }
 
 export function formatCompositeStrategyDisplay(
   params: unknown,
   fallback = 'Composite Strategy',
-): CompositeStrategyDisplay {
+): StrategyDisplay {
   const members =
     isRecord(params) && Array.isArray(params.members)
       ? params.members.flatMap((member) => {

@@ -15,7 +15,7 @@ import type {
 } from '@/api/features/leaderboard/types';
 
 describe('RankingService', () => {
-  it('ranks synthetic composite evaluations by score and keeps only Top-K', async () => {
+  it('ranks singular and composite evaluations together and keeps only Top-K', async () => {
     const bus = new FakeEventBus();
     const repository = new FakeRepository(2);
     const service = new RankingService({ eventBus: bus, repository, topK: 2 });
@@ -24,6 +24,7 @@ describe('RankingService', () => {
     await bus.publish(evaluation('experiment-b', '0.50'));
     await bus.publish(evaluation('experiment-a', '0.90'));
     await bus.publish(evaluation('experiment-c', '0.40'));
+    await bus.publish(evaluation('experiment-singular', '0.80', 'singular'));
 
     expect(
       repository.snapshot.entries.map(({ experimentId, rank }) => ({
@@ -32,20 +33,17 @@ describe('RankingService', () => {
       })),
     ).toEqual([
       { experimentId: 'experiment-a', rank: 1 },
-      { experimentId: 'experiment-b', rank: 2 },
+      { experimentId: 'experiment-singular', rank: 2 },
     ]);
-    expect(repository.replacements).toHaveLength(2);
+    expect(repository.replacements).toHaveLength(3);
     service.stop();
   });
 
-  it('ignores singular evaluations and does not publish unchanged updates', async () => {
+  it('ignores malformed evaluations and does not publish unchanged updates', async () => {
     const bus = new FakeEventBus();
     const repository = new FakeRepository(10);
     const service = new RankingService({ eventBus: bus, repository });
     await service.start();
-
-    await bus.publish(evaluation('experiment-a', '0.90', 'singular'));
-    expect(repository.replacements).toHaveLength(0);
 
     const malformed = evaluation('experiment-malformed', '0.95');
     await bus.publish({
@@ -61,6 +59,18 @@ describe('RankingService', () => {
       ...malformed,
       eventId: 'malformed-score',
       payload: { ...malformed.payload, score: 'not-a-decimal' },
+    } as StrategyEvaluatedEvent);
+    const singularWithMembers = evaluation(
+      'malformed-singular-members',
+      '0.95',
+      'singular',
+    );
+    await bus.publish({
+      ...singularWithMembers,
+      payload: {
+        ...singularWithMembers.payload,
+        memberStrategies: [{ label: 'MA', strategyId: 'ma' }],
+      },
     } as StrategyEvaluatedEvent);
     expect(repository.replacements).toHaveLength(0);
 
@@ -160,10 +170,13 @@ function evaluation(
     endTime: 2,
     experimentId,
     maxDrawdown: '0.1',
-    memberStrategies: [
-      { label: 'MA', strategyId: 'ma' },
-      { label: 'RSI', strategyId: 'rsi' },
-    ],
+    memberStrategies:
+      strategyKind === 'singular'
+        ? []
+        : [
+            { label: 'MA', strategyId: 'ma' },
+            { label: 'RSI', strategyId: 'rsi' },
+          ],
     ownerId: 'user-1',
     pair: 'BTCUSDT',
     return: '0.2',

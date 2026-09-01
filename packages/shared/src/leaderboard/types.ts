@@ -6,7 +6,7 @@ export interface LeaderboardMemberSnapshot {
 }
 
 /**
- * The public, immutable snapshot of one completed composite experiment on a
+ * The public, immutable snapshot of one completed strategy experiment on a
  * user's current Top-K board.
  */
 export interface LeaderboardEntrySnapshot {

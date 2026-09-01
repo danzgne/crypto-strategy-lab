@@ -1,6 +1,6 @@
 import {
   createDomainEvent,
-  formatCompositeStrategyDisplay,
+  formatStrategyDisplay,
   type LeaderboardEntrySnapshot,
   type LeaderboardSnapshot,
 } from '@crypto-strategy-lab/shared';
@@ -162,18 +162,22 @@ export class PrismaLeaderboardRepository implements LeaderboardProjectionReposit
         totalProfit: { not: null },
         totalTrades: { not: null },
         winRate: { not: null },
-        strategyVersion: {
-          strategyDefinition: { type: 'composite' },
-        },
       },
     });
 
     return experiments.flatMap((experiment) => {
-      const display = formatCompositeStrategyDisplay(
+      const strategyKind =
+        experiment.strategyVersion.strategyDefinition.type === 'composite'
+          ? 'composite'
+          : 'singular';
+      const display = formatStrategyDisplay(
+        strategyKind,
         experiment.strategyVersion.params,
         experiment.strategyVersion.strategyDefinition.name,
       );
-      if (display.members.length < 2) return [];
+      if (strategyKind === 'composite' && display.members.length < 2) {
+        return [];
+      }
       return [
         {
           endTime: Number(experiment.endTime),

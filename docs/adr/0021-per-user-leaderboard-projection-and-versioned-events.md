@@ -13,18 +13,20 @@ updates, restart recovery, and delivery through the existing transactional outbo
 ## Decision
 
 The Leaderboard is a private, per-User materialized Top-K projection across all of that User's successful completed
-Composite Strategy Experiments, regardless of Pair, Timeframe, date range, or whether the Experiment was manual or
-search-generated. `K` is server-configurable with a default of 10; it is not a per-user setting.
+Strategy Experiments, both singular and composite, regardless of Pair, Timeframe, date range, or whether the
+Experiment was manual or search-generated. `K` is server-configurable with a default of 10; it is not a per-user
+setting.
 
-Each projection row represents one Experiment, so the same Composite Strategy Version may appear more than once when
-evaluated in different contexts. Zero-trade completed Experiments remain eligible with Score zero. Rows sort by
-Score descending, then Experiment ID ascending for deterministic ties. Evicted rows are removed from the projection;
-the underlying Experiment remains the durable history and detail resource.
+Each projection row represents one Experiment, so the same Strategy Version may appear more than once when evaluated in
+different contexts. Zero-trade completed Experiments remain eligible with Score zero. Rows sort by Score descending,
+then Experiment ID ascending for deterministic ties. Evicted rows are removed from the projection; the underlying
+Experiment remains the durable history and detail resource.
 
 The Backtest Worker publishes a version-2 `StrategyEvaluated` event containing the owner, Experiment and Strategy
-Version identities, explicit composite kind, display/member names, Pair, Timeframe, date range, and the persisted
-evaluation metrics. Decimal values use strings at the event boundary. Ranking Service subscribes to this event and
-never receives a direct Worker call or recomputes Score.
+Version identities, singular-or-composite kind, display/member names, Pair, Timeframe, date range, and the persisted
+evaluation metrics. Singular events have an empty member snapshot; composite events carry their member names. Decimal
+values use strings at the event boundary. Ranking Service subscribes to this event and never receives a direct Worker
+call or recomputes Score.
 
 Ranking updates lock the per-user Leaderboard row, recompute and replace the current Top-K projection in one database
 transaction, and insert a version-2 `LeaderboardUpdated` record containing the full ordered snapshot into the same

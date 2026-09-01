@@ -257,5 +257,5 @@ ESLint.
    history, and the **Cách tính Profit** / **Giả định Backtest** panels.
 
 The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, `GET /api/v1/backtests` for
-owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. The Leaderboard is intentionally out of
-scope for this slice and consumes `StrategyEvaluated` in a later issue.
+owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. Completed singular and composite Experiments
+are ranked in the owner-scoped Leaderboard at `GET /api/v1/leaderboard` and shown on Discovery.
