@@ -13,7 +13,6 @@ import type {
   GenerationKind,
   RuleStrategyParams,
   StrategyLibrarySummary,
-  StrategyProvenance,
 } from '../types';
 
 const DEFAULT_LIBRARY_VERSION = '1.0.0';
@@ -21,7 +20,7 @@ const VALIDATE_DEBOUNCE_MS = 500;
 
 export interface GenerationReview {
   response: GenerateStrategyResponse;
-  source: StrategyProvenance;
+  source: GenerationKind;
   sourceInput: string;
 }
 
@@ -192,15 +191,16 @@ export function useStrategyGeneration() {
         source: generation.source,
         sourceInput: generation.sourceInput,
         libraryVersion: saveLibraryVersion,
+        strategyId: 'rule',
         params: renderedParams,
       });
       setRecentStrategies((current) => [
         {
           id: entry.id,
           name: entry.name,
-          source: entry.source,
+          source: entry.source as GenerationKind,
           createdAt: entry.createdAt,
-          libraryVersion: entry.version.libraryVersion,
+          libraryVersion: entry.latestVersion.libraryVersion,
           tags: entry.tags,
         },
         ...current,

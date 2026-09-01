@@ -11,16 +11,14 @@ export function RecentlyImportedTable({
 }: RecentlyImportedTableProps) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-slate-900">
-        Chiến lược đã import gần đây
-      </h3>
+      <h3 className="text-sm font-bold text-slate-900">Recently imported</h3>
       <div className="mt-3 overflow-x-auto">
         <table className="w-full text-left text-xs">
           <thead>
             <tr className="border-b border-slate-100 text-slate-400">
-              <th className="pb-2 pr-4 font-medium">Tên strategy</th>
+              <th className="pb-2 pr-4 font-medium">Name</th>
               <th className="pb-2 pr-4 font-medium">Source</th>
-              <th className="pb-2 pr-4 font-medium">Ngày tạo</th>
+              <th className="pb-2 pr-4 font-medium">Created</th>
               <th className="pb-2 pr-4 font-medium">Version</th>
               <th className="pb-2 font-medium">Tags</th>
             </tr>
@@ -29,14 +27,14 @@ export function RecentlyImportedTable({
             {isLoading && (
               <tr>
                 <td colSpan={5} className="py-4 text-center text-slate-400">
-                  Đang tải...
+                  Loading…
                 </td>
               </tr>
             )}
             {!isLoading && entries.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-4 text-center text-slate-400">
-                  Chưa có strategy nào được import
+                  No strategies imported yet
                 </td>
               </tr>
             )}
@@ -87,5 +85,5 @@ export function RecentlyImportedTable({
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('vi-VN');
+  return new Date(iso).toLocaleDateString('en-US');
 }

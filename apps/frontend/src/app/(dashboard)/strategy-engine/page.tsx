@@ -65,11 +65,11 @@ export default function StrategyEnginePage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Tạo Strategy từ Prompt / URL
+          Create a Strategy from a Prompt or URL
         </h1>
         <p className="mt-1 text-sm text-slate-500">
-          Người dùng nhập ngôn ngữ tự nhiên hoặc link website để hệ thống sinh
-          strategy và lưu vào thư viện
+          Enter natural language or a website link and the system generates a
+          strategy you can save to the library
         </p>
       </div>
 
@@ -100,8 +100,8 @@ export default function StrategyEnginePage() {
             />
           ) : (
             <div className="rounded-2xl border border-dashed border-slate-200 p-5 text-xs text-slate-400">
-              Kết quả phân tích sẽ hiển thị ở đây sau khi bạn phân tích một mô
-              tả hoặc URL.
+              Analysis results will appear here after you analyze a description
+              or URL.
             </div>
           )}
         </div>

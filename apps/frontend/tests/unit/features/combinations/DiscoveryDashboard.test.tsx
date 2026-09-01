@@ -1,46 +1,51 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { SavedStrategiesState } from '../../../../src/features/strategies';
-import type { StrategyCatalog } from '@crypto-strategy-lab/shared';
+import type { StrategyLibraryState } from '../../../../src/features/strategies';
 
-const catalog: StrategyCatalog = {
-  strategyIds: ['ma', 'rsi'],
-  strategies: [
+const library: StrategyLibraryState = {
+  builtins: [
     {
-      id: 'ma',
+      strategyId: 'ma',
       paramsSchema: {
         type: 'object',
         properties: { fast: { type: 'integer', default: 20 } },
       },
     },
     {
-      id: 'rsi',
+      strategyId: 'rsi',
       paramsSchema: {
         type: 'object',
         properties: { period: { type: 'integer', default: 14 } },
       },
     },
   ],
+  entries: [],
+  total: 0,
+  loading: false,
+  loadingMore: false,
+  error: null,
+  hasMore: false,
+  showArchived: false,
+  setShowArchived: vi.fn(),
+  loadMore: vi.fn(),
+  refresh: vi.fn(),
 };
 
-vi.mock(
-  '../../../../src/features/market-data/hooks/useStrategyCatalog',
-  () => ({
-    useStrategyCatalog: () => catalog,
-  }),
-);
-
-const save = vi.fn().mockResolvedValue(null);
-vi.mock('../../../../src/features/strategies', () => ({
-  useSavedStrategies: (): SavedStrategiesState => ({
-    error: null,
-    loading: false,
-    save,
-    saving: false,
-    strategies: [],
-  }),
+const { create } = vi.hoisted(() => ({
+  create: vi.fn().mockResolvedValue({ id: 'entry-1' }),
 }));
+
+vi.mock('../../../../src/features/strategies', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../../src/features/strategies')
+  >('../../../../src/features/strategies');
+  return {
+    ...actual,
+    useStrategyLibrary: (): StrategyLibraryState => library,
+    strategyLibraryClient: { ...actual.strategyLibraryClient, create },
+  };
+});
 
 vi.mock('../../../../src/features/leaderboard', () => ({
   LeaderboardPanel: () => <div data-testid="leaderboard-panel" />,
@@ -72,41 +77,40 @@ vi.mock('../../../../src/features/search', () => ({
 import { DiscoveryDashboard } from '../../../../src/features/combinations';
 
 describe('DiscoveryDashboard', () => {
-  it('places singular and composite builders in Discovery and exposes saved strategies', () => {
+  it('lists built-ins read-only and lets a composite be assembled and saved', () => {
     render(<DiscoveryDashboard />);
 
     expect(
-      screen.getByRole('heading', {
-        name: 'Strategy Engine & Loop Discovery',
-      }),
+      screen.getByRole('heading', { name: 'Strategy Library' }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole('heading', { name: 'Singular Strategy' }),
+      screen.getByRole('heading', { name: 'Built-in strategies' }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole('heading', { name: 'Composite Strategy' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('saved-strategies-panel')).toHaveTextContent(
-      'Saved strategies',
+      'My strategies',
     );
 
     fireEvent.change(
       screen.getByRole('combobox', { name: 'Add strategy to composite' }),
-      { target: { value: 'ma' } },
+      { target: { value: 'builtin:ma' } },
     );
     fireEvent.change(
       screen.getByRole('combobox', { name: 'Add strategy to composite' }),
-      { target: { value: 'rsi' } },
-    );
-    fireEvent.change(
-      screen.getByRole('textbox', { name: 'Composite strategy name' }),
-      { target: { value: 'Momentum pair' } },
+      { target: { value: 'builtin:rsi' } },
     );
     fireEvent.click(
       screen.getByRole('button', { name: 'Save composite strategy' }),
     );
 
-    expect(save).toHaveBeenCalledWith(
+    fireEvent.change(screen.getByRole('textbox', { name: 'Name' }), {
+      target: { value: 'Momentum pair' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }));
+
+    expect(create).toHaveBeenCalledWith(
       expect.objectContaining({
         name: 'Momentum pair',
         strategyId: 'composite',

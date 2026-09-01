@@ -1,23 +1,17 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { StrategyCatalog } from '@crypto-strategy-lab/shared';
+import type { LibraryBuiltin } from '@crypto-strategy-lab/shared';
 import { DiscoverySessionControl } from '../../../../src/features/search/components/DiscoverySessionControl';
 import { DiscoveryProgressCard } from '../../../../src/features/search/components/DiscoveryProgressCard';
 import { DiscoveryRunHistoryTable } from '../../../../src/features/search/components/DiscoveryRunHistoryTable';
 import type { UseDiscoverySessionResult } from '../../../../src/features/search/hooks/useDiscoverySession';
 
-const catalog: StrategyCatalog = {
-  strategies: [
-    { id: 'ma', paramsSchema: { properties: {}, type: 'object' } },
-    { id: 'rsi', paramsSchema: { properties: {}, type: 'object' } },
-    { id: 'bb', paramsSchema: { properties: {}, type: 'object' } },
-    {
-      id: 'sr',
-      paramsSchema: { properties: {}, type: 'object' },
-    },
-  ],
-  strategyIds: ['ma', 'rsi', 'bb', 'sr'],
-};
+const builtins: LibraryBuiltin[] = [
+  { strategyId: 'ma', paramsSchema: { properties: {}, type: 'object' } },
+  { strategyId: 'rsi', paramsSchema: { properties: {}, type: 'object' } },
+  { strategyId: 'bb', paramsSchema: { properties: {}, type: 'object' } },
+  { strategyId: 'sr', paramsSchema: { properties: {}, type: 'object' } },
+];
 
 function createMockDiscovery(
   overrides?: Partial<UseDiscoverySessionResult>,
@@ -43,7 +37,7 @@ describe('Discovery UI Components', () => {
     it('shows 3 methods with only Random Search active and the others disabled', () => {
       const mockDiscovery = createMockDiscovery();
       render(
-        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
       );
 
       expect(screen.getByText('Random Search')).toBeInTheDocument();
@@ -59,7 +53,7 @@ describe('Discovery UI Components', () => {
     it('starts discovery session when Start Discovery Session is clicked', async () => {
       const mockDiscovery = createMockDiscovery();
       render(
-        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
       );
 
       const startBtn = screen.getByRole('button', {
@@ -102,7 +96,7 @@ describe('Discovery UI Components', () => {
       });
 
       render(
-        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
       );
 
       expect(
@@ -146,7 +140,7 @@ describe('Discovery UI Components', () => {
       });
 
       render(
-        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
       );
 
       const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
@@ -180,7 +174,7 @@ describe('Discovery UI Components', () => {
 
       const mockDiscovery = createMockDiscovery({ session: null });
       render(
-        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
       );
 
       const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });

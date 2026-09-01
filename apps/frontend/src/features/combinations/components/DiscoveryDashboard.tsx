@@ -1,17 +1,20 @@
 'use client';
 
-import type {
-  CompositeStrategyRequest,
-  SavedStrategy,
-} from '@crypto-strategy-lab/shared';
+import type { LibraryBuiltin, LibraryEntry } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
-import { BookMarked, CheckCircle2, Clock3, RadioTower } from 'lucide-react';
+import {
+  Archive,
+  ArchiveRestore,
+  BookMarked,
+  Copy,
+  Play,
+  Plus,
+  RadioTower,
+  TestTubeDiagonal,
+} from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
-import { useSavedStrategies } from '../../strategies';
-import { useStrategyCatalog } from '../../market-data/hooks/useStrategyCatalog';
 import { LeaderboardPanel } from '../../leaderboard';
 import {
   DiscoveryProgressCard,
@@ -19,40 +22,46 @@ import {
   DiscoverySessionControl,
   useDiscoverySession,
 } from '../../search';
+import { strategyLibraryClient, useStrategyLibrary } from '../../strategies';
 import { ManualCompositeBuilder } from './ManualCompositeBuilder';
-import { SingularStrategyBuilder } from './SingularStrategyBuilder';
 
 export function DiscoveryDashboard() {
-  const catalog = useStrategyCatalog();
-  const saved = useSavedStrategies();
+  const library = useStrategyLibrary();
   const discovery = useDiscoverySession();
-  const [draftComposite, setDraftComposite] =
-    useState<CompositeStrategyRequest | null>(null);
 
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-            Strategy Engine &amp; Loop Discovery
+            Strategy Library
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Configure continuous discovery sessions, generate strategy
-            combinations, and watch live backtests update the leaderboard.
+            Browse the built-in strategies, author or fork your own, combine
+            them into a composite, and run any saved version on the chart or in
+            a backtest.
           </p>
         </div>
-        <StatusBadge tone="positive">
-          <RadioTower aria-hidden="true" className="size-3.5" />
-          Binance API + WebSocket
-        </StatusBadge>
+        <div className="flex items-center gap-2">
+          <StatusBadge tone="positive">
+            <RadioTower aria-hidden="true" className="size-3.5" />
+            Binance API + WebSocket
+          </StatusBadge>
+          <Link
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            href="/strategies/new"
+          >
+            <Plus aria-hidden="true" className="size-3.5" /> New strategy
+          </Link>
+        </div>
       </div>
 
-      {saved.error !== null && (
+      {library.error !== null && (
         <div
           className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
           role="alert"
         >
-          {saved.error}
+          {library.error}
         </div>
       )}
 
@@ -65,50 +74,119 @@ export function DiscoveryDashboard() {
         </div>
       )}
 
-      {/* Discovery Session Engine & Live Progress */}
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-        <DiscoverySessionControl catalog={catalog} discovery={discovery} />
+        <DiscoverySessionControl
+          builtins={library.builtins}
+          discovery={discovery}
+        />
         <DiscoveryProgressCard discovery={discovery} />
       </div>
 
       <DiscoveryRunHistoryTable discovery={discovery} />
 
-      <div className="mt-8 grid gap-5 xl:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)]">
-        <SingularStrategyBuilder
-          catalog={catalog}
-          isSaving={saved.saving}
-          onSave={saved.save}
+      <div className="mt-8">
+        <ManualCompositeBuilder
+          builtins={library.builtins}
+          entries={library.entries}
+          onSaved={library.refresh}
         />
-        <div>
-          <ManualCompositeBuilder
-            catalog={catalog}
-            isSaving={saved.saving}
-            onCompositeChange={setDraftComposite}
-            onSave={saved.save}
-          />
-          <div className="mt-3 px-1 text-xs text-slate-400">
-            {draftComposite === null
-              ? 'Select at least two unique strategy versions to prepare a composite.'
-              : 'Composite draft ready to save and reuse in Realtime.'}
-          </div>
-        </div>
       </div>
 
-      <SavedStrategiesPanel
-        loading={saved.loading}
-        strategies={saved.strategies}
+      <BuiltinsSection builtins={library.builtins} />
+
+      <EntriesSection
+        entries={library.entries}
+        hasMore={library.hasMore}
+        loading={library.loading}
+        loadingMore={library.loadingMore}
+        onArchiveChanged={library.refresh}
+        onLoadMore={library.loadMore}
+        setShowArchived={library.setShowArchived}
+        showArchived={library.showArchived}
       />
+
       <LeaderboardPanel />
     </div>
   );
 }
 
-function SavedStrategiesPanel({
-  loading,
-  strategies,
+function BuiltinsSection({
+  builtins,
 }: {
+  builtins: readonly LibraryBuiltin[];
+}) {
+  return (
+    <section
+      aria-labelledby="builtin-strategies-title"
+      className="mt-7 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5"
+    >
+      <div className="flex items-center gap-2">
+        <BookMarked aria-hidden="true" className="size-5 text-slate-500" />
+        <h2
+          className="text-lg font-semibold tracking-tight text-slate-950"
+          id="builtin-strategies-title"
+        >
+          Built-in strategies
+        </h2>
+        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-500">
+          Read-only
+        </span>
+      </div>
+
+      {builtins.length === 0 ? (
+        <p className="mt-4 text-sm text-slate-500">Loading…</p>
+      ) : (
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {builtins.map((builtin) => (
+            <article
+              className="rounded-xl border border-slate-200 bg-slate-50/60 p-3"
+              key={builtin.strategyId}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="text-sm font-semibold text-slate-900">
+                  {formatStrategyType(builtin.strategyId)}
+                </h3>
+                <Link
+                  className="flex items-center gap-1 text-xs font-semibold text-indigo-600 transition hover:text-indigo-800"
+                  href={`/strategies/new?fork=builtin:${builtin.strategyId}`}
+                >
+                  <Copy aria-hidden="true" className="size-3.5" /> Save as my
+                  strategy
+                </Link>
+              </div>
+              <p className="mt-2 text-[11px] text-slate-400">
+                {Object.keys(builtin.paramsSchema.properties).length}{' '}
+                configurable parameter
+                {Object.keys(builtin.paramsSchema.properties).length === 1
+                  ? ''
+                  : 's'}
+              </p>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function EntriesSection({
+  entries,
+  hasMore,
+  loading,
+  loadingMore,
+  onArchiveChanged,
+  onLoadMore,
+  setShowArchived,
+  showArchived,
+}: {
+  entries: readonly LibraryEntry[];
+  hasMore: boolean;
   loading: boolean;
-  strategies: SavedStrategy[];
+  loadingMore: boolean;
+  onArchiveChanged: () => void;
+  onLoadMore: () => void;
+  setShowArchived: (value: boolean) => void;
+  showArchived: boolean;
 }) {
   return (
     <section
@@ -123,56 +201,128 @@ function SavedStrategiesPanel({
             className="text-lg font-semibold tracking-tight text-slate-950"
             id="saved-strategies-title"
           >
-            Saved strategies
+            My strategies
           </h2>
         </div>
-        <Link
-          className="text-sm font-semibold text-indigo-600 transition hover:text-indigo-800"
-          href="/"
-        >
-          Open Realtime →
-        </Link>
+        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+          <input
+            checked={showArchived}
+            onChange={(event) => setShowArchived(event.target.checked)}
+            type="checkbox"
+          />
+          Show archived
+        </label>
       </div>
 
       {loading ? (
         <p className="mt-4 text-sm text-slate-500">Loading saved strategies…</p>
-      ) : strategies.length === 0 ? (
+      ) : entries.length === 0 ? (
         <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-500">
           Saved versions will appear here after you create them.
         </p>
       ) : (
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {strategies.map((strategy) => (
-            <SavedStrategyCard key={strategy.id} strategy={strategy} />
+          {entries.map((entry) => (
+            <EntryCard
+              entry={entry}
+              key={entry.id}
+              onArchiveChanged={onArchiveChanged}
+            />
           ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <div className="mt-4 flex justify-center">
+          <button
+            className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-indigo-200 disabled:opacity-50"
+            disabled={loadingMore}
+            onClick={onLoadMore}
+            type="button"
+          >
+            {loadingMore ? 'Loading…' : 'Load more'}
+          </button>
         </div>
       )}
     </section>
   );
 }
 
-function SavedStrategyCard({ strategy }: { strategy: SavedStrategy }) {
+function EntryCard({
+  entry,
+  onArchiveChanged,
+}: {
+  entry: LibraryEntry;
+  onArchiveChanged: () => void;
+}) {
   const typeLabel =
-    strategy.kind === 'composite'
+    entry.kind === 'composite'
       ? 'Composite Strategy'
-      : formatStrategyType(strategy.strategyId);
-  const versionLabel = strategy.versionId.slice(0, 8);
+      : formatStrategyType(entry.strategyId);
+
+  const toggleArchive = async (): Promise<void> => {
+    await strategyLibraryClient.archive(entry.id, {
+      archived: entry.archivedAt === null,
+    });
+    onArchiveChanged();
+  };
+
   return (
     <article className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
-      <div className="flex items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-indigo-100 text-indigo-600">
-          <CheckCircle2 aria-hidden="true" className="size-4.5" />
-        </span>
-        <div className="min-w-0">
-          <h3 className="truncate text-sm font-semibold text-slate-900">
-            {strategy.name}
-          </h3>
-          <p className="mt-1 text-xs text-slate-500">{typeLabel}</p>
-        </div>
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          className="min-w-0 text-sm font-semibold text-slate-900 hover:text-indigo-700"
+          href={`/strategies/${entry.id}`}
+        >
+          <span className="block truncate">{entry.name}</span>
+        </Link>
+        {entry.archivedAt !== null && (
+          <span className="shrink-0 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
+            Archived
+          </span>
+        )}
       </div>
-      <div className="mt-3 flex items-center gap-1.5 text-[11px] text-slate-400">
-        <Clock3 aria-hidden="true" className="size-3.5" />
-        <span title={strategy.versionId}>Version {versionLabel}</span>
+      <p className="mt-1 text-xs text-slate-500">{typeLabel}</p>
+      <div className="mt-1.5 flex items-center gap-1.5">
+        <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-semibold text-indigo-700">
+          {entry.source}
+        </span>
+        <span className="text-[11px] text-slate-400">
+          v{entry.latestVersion.libraryVersion}
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5">
+        <Link
+          aria-label={`Run ${entry.name} on chart`}
+          className="flex items-center gap-1 rounded-md bg-indigo-600 px-2 py-1 text-[11px] font-semibold text-white transition hover:bg-indigo-700"
+          href={`/?strategyVersionId=${entry.latestVersion.id}`}
+        >
+          <Play aria-hidden="true" className="size-3" /> Run
+        </Link>
+        <Link
+          aria-label={`Backtest ${entry.name}`}
+          className="flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-indigo-200"
+          href={`/backtests?strategyVersionId=${entry.latestVersion.id}`}
+        >
+          <TestTubeDiagonal aria-hidden="true" className="size-3" /> Backtest
+        </Link>
+        <button
+          aria-label={
+            entry.archivedAt === null
+              ? `Archive ${entry.name}`
+              : `Unarchive ${entry.name}`
+          }
+          className="ml-auto flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500 transition hover:border-rose-200 hover:text-rose-600"
+          onClick={() => void toggleArchive()}
+          type="button"
+        >
+          {entry.archivedAt === null ? (
+            <Archive aria-hidden="true" className="size-3" />
+          ) : (
+            <ArchiveRestore aria-hidden="true" className="size-3" />
+          )}
+        </button>
       </div>
     </article>
   );

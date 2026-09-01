@@ -140,9 +140,6 @@ describe('useStrategySignal', () => {
     unmount();
     expect(socket.emit).toHaveBeenCalledWith('strategy:unsubscribe', {
       chartId: 'chart-ma',
-      pair: 'BTCUSDT',
-      strategyId: 'ma',
-      timeframe: '1m',
     });
   });
 });

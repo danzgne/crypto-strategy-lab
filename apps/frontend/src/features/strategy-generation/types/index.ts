@@ -5,7 +5,7 @@ import type {
 
 export type { RuleStrategyParams, StrategyProvenance };
 
-export type GenerationKind = StrategyProvenance;
+export type GenerationKind = 'USER_PROMPT' | 'WEB_IMPORT';
 
 export interface GenerateStrategyRequest {
   kind: GenerationKind;
@@ -25,9 +25,10 @@ export interface SaveStrategyRequest {
   name: string;
   description?: string | undefined;
   tags?: string[] | undefined;
-  source: StrategyProvenance;
+  source: GenerationKind;
   sourceInput: string;
   libraryVersion?: string | undefined;
+  strategyId: 'rule';
   params: RuleStrategyParams;
 }
 
@@ -44,9 +45,9 @@ export interface StrategyLibraryEntry {
   description: string | null;
   tags: string[];
   source: StrategyProvenance;
-  sourceInput: string;
+  sourceInput: string | null;
   createdAt: string;
-  version: StrategyLibraryVersion;
+  latestVersion: StrategyLibraryVersion;
 }
 
 export interface StrategyLibrarySummary {

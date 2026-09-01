@@ -2,8 +2,8 @@
 
 import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
 import type {
+  LibraryBuiltin,
   Pair,
-  StrategyCatalog,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
 import {
@@ -43,12 +43,12 @@ function getInitialConfig(): StoredDiscoveryConfig {
 }
 
 interface DiscoverySessionControlProps {
-  catalog: StrategyCatalog;
+  builtins: readonly LibraryBuiltin[];
   discovery: UseDiscoverySessionResult;
 }
 
 export function DiscoverySessionControl({
-  catalog,
+  builtins,
   discovery,
 }: DiscoverySessionControlProps) {
   const [selectedPair, setSelectedPair] = useState<Pair>(() => {
@@ -395,14 +395,14 @@ export function DiscoverySessionControl({
           Strategy Candidates Pool ({currentStrategies.length} selected)
         </label>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {catalog.strategies.map((strat) => {
-            const isSelected = currentStrategies.includes(strat.id);
+          {builtins.map((builtin) => {
+            const isSelected = currentStrategies.includes(builtin.strategyId);
             return (
               <button
-                key={strat.id}
+                key={builtin.strategyId}
                 type="button"
                 disabled={isSessionActive || isSessionPaused}
-                onClick={() => toggleStrategy(strat.id)}
+                onClick={() => toggleStrategy(builtin.strategyId)}
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
                   isSelected
                     ? 'border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900'
@@ -415,7 +415,9 @@ export function DiscoverySessionControl({
                   readOnly
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span className="truncate">{strat.id.toUpperCase()}</span>
+                <span className="truncate">
+                  {builtin.strategyId.toUpperCase()}
+                </span>
               </button>
             );
           })}

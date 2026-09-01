@@ -19,36 +19,34 @@ export function AnalyzedStrategyPanel({
 }: AnalyzedStrategyPanelProps) {
   return (
     <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-slate-900">
-        Strategy đã phân tích
-      </h3>
+      <h3 className="text-sm font-bold text-slate-900">Analyzed strategy</h3>
 
       {unsupportedRequests.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
           <p className="flex items-center gap-1.5 font-semibold">
             <AlertTriangle className="size-3.5 shrink-0" />
-            Không hỗ trợ: {unsupportedRequests.join(', ')}
+            Not supported: {unsupportedRequests.join(', ')}
           </p>
           <p className="mt-1 text-amber-700">
-            Hệ thống đã thay thế bằng chỉ báo gần nhất được hỗ trợ (RSI, SMA,
-            Bollinger Bands).
+            Replaced with the closest supported indicator (RSI, SMA, Bollinger
+            Bands).
           </p>
         </div>
       )}
 
       <ConditionGroup
-        title="Điều kiện LONG"
+        title="LONG conditions"
         tone="positive"
         conditions={params.conditions.long}
       />
       <ConditionGroup
-        title="Điều kiện SHORT"
+        title="SHORT conditions"
         tone="negative"
         conditions={params.conditions.short}
       />
 
       {params.riskManagement && (
-        <Section title="Quản trị rủi ro">
+        <Section title="Risk management">
           <ul className="space-y-1">
             {params.riskManagement.stopLoss && (
               <li>Stop Loss: {params.riskManagement.stopLoss.value}%</li>
@@ -60,13 +58,13 @@ export function AnalyzedStrategyPanel({
         </Section>
       )}
 
-      <Section title="Khung thời gian">{params.timeframe}</Section>
+      <Section title="Timeframe">{params.timeframe}</Section>
 
-      <Section title="Áp dụng cho cặp">
+      <Section title="Applicable pairs">
         {describeApplicability(params.applicability)}
       </Section>
 
-      <Section title="Chỉ báo">
+      <Section title="Indicators">
         <ul className="space-y-1">
           {params.indicators.map((indicator, index) => (
             <li key={index}>{describeIndicator(indicator)}</li>
@@ -103,7 +101,7 @@ function ConditionGroup({
         {title}
       </p>
       {conditions.length === 0 ? (
-        <p className="mt-1.5 text-xs text-slate-400">Không có điều kiện</p>
+        <p className="mt-1.5 text-xs text-slate-400">No conditions</p>
       ) : (
         <ul className="mt-1.5 space-y-1 text-xs text-slate-600">
           {conditions.map((condition, index) => (
@@ -134,7 +132,7 @@ function describeApplicability(
 ): string {
   const pairs = applicability?.pairs;
   if (pairs === undefined || pairs === 'USDT_ALL') {
-    return 'Tất cả cặp USDT (có thể tùy chỉnh)';
+    return 'All USDT pairs (customizable)';
   }
   return pairs.join(', ');
 }

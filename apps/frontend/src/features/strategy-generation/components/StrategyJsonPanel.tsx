@@ -41,7 +41,7 @@ export function StrategyJsonPanel({
         aria-expanded={isOpen}
       >
         <h3 className="text-sm font-bold text-slate-900">
-          Định nghĩa strategy (JSON)
+          Strategy definition (JSON)
         </h3>
         {isOpen ? (
           <ChevronDown className="size-4 text-slate-400" />
@@ -56,7 +56,7 @@ export function StrategyJsonPanel({
               {validation.status === 'checking' && (
                 <span className="inline-flex items-center gap-1.5 text-slate-500">
                   <Loader2 className="size-3.5 animate-spin" />
-                  Đang kiểm tra...
+                  Checking…
                 </span>
               )}
               {hasError && (
@@ -78,7 +78,7 @@ export function StrategyJsonPanel({
               ) : (
                 <Copy className="size-3.5" />
               )}
-              {copied ? 'Đã sao chép' : 'Sao chép'}
+              {copied ? 'Copied' : 'Copy'}
             </button>
           </div>
           <textarea

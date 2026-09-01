@@ -41,10 +41,27 @@ export async function validateStrategy(
   );
 }
 
+interface LibraryListResponse {
+  entries: StrategyLibraryEntry[];
+}
+
 export async function fetchRecentStrategies(
   limit = 10,
 ): Promise<StrategyLibrarySummary[]> {
-  return browserHttpClient<StrategyLibrarySummary[]>(
+  const response = await browserHttpClient<LibraryListResponse>(
     `/api/v1/strategies?limit=${limit}`,
   );
+  return response.entries
+    .filter(
+      (entry) =>
+        entry.source === 'USER_PROMPT' || entry.source === 'WEB_IMPORT',
+    )
+    .map((entry) => ({
+      id: entry.id,
+      name: entry.name,
+      source: entry.source,
+      createdAt: entry.createdAt,
+      libraryVersion: entry.latestVersion.libraryVersion,
+      tags: entry.tags,
+    }));
 }

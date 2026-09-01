@@ -269,7 +269,7 @@ describe('useStrategyGeneration hook', () => {
           source: 'USER_PROMPT',
           sourceInput: 'Long when RSI under 30',
           createdAt: '2026-02-01T00:00:00.000Z',
-          version: {
+          latestVersion: {
             id: 'version-1',
             params: edited,
             versionTag: 'deadbeef',
@@ -391,7 +391,7 @@ describe('useStrategyGeneration hook', () => {
       source: 'USER_PROMPT',
       sourceInput: 'Long when RSI under 30',
       createdAt: '2026-02-01T00:00:00.000Z',
-      version: {
+      latestVersion: {
         id: 'version-9',
         params: sampleGenerated().params,
         versionTag: 'deadbeef',
