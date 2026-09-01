@@ -8,6 +8,11 @@ const appConfigSchema = z
     BACKEND_HOST: z.string().min(1).default('0.0.0.0'),
     BACKEND_INSTANCE_ID: z.string().min(1).default('backend-local'),
     BACKEND_PORT: z.coerce.number().int().min(0).max(65_535).default(3100),
+    BACKTEST_MAX_SELECTED_CANDLES: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .default(100_000),
     DATABASE_URL: z.string().min(1),
     FRONTEND_ORIGIN: z.url().default('http://localhost:3000'),
     LOG_LEVEL: z
@@ -45,6 +50,7 @@ export type AppConfig = {
   host: string;
   instanceId: string;
   port: number;
+  maxBacktestCandles: number;
   databaseUrl: string;
   frontendOrigin: string;
   logLevel: z.infer<typeof appConfigSchema>['LOG_LEVEL'];
@@ -66,6 +72,7 @@ export function readAppConfig(
     host: parsed.BACKEND_HOST,
     instanceId: parsed.BACKEND_INSTANCE_ID,
     port: parsed.BACKEND_PORT,
+    maxBacktestCandles: parsed.BACKTEST_MAX_SELECTED_CANDLES,
     databaseUrl: parsed.DATABASE_URL,
     frontendOrigin: parsed.FRONTEND_ORIGIN,
     logLevel: parsed.LOG_LEVEL,

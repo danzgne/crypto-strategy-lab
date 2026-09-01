@@ -36,7 +36,7 @@ export interface BacktestCompletedPayload {
 
 export interface StrategyEvaluatedPayload {
   experimentId: string;
-  candidateId: string;
+  strategyVersionId: string;
   score: number;
 }
 

@@ -50,6 +50,22 @@ Worker starts
 
 The polling loop must be controlled by an `AbortSignal` and a configured polling interval. Do not use an uncontrolled `while (true)` loop.
 
+### Issue #37 implementation
+
+The current vertical slice is implemented by these seams:
+
+- `src/worker/BacktestWorker.ts` owns bounded polling, lease renewal, shutdown, and one-job orchestration.
+- `src/backtesting/historicalBacktester.ts` owns closed-candle signal timing, full-equity positions, reversal,
+  OHLC stop-loss/take-profit precedence, fees, slippage, and final-candle exits.
+- `src/evaluation/defaultEvaluator.ts` owns Return, Win Rate, Wins/Losses, Max Drawdown, Profit Factor, Sharpe,
+  and Score calculations behind the `Evaluator` interface.
+- `src/repositories/prisma/prismaJobRepository.ts` fences claims by worker ID and lease token, and persists Trades,
+  Metrics, job state, and completion outbox events in one transaction.
+
+`BacktestWorker` consumes the persisted Dataset Snapshot only; it never imports an exchange adapter. The default
+worker polls at `WORKER_POLL_INTERVAL_MS` (1 second) and renews the `WORKER_LEASE_DURATION_MS` lease (five
+minutes by default) at roughly one-third of its duration. Retries are bounded at four failed claims.
+
 ### Failure flow
 
 ```text

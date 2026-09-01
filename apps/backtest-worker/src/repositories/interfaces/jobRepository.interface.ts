@@ -1,15 +1,20 @@
 import type { Job } from '@crypto-strategy-lab/shared';
+import type {
+  BacktestExecutionInput,
+  ClaimedBacktestJob,
+  PersistedBacktestOutcome,
+} from '../../worker/types';
 
 export interface JobRepository {
   createJob(experimentId: string, ownerId: string): Promise<string>;
   claimNextJob(workerId: string): Promise<Job | null>;
-  updateJobStatus(jobId: string, status: Job['status']): Promise<void>;
   findById(jobId: string): Promise<Job | null>;
-  updateJobFailure(
-    jobId: string,
-    error: string,
-    retryCount: number,
-    status: Job['status'],
-    claimedAt: Date | null,
-  ): Promise<void>;
+  startJob(job: ClaimedBacktestJob): Promise<void>;
+  renewLease(job: ClaimedBacktestJob): Promise<boolean>;
+  loadExecutionInput(job: ClaimedBacktestJob): Promise<BacktestExecutionInput>;
+  completeJob(
+    job: ClaimedBacktestJob,
+    outcome: PersistedBacktestOutcome,
+  ): Promise<boolean>;
+  failJob(job: ClaimedBacktestJob, error: Error): Promise<boolean>;
 }

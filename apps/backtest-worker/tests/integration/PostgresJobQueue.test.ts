@@ -12,6 +12,8 @@ describe('PostgresJobQueue Integration', () => {
   let ownerId: string;
   let strategyDefId: string;
   let strategyVerId: string;
+  const experimentIds: string[] = [];
+  const snapshotIds: string[] = [];
 
   beforeAll(async () => {
     const databaseUrl =
@@ -32,6 +34,12 @@ describe('PostgresJobQueue Integration', () => {
       },
     });
     ownerId = user.id;
+
+    await prisma.backtestJob.deleteMany({ where: { ownerId } });
+    await prisma.trade.deleteMany({ where: { ownerId } });
+    await prisma.experiment.deleteMany({ where: { ownerId } });
+    await prisma.strategyVersion.deleteMany({ where: { ownerId } });
+    await prisma.strategyDefinition.deleteMany({ where: { ownerId } });
 
     // create def
     const def = await prisma.strategyDefinition.create({
@@ -60,22 +68,59 @@ describe('PostgresJobQueue Integration', () => {
 
   afterAll(async () => {
     // clean up
-    await prisma.backtestJob.deleteMany();
-    await prisma.experiment.deleteMany();
-    await prisma.strategyVersion.deleteMany();
-    await prisma.strategyDefinition.deleteMany();
+    await prisma.trade.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.backtestJob.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.experiment.deleteMany({
+      where: { id: { in: experimentIds } },
+    });
+    await prisma.datasetSnapshot.deleteMany({
+      where: { id: { in: snapshotIds } },
+    });
+    await prisma.strategyVersion.deleteMany({ where: { id: strategyVerId } });
+    await prisma.strategyDefinition.deleteMany({
+      where: { id: strategyDefId },
+    });
     await prisma.user.deleteMany({ where: { id: ownerId } });
     await prisma.$disconnect();
   });
 
   beforeEach(async () => {
-    await prisma.backtestJob.deleteMany();
-    await prisma.experiment.deleteMany();
+    await prisma.trade.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.backtestJob.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.experiment.deleteMany({
+      where: { id: { in: experimentIds } },
+    });
+    await prisma.datasetSnapshot.deleteMany({
+      where: { id: { in: snapshotIds } },
+    });
+    experimentIds.length = 0;
+    snapshotIds.length = 0;
   });
 
   async function createExperiment() {
-    return prisma.experiment.create({
+    const snapshot = await prisma.datasetSnapshot.create({
       data: {
+        candles: [],
+        endTime: 1_000,
+        fingerprint: `queue-test-${Date.now()}-${snapshotIds.length}`,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        timeframe: '1m',
+        warmupCandleCount: 0,
+      },
+    });
+    snapshotIds.push(snapshot.id);
+    const experiment = await prisma.experiment.create({
+      data: {
+        datasetSnapshotId: snapshot.id,
         ownerId,
         strategyVersionId: strategyVerId,
         pair: 'BTCUSDT',
@@ -86,6 +131,8 @@ describe('PostgresJobQueue Integration', () => {
         slippage: 0,
       },
     });
+    experimentIds.push(experiment.id);
+    return experiment;
   }
 
   it('should enqueue and claim a job successfully', async () => {
@@ -96,6 +143,25 @@ describe('PostgresJobQueue Integration', () => {
     expect(claimed).not.toBeNull();
     expect(claimed!.id).toBe(jobId);
     expect(claimed!.status).toBe('CLAIMED');
+  });
+
+  it('does not claim a job until the backend attaches a dataset snapshot', async () => {
+    const experiment = await prisma.experiment.create({
+      data: {
+        ownerId,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        endTime: 1_000,
+        initialInvestment: 100,
+        transactionCost: 0,
+        slippage: 0,
+        strategyVersionId: strategyVerId,
+      },
+    });
+    experimentIds.push(experiment.id);
+    await queue.enqueue(experiment.id, ownerId);
+
+    await expect(queue.claim('worker-1')).resolves.toBeNull();
   });
 
   it('should not allow concurrent claims of the same job (SKIP LOCKED)', async () => {
@@ -156,7 +222,7 @@ describe('PostgresJobQueue Integration', () => {
     const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000);
     await prisma.backtestJob.update({
       where: { id: jobId },
-      data: { claimedAt: sixMinutesAgo },
+      data: { claimedAt: sixMinutesAgo, leaseExpiresAt: sixMinutesAgo },
     });
 
     // Should be able to claim again

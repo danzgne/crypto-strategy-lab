@@ -3,6 +3,9 @@ export interface Job {
   experimentId: string;
   status: 'PENDING' | 'CLAIMED' | 'COMPLETED' | 'FAILED';
   claimedAt: Date | null;
+  workerId: string | null;
+  leaseToken: string | null;
+  leaseExpiresAt: Date | null;
   retryCount: number;
   error: string | null;
 }

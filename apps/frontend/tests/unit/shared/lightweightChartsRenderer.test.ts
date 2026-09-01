@@ -12,7 +12,7 @@ const lightweightChartMocks = vi.hoisted(() => {
       setData: vi.fn(),
     })),
     applyOptions: vi.fn(),
-    panes: vi.fn(() => [{}, { setHeight: vi.fn() }]),
+    panes: vi.fn(() => [{}, { setHeight: vi.fn() }, { setHeight: vi.fn() }]),
     remove: vi.fn(),
     removeSeries: vi.fn(),
     timeScale: vi.fn(() => timeScale),
@@ -80,5 +80,35 @@ describe('lightweightChartsRenderer', () => {
     expect(
       lightweightChartMocks.timeScale.unsubscribeVisibleLogicalRangeChange,
     ).toHaveBeenCalledWith(handler);
+  });
+
+  it('renders RSI lines in their own oscillator pane', () => {
+    const instance = lightweightChartsRenderer.mount(
+      document.createElement('div'),
+      { height: 320 },
+    );
+
+    instance.setData({
+      candles: [],
+      lines: [
+        {
+          color: '#818cf8',
+          id: 'RSI',
+          pane: 2,
+          points: [{ time: 1_756_000_000, value: 42 }],
+        },
+      ],
+      markers: [],
+      volume: [],
+    });
+
+    expect(lightweightChartMocks.chart.addSeries).toHaveBeenCalledWith(
+      'line',
+      expect.objectContaining({ title: 'RSI' }),
+      2,
+    );
+    expect(lightweightChartMocks.chart.panes).toHaveBeenCalled();
+
+    instance.destroy();
   });
 });

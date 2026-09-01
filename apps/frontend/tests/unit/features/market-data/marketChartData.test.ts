@@ -24,7 +24,7 @@ describe('toMarketChartData', () => {
           pair: 'BTCUSDT',
           timeframe: '1m',
           candle,
-          indicators: { MA_20: 100.5 },
+          indicators: { MA_20: 100.5, RSI: 42 },
           signal: { action: 'SELL' },
         },
       ],
@@ -43,6 +43,8 @@ describe('toMarketChartData', () => {
     expect(data.lines[0]?.points).toEqual([
       { time: 1_756_000_000, value: 100.5 },
     ]);
+    expect(data.lines.find((line) => line.id === 'MA_20')?.pane).toBe(0);
+    expect(data.lines.find((line) => line.id === 'RSI')?.pane).toBe(1);
     expect(data.markers[0]?.position).toBe('aboveBar');
     expect(data.volume[0]?.color).toBe('#10b981');
   });

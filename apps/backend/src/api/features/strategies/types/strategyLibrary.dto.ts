@@ -61,4 +61,8 @@ export interface StrategyLibrarySummaryDto {
   createdAt: string;
   libraryVersion: string;
   tags: string[];
+  versionId: string;
+  kind: 'singular';
+  strategyId: string;
+  params: RuleStrategyParams;
 }

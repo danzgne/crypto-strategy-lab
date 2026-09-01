@@ -34,15 +34,31 @@ describe('useStrategyCatalog', () => {
     act(() =>
       listeners.get('strategy:catalog')?.({
         strategies: [
-          { id: 'ma', requiresParams: false },
-          { id: 'rsi', requiresParams: false },
+          {
+            id: 'ma',
+            requiresParams: false,
+            paramsSchema: { type: 'object', properties: {} },
+          },
+          {
+            id: 'rsi',
+            requiresParams: false,
+            paramsSchema: { type: 'object', properties: {} },
+          },
         ],
       }),
     );
     await waitFor(() =>
       expect(result.current.strategies).toEqual([
-        { id: 'ma', requiresParams: false },
-        { id: 'rsi', requiresParams: false },
+        {
+          id: 'ma',
+          paramsSchema: { type: 'object', properties: {} },
+          requiresParams: false,
+        },
+        {
+          id: 'rsi',
+          paramsSchema: { type: 'object', properties: {} },
+          requiresParams: false,
+        },
       ]),
     );
   });

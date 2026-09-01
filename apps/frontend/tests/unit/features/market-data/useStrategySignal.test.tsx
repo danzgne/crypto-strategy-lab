@@ -39,6 +39,16 @@ describe('useStrategySignal', () => {
       (socket as unknown as { connected: boolean }).connected = true;
       listeners.get('connect')?.();
     });
+    act(() =>
+      listeners.get('strategy:error')?.({
+        chartId: 'chart-ma',
+        strategyId: 'ma',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        phase: 'evaluation',
+        message: 'initial member evaluation failed',
+      }),
+    );
     expect(socket.emit).toHaveBeenCalledWith('strategy:subscribe', {
       chartId: 'chart-ma',
       pair: 'BTCUSDT',
@@ -93,10 +103,39 @@ describe('useStrategySignal', () => {
     await waitFor(() =>
       expect(result.current.history).toEqual([historicalUpdate]),
     );
+    expect(result.current.error).toBe('initial member evaluation failed');
     act(() => listeners.get('strategy:signal')?.(update));
 
     await waitFor(() => expect(result.current.latest).toEqual(update));
     expect(result.current.history).toEqual([historicalUpdate, update]);
+
+    act(() =>
+      listeners.get('strategy:error')?.({
+        chartId: 'chart-ma',
+        strategyId: 'ma',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        phase: 'validation',
+        message: 'invalid composite definition',
+      }),
+    );
+    expect(result.current.error).toBeNull();
+
+    act(() =>
+      listeners.get('strategy:error')?.({
+        chartId: 'chart-ma',
+        strategyId: 'ma',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        phase: 'evaluation',
+        message: 'member evaluation failed',
+      }),
+    );
+    await waitFor(() => {
+      expect(result.current.error).toBe('member evaluation failed');
+      expect(result.current.latest).toBeNull();
+      expect(result.current.history).toEqual([]);
+    });
 
     unmount();
     expect(socket.emit).toHaveBeenCalledWith('strategy:unsubscribe', {

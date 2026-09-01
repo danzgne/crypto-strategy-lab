@@ -1,10 +1,11 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type {
   MarketSubscriptionResult,
   UseMarketSubscriptionOptions,
 } from '../../../../src/features/market-data/hooks/useMarketSubscription';
+import type { SavedStrategiesState } from '../../../../src/features/strategies';
 import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
 import type { RecentTicksState } from '../../../../src/features/market-data/hooks/useRecentTicks';
 import type { StrategySignalState } from '../../../../src/features/market-data/hooks/useStrategySignal';
@@ -60,13 +61,43 @@ vi.mock(
   '../../../../src/features/market-data/hooks/useStrategyCatalog',
   () => ({
     useStrategyCatalog: () => ({
+      strategyIds: ['ma', 'rule'],
       strategies: [
-        { id: 'ma', requiresParams: false },
-        { id: 'rule', requiresParams: true },
+        {
+          id: 'ma',
+          requiresParams: false,
+          paramsSchema: { type: 'object', properties: {} },
+        },
+        {
+          id: 'rule',
+          requiresParams: true,
+          paramsSchema: { type: 'object', properties: {} },
+        },
       ],
     }),
   }),
 );
+
+vi.mock('../../../../src/features/strategies', () => ({
+  useSavedStrategies: (): SavedStrategiesState => ({
+    error: null,
+    loading: false,
+    save: vi.fn(),
+    saving: false,
+    strategies: [
+      {
+        createdAt: '2026-08-30T00:00:00.000Z',
+        description: null,
+        id: 'saved-ma-id',
+        kind: 'singular',
+        name: 'My trend strategy',
+        params: { fast: 10, slow: 30 },
+        strategyId: 'ma',
+        versionId: 'saved-ma-version',
+      },
+    ],
+  }),
+}));
 
 import { MarketDataDashboard } from '../../../../src/features/market-data/components/MarketDataDashboard';
 
@@ -78,7 +109,6 @@ describe('MarketDataDashboard', () => {
     const timeframeSelectors = screen.getAllByRole('combobox', {
       name: /Timeframe for panel/,
     });
-
     const strategySelector = screen.getByRole('combobox', {
       name: 'Strategy overlay',
     });
@@ -86,14 +116,35 @@ describe('MarketDataDashboard', () => {
     expect(pairSelector).toHaveValue('BTCUSDT');
     expect(strategySelector).toHaveValue('');
     expect(
-      screen.getByRole('option', { name: 'None (No overlay)' }),
+      within(strategySelector).getByRole('option', {
+        name: 'None (No overlay)',
+      }),
     ).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
-
-    fireEvent.change(strategySelector, { target: { value: 'ma' } });
-    expect(strategySelector).toHaveValue('ma');
+    expect(
+      within(strategySelector).getByRole('option', { name: 'MA' }),
+    ).toBeInTheDocument();
+    expect(
+      within(strategySelector).getByRole('option', {
+        name: 'Saved · My trend strategy',
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole('checkbox', { name: /Enable .* strategy/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId('manual-composite-builder'),
+    ).not.toBeInTheDocument();
+    fireEvent.change(strategySelector, { target: { value: 'builtin:ma' } });
+    expect(strategySelector).toHaveValue('builtin:ma');
     expect(timeframeSelectors).toHaveLength(4);
-    expect(screen.getByText('4 live panels')).toBeInTheDocument();
+    expect(screen.queryByText('4 live panels')).not.toBeInTheDocument();
+    const workspace = screen.getByRole('region', {
+      name: 'Live market workspace',
+    });
+    expect(within(workspace).getByTestId('workspace-controls')).toHaveClass(
+      'grid',
+      'sm:grid-cols-2',
+    );
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
     expect(
       screen.getAllByRole('option', { name: '1d' }).length,
@@ -114,9 +165,14 @@ describe('MarketDataDashboard', () => {
   it('offers only strategies that need no authored params, without naming any strategy id', () => {
     render(<MarketDataDashboard />);
 
-    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
+    const strategySelector = screen.getByRole('combobox', {
+      name: 'Strategy overlay',
+    });
     expect(
-      screen.queryByRole('option', { name: 'RULE' }),
+      within(strategySelector).getByRole('option', { name: 'MA' }),
+    ).toBeInTheDocument();
+    expect(
+      within(strategySelector).queryByRole('option', { name: 'RULE' }),
     ).not.toBeInTheDocument();
   });
 });

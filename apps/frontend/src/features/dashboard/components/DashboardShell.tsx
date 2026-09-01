@@ -10,8 +10,8 @@ import {
   Settings,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
-import { usePathname } from 'next/navigation';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 
 import { ProductLogoMark } from './ProductLogoMark';
 import { UserMenu } from '../../auth/components/UserMenu';
@@ -33,8 +33,8 @@ const navigation: NavItem[] = [
     href: '/strategy-engine',
     implemented: true,
   },
-  { label: 'Discovery', icon: Search, href: '#discovery', implemented: false },
-  { label: 'Backtest', icon: BarChart3, href: '#backtest', implemented: false },
+  { label: 'Discovery', icon: Search, href: '/discovery', implemented: true },
+  { label: 'Backtest', icon: BarChart3, href: '/backtests', implemented: true },
   {
     label: 'News Crawler',
     icon: BookOpenText,

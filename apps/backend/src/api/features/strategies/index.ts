@@ -2,6 +2,7 @@ export { registerStrategyGateway } from './realtime/strategyGateway';
 export {
   StrategyLiveService,
   type StrategyDomainEventBus,
+  type StrategyErrorListener,
   type StrategySignalListener,
   type StrategySubscription,
   type StrategySubscriptionRequest,

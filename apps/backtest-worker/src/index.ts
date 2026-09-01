@@ -1,4 +1,5 @@
 import { config as loadEnvironment } from 'dotenv';
+import '@crypto-strategy-lab/strategy-engine/strategies';
 
 import { readWorkerConfig } from './config/workerConfig';
 import { createPrismaClient } from './database/prismaClient';
@@ -30,6 +31,8 @@ async function startWorker(): Promise<void> {
     {
       workerId: config.workerId,
       heartbeatIntervalMs: config.heartbeatIntervalMs,
+      leaseDurationMs: config.leaseDurationMs,
+      pollIntervalMs: config.pollIntervalMs,
     },
     {
       database: {

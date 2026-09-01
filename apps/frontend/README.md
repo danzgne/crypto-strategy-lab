@@ -96,6 +96,22 @@ app/(dashboard)/backtests/[experimentId]/page.tsx
   → decides that TradeTable appears at this URL
 ```
 
+### Manual backtest flow
+
+`features/backtests` owns the manual request form, pair combobox, owner-scoped run history, result polling, chart-data
+mapping, and trade table. The form calls the Express `POST /api/v1/backtests` client, then navigates to
+`/backtests/[experimentId]`; the dashboard loads `GET /api/v1/backtests` to show prior runs and the result hook polls
+the owner-scoped detail endpoint once per second until `completed` or `failed`. The form supports both inline strategy
+parameters and immutable saved Strategy Versions, including saved Composite Strategies. It never calls Binance or
+runs strategy logic in the browser.
+
+Completed results pass selected-range candles and Trades separately to `toBacktestChartData`, which derives two
+markers per closed Trade and optional stop-loss/take-profit lines before handing neutral data to the existing
+`FinancialChartRenderer` seam. The result page intentionally shows six cards—Winrate, Wins, Losses, Total Profit,
+Max Drawdown, and Total Trades—and keeps Profit Factor, Sharpe Ratio, and Score out of the primary card grid.
+Trade history is paginated in the feature component, with Vietnamese **Cách tính Profit** and **Giả định
+Backtest** panels matching the reference screen.
+
 ## Server and Client Components
 
 Keep pages and layouts as Server Components by default. Add `"use client"` only to the first module that needs
@@ -175,6 +191,7 @@ apps/frontend/
 │   │   │   ├── discovery/
 │   │   │   │   └── page.tsx
 │   │   │   ├── backtests/
+│   │   │   │   ├── page.tsx
 │   │   │   │   └── [experimentId]/
 │   │   │   │       └── page.tsx
 │   │   │   ├── leaderboard/

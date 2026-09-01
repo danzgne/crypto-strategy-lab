@@ -79,18 +79,18 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
     if (!Number.isInteger(levelsTracked) || levelsTracked < 1) {
       throw new Error('SR levelsTracked must be a positive integer');
     }
-    if (tolerance <= 0) {
-      throw new Error('SR tolerance must be positive');
+    if (!Number.isFinite(tolerance) || tolerance <= 0) {
+      throw new Error('SR tolerance must be a finite positive number');
     }
 
     const resolved: ResolvedSRParams = { n, levelsTracked, tolerance };
     resolveRiskParams(params, resolved, 'SR');
 
     this.params = resolved;
-    // We need enough history to find multiple non-overlapping pivots.
-    // 2n+1 only allows finding 1 pivot if the engine supplies exactly requiredHistory candles.
-    // We multiply by 10 to ensure a large enough window to find the required levelsTracked pivots.
-    this.requiredHistory = n * 10;
+    // A complete pivot needs n candles on either side. Scale the required
+    // history with the number of levels requested so callers do not silently
+    // receive too little context for larger levelsTracked values.
+    this.requiredHistory = (2 * n + 1) * levelsTracked;
   }
 
   public analyze(context: StrategyContext): Signal {
@@ -112,18 +112,18 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
 
       for (let j = i - n; j <= i + n; j++) {
         if (i === j) continue;
-        if (candles[j]!.low < currentLow) {
+        if (candles[j]!.low <= currentLow) {
           isSupport = false;
         }
-        if (candles[j]!.high > currentHigh) {
+        if (candles[j]!.high >= currentHigh) {
           isResistance = false;
         }
       }
 
-      if (isSupport && supports.length < levelsTracked) {
+      if (isSupport && !isResistance && supports.length < levelsTracked) {
         supports.push(currentLow);
       }
-      if (isResistance && resistances.length < levelsTracked) {
+      if (isResistance && !isSupport && resistances.length < levelsTracked) {
         resistances.push(currentHigh);
       }
 
@@ -146,20 +146,19 @@ export class SRStrategy implements Strategy<ResolvedSRParams> {
     const currentClose = candles[candles.length - 1]!.close;
     let action: 'BUY' | 'SELL' | 'HOLD' = 'HOLD';
 
-    for (const support of supports) {
-      if (Math.abs(currentClose - support) / support <= tolerance) {
-        action = 'BUY';
-        break;
-      }
-    }
+    const nearSupport = supports.some(
+      (support) =>
+        support !== 0 &&
+        Math.abs(currentClose - support) / Math.abs(support) <= tolerance,
+    );
+    const nearResistance = resistances.some(
+      (resistance) =>
+        resistance !== 0 &&
+        Math.abs(currentClose - resistance) / Math.abs(resistance) <= tolerance,
+    );
 
-    if (action === 'HOLD') {
-      for (const resistance of resistances) {
-        if (Math.abs(currentClose - resistance) / resistance <= tolerance) {
-          action = 'SELL';
-          break;
-        }
-      }
+    if (nearSupport !== nearResistance) {
+      action = nearSupport ? 'BUY' : 'SELL';
     }
 
     return { action, indicators };

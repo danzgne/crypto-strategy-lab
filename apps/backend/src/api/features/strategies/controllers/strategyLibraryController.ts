@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from 'express';
+import type { SaveStrategyRequest } from '@crypto-strategy-lab/shared';
 import {
   isStrategyProvenance,
   type StrategyProvenance,
@@ -6,8 +7,12 @@ import {
 
 import { sendError, sendSuccess } from '@/utils/response/ApiResponse';
 
+import type { StrategyLibraryServiceInterface } from '../services/interfaces/strategyLibraryService.interface';
+import {
+  StrategyLibraryService,
+  StrategyLibraryValidationError,
+} from '../services/strategyLibraryService';
 import type { StrategyLibraryEntry } from '../repositories/interfaces/strategyLibraryRepository.interface';
-import type { StrategyLibraryService } from '../services/strategyLibraryService';
 import {
   listStrategiesQuerySchema,
   saveStrategyRequestSchema,
@@ -16,14 +21,52 @@ import {
   type StrategyLibrarySummaryDto,
 } from '../types/strategyLibrary.dto';
 
+type StrategyLibraryControllerService =
+  StrategyLibraryService | StrategyLibraryServiceInterface;
+
 export class StrategyLibraryController {
-  public constructor(private readonly libraryService: StrategyLibraryService) {}
+  public constructor(
+    private readonly libraryService: StrategyLibraryControllerService,
+  ) {}
 
   public create = async (
     req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
+    const ownerId = req.session.userId;
+    if (ownerId === undefined) {
+      sendError(
+        res,
+        { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+        401,
+      );
+      return;
+    }
+
+    if (isNamedSaveRequest(req.body)) {
+      try {
+        const strategy = await this.libraryService.save(ownerId, req.body);
+        sendSuccess(res, strategy, 201);
+      } catch (error) {
+        if (error instanceof StrategyLibraryValidationError) {
+          sendError(res, { code: error.code, message: error.message }, 400);
+          return;
+        }
+        next(error);
+      }
+      return;
+    }
+
+    if (!isGeneratedLibraryService(this.libraryService)) {
+      sendError(
+        res,
+        { code: 'VALIDATION_ERROR', message: 'Invalid strategy save request' },
+        400,
+      );
+      return;
+    }
+
     try {
       const parseResult = saveStrategyRequestSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -38,15 +81,6 @@ export class StrategyLibraryController {
         return;
       }
 
-      const ownerId = req.session.userId;
-      if (!ownerId) {
-        sendError(
-          res,
-          { code: 'UNAUTHORIZED', message: 'Not authenticated' },
-          401,
-        );
-        return;
-      }
       const result = await this.libraryService.save({
         ownerId,
         ...parseResult.data,
@@ -72,6 +106,15 @@ export class StrategyLibraryController {
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
+    if (!isGeneratedLibraryService(this.libraryService)) {
+      sendError(
+        res,
+        { code: 'VALIDATION_ERROR', message: 'Validation is unavailable' },
+        400,
+      );
+      return;
+    }
+
     try {
       const parseResult = validateStrategyRequestSchema.safeParse(req.body);
       if (!parseResult.success) {
@@ -98,6 +141,26 @@ export class StrategyLibraryController {
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
+    const ownerId = req.session.userId;
+    if (ownerId === undefined) {
+      sendError(
+        res,
+        { code: 'UNAUTHORIZED', message: 'Not authenticated' },
+        401,
+      );
+      return;
+    }
+
+    if (!isGeneratedLibraryService(this.libraryService)) {
+      try {
+        const strategies = await this.libraryService.list(ownerId);
+        sendSuccess(res, strategies);
+      } catch (error) {
+        next(error);
+      }
+      return;
+    }
+
     try {
       const parseResult = listStrategiesQuerySchema.safeParse(req.query);
       if (!parseResult.success) {
@@ -112,15 +175,6 @@ export class StrategyLibraryController {
         return;
       }
 
-      const ownerId = req.session.userId;
-      if (!ownerId) {
-        sendError(
-          res,
-          { code: 'UNAUTHORIZED', message: 'Not authenticated' },
-          401,
-        );
-        return;
-      }
       const entries = await this.libraryService.listRecent(
         ownerId,
         parseResult.data.limit,
@@ -130,6 +184,20 @@ export class StrategyLibraryController {
       next(error);
     }
   };
+}
+
+function isGeneratedLibraryService(
+  service: StrategyLibraryControllerService,
+): service is StrategyLibraryService {
+  return service instanceof StrategyLibraryService;
+}
+
+function isNamedSaveRequest(value: unknown): value is SaveStrategyRequest {
+  return (
+    isRecord(value) &&
+    typeof value.name === 'string' &&
+    typeof value.strategyId === 'string'
+  );
 }
 
 function toEntryResponseDto(
@@ -160,6 +228,10 @@ function toSummaryDto(entry: StrategyLibraryEntry): StrategyLibrarySummaryDto {
     createdAt: entry.createdAt.toISOString(),
     libraryVersion: entry.latestVersion.libraryVersion,
     tags: entry.tags,
+    versionId: entry.latestVersion.id,
+    kind: 'singular',
+    strategyId: entry.type,
+    params: entry.latestVersion.params,
   };
 }
 
@@ -168,4 +240,8 @@ function assertProvenance(source: string): StrategyProvenance {
     throw new Error(`Strategy library entry has an unknown source "${source}"`);
   }
   return source;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

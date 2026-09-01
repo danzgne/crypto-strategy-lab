@@ -1,7 +1,7 @@
 # Crypto Strategy Lab
 
 Crypto Strategy Lab is a software-architecture capstone for composing, backtesting, evaluating, and discovering
-crypto strategies. Issues #27 and #28 establish the production-shaped foundation: a pnpm monorepo, one
+crypto strategies. Issues #27, #28, and #37 establish the production-shaped foundation: a pnpm monorepo, one
 PostgreSQL/Prisma schema, independent backend and worker processes, a Next.js dashboard, a real Socket.IO round
 trip, and the first live BTCUSDT market-data chart.
 
@@ -87,8 +87,8 @@ using the topology outside a developer machine.
 
 Each workspace resolves the repository-root `.env`, so the same file also supports the per-workspace commands in
 the table above. Host-side Next.js uses `PORT`; Compose uses `FRONTEND_PORT` for its published port. The backend
-and worker each persist their process lifecycle in `service_heartbeats`; job claiming and backtesting arrive in
-later feature slices.
+and worker each persist their process lifecycle in `service_heartbeats`; the worker also claims and processes
+manual backtest jobs through the Postgres queue.
 
 ## Prisma commands
 
@@ -175,6 +175,31 @@ historical indicator points in one `strategy:snapshot`, then streams new closed-
 `strategy:signal`; the browser never recomputes MA or calls an exchange. See
 [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
 
+### Backtest flow (Issue #37)
+
+```text
+Manual Backtest UI
+  → POST /api/v1/backtests (owner-scoped)
+  → Backtest Service
+  → validate target/range and create queued Experiment + PENDING Backtest Job
+  → 202 response; history polls while preparation continues
+  → Backend preparation coordinator
+  → Market Data Service → Exchange Adapter → Binance
+  → validate closed/contiguous UTC candles and prepend warm-up
+  → attach immutable Dataset Snapshot; worker claim becomes eligible
+  → Backtest Worker claims a lease
+  → Backtester → Evaluator
+  → Trades + Metrics + completed Job + lifecycle events in one transaction
+  → Backend outbox dispatcher → in-memory Domain Event Bus
+  → GET /api/v1/backtests and /api/v1/backtests/:experimentId (1s frontend polling)
+```
+
+The worker never fetches Binance data: it consumes the exact Dataset Snapshot selected by the backend. Strategy
+versions, simulation rules, evaluator rules, transaction cost, and slippage are retained with the Experiment.
+Signals are evaluated once per closed Candle, filled at the next Candle open, and shown in the result chart as two
+markers per closed Trade. The result page displays Winrate, Wins, Losses, Total Profit, Max Drawdown, and Total
+Trades, with separate trade history and Vietnamese calculation/assumption panels.
+
 ### Domain event catalog
 
 `packages/shared` types `MarketPriceUpdated`, `CandleClosed`, `StrategyGenerated`, `BacktestStarted`,
@@ -219,3 +244,18 @@ ESLint.
    bars.
 8. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
    backfill to **LIVE**; a failed recovery remains **STALE** without inventing candles.
+
+## Issue #37 manual backtest demo
+
+1. Log in and open **Backtest** from the dashboard navigation.
+2. Select a USDT pair, timeframe, UTC start/end dates, initial investment, transaction cost, slippage, and either an
+   inline strategy or a saved Strategy Version (including a saved Composite Strategy).
+3. Submit the form. The backend captures and fingerprints the selected closed-candle series plus warm-up history,
+   enqueues a job, and returns an Experiment ID without waiting for simulation.
+4. The result page polls the owner-scoped Experiment until the Backtest Worker completes it.
+5. Inspect the selected-range chart, LONG/SHORT entry and exit markers, risk lines, six metric cards, paginated trade
+   history, and the **Cách tính Profit** / **Giả định Backtest** panels.
+
+The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, `GET /api/v1/backtests` for
+owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. The Leaderboard is intentionally out of
+scope for this slice and consumes `StrategyEvaluated` in a later issue.

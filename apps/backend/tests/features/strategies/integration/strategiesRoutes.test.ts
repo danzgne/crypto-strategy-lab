@@ -75,13 +75,7 @@ describe('Strategies API Integration Tests', () => {
     );
     await prisma.$connect();
 
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          in: ['strategies-user@test.com', 'strategies-other@test.com'],
-        },
-      },
-    });
+    await cleanupStrategyTestUsers(prisma);
 
     const sessionMiddleware = createSessionMiddleware(prisma, {
       secret: 'test-session-secret',
@@ -116,15 +110,7 @@ describe('Strategies API Integration Tests', () => {
   });
 
   afterAll(async () => {
-    await prisma.strategyVersion.deleteMany({});
-    await prisma.strategyDefinition.deleteMany({});
-    await prisma.user.deleteMany({
-      where: {
-        email: {
-          in: ['strategies-user@test.com', 'strategies-other@test.com'],
-        },
-      },
-    });
+    await cleanupStrategyTestUsers(prisma);
     await prisma.$disconnect();
   });
 
@@ -357,3 +343,29 @@ describe('Strategies API Integration Tests', () => {
     });
   });
 });
+
+async function cleanupStrategyTestUsers(prisma: PrismaClient): Promise<void> {
+  const users = await prisma.user.findMany({
+    select: { id: true },
+    where: {
+      email: {
+        in: ['strategies-user@test.com', 'strategies-other@test.com'],
+      },
+    },
+  });
+  const ownerIds = users.map(({ id }) => id);
+  if (ownerIds.length === 0) return;
+
+  await prisma.backtestJob.deleteMany({ where: { ownerId: { in: ownerIds } } });
+  await prisma.trade.deleteMany({ where: { ownerId: { in: ownerIds } } });
+  await prisma.experiment.deleteMany({ where: { ownerId: { in: ownerIds } } });
+  await prisma.strategyVersion.deleteMany({
+    where: { ownerId: { in: ownerIds } },
+  });
+  await prisma.strategyDefinition.deleteMany({
+    where: { ownerId: { in: ownerIds } },
+  });
+  await prisma.searchRun.deleteMany({ where: { ownerId: { in: ownerIds } } });
+  await prisma.leaderboard.deleteMany({ where: { ownerId: { in: ownerIds } } });
+  await prisma.user.deleteMany({ where: { id: { in: ownerIds } } });
+}

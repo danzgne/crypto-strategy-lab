@@ -1,18 +1,32 @@
 'use client';
 
 import { RadioTower } from 'lucide-react';
-import { useState } from 'react';
+import type {
+  CompositeStrategyRequest,
+  SavedStrategy,
+} from '@crypto-strategy-lab/shared';
+import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
+import { useMemo, useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
+import { SUPPORTED_PAIR_OPTIONS } from '../constants';
+import { useSavedStrategies } from '../../strategies';
 import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
 import { useRecentTicks } from '../hooks/useRecentTicks';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RecentTicksCard } from './RecentTicksCard';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
-const PAIR_OPTIONS = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT'] as const;
 const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
+
+interface StrategyOverlayOption {
+  value: string;
+  label: string;
+  strategyId: string;
+  params?: unknown;
+  composite?: CompositeStrategyRequest;
+}
 
 export interface MarketDataDashboardProperties {
   chartRenderer?: FinancialChartRenderer;
@@ -21,18 +35,39 @@ export interface MarketDataDashboardProperties {
 export function MarketDataDashboard({
   chartRenderer,
 }: MarketDataDashboardProperties) {
-  const [pair, setPair] = useState<string>(PAIR_OPTIONS[0]);
+  const [pair, setPair] = useState<string>(SUPPORTED_PAIR_OPTIONS[0]);
   const [panelTimeframes, setPanelTimeframes] = useState<ChartTimeframe[]>(
     INITIAL_PANEL_TIMEFRAMES,
   );
-  const [enabledStrategyId, setEnabledStrategyId] = useState<string | null>(
-    null,
-  );
+  const [overlayKey, setOverlayKey] = useState('');
   const strategyCatalog = useStrategyCatalog();
+  const savedStrategies = useSavedStrategies();
   const recentTicks = useRecentTicks({ pair, limit: 5 });
-
-  const runnableStrategies = strategyCatalog.strategies.filter(
-    (entry) => !entry.requiresParams,
+  const runnableStrategyIds = useMemo(
+    () =>
+      strategyCatalog.strategies
+        .filter((entry) => {
+          const requiresParams =
+            entry.requiresParams ??
+            (entry.paramsSchema.required?.length ?? 0) > 0;
+          return !requiresParams;
+        })
+        .map(({ id }) => id),
+    [strategyCatalog.strategies],
+  );
+  const strategyOverlayOptions = useMemo(
+    () => [
+      ...runnableStrategyIds.map<StrategyOverlayOption>((strategyId) => ({
+        label: formatStrategyType(strategyId),
+        strategyId,
+        value: `builtin:${strategyId}`,
+      })),
+      ...savedStrategies.strategies.map(toOverlayOption),
+    ],
+    [runnableStrategyIds, savedStrategies.strategies],
+  );
+  const selectedOverlay = strategyOverlayOptions.find(
+    ({ value }) => value === overlayKey,
   );
 
   const changeTimeframe = (
@@ -70,8 +105,8 @@ export function MarketDataDashboard({
 
       <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(330px,0.6fr)]">
         <section aria-labelledby="workspace-title">
-          <div className="mb-5 flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:flex-row sm:items-end sm:justify-between sm:p-5">
-            <div>
+          <div className="mb-5 grid gap-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_14px_40px_-34px_rgba(15,23,42,0.5)] sm:p-5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+            <div className="min-w-0">
               <h2
                 id="workspace-title"
                 className="text-base font-semibold text-slate-900"
@@ -83,8 +118,11 @@ export function MarketDataDashboard({
                 timeframe. Matching panels share one backend market stream.
               </p>
             </div>
-            <div className="flex flex-wrap items-end gap-3">
-              <div>
+            <div
+              className="grid gap-3 sm:grid-cols-2 lg:min-w-[21rem]"
+              data-testid="workspace-controls"
+            >
+              <div className="min-w-0">
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
                   htmlFor="strategy-overlay"
@@ -92,22 +130,22 @@ export function MarketDataDashboard({
                   Strategy overlay
                 </label>
                 <select
-                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="strategy-overlay"
-                  onChange={(event) =>
-                    setEnabledStrategyId(event.target.value || null)
-                  }
-                  value={enabledStrategyId ?? ''}
+                  onChange={(event) => {
+                    setOverlayKey(event.target.value);
+                  }}
+                  value={overlayKey}
                 >
                   <option value="">None (No overlay)</option>
-                  {runnableStrategies.map(({ id: strategyId }) => (
-                    <option key={strategyId} value={strategyId}>
-                      {formatStrategyName(strategyId)}
+                  {strategyOverlayOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
                     </option>
                   ))}
                 </select>
               </div>
-              <div>
+              <div className="min-w-0">
                 <label
                   className="mb-1.5 block text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400"
                   htmlFor="market-pair"
@@ -115,24 +153,20 @@ export function MarketDataDashboard({
                   Market pair
                 </label>
                 <select
-                  className="min-w-40 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
+                  className="w-full min-w-0 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-800 outline-none transition focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100"
                   id="market-pair"
                   onChange={(event) => setPair(event.target.value)}
                   value={pair}
                 >
-                  {PAIR_OPTIONS.map((option) => (
+                  {SUPPORTED_PAIR_OPTIONS.map((option) => (
                     <option key={option} value={option}>
                       {option}
                     </option>
                   ))}
                 </select>
               </div>
-              <span className="pb-2 text-xs font-medium text-slate-400">
-                {panelTimeframes.length} live panels
-              </span>
             </div>
           </div>
-
           <div className="grid gap-5 md:grid-cols-2">
             {panelTimeframes.map((timeframe, index) => (
               <MarketPanel
@@ -143,7 +177,11 @@ export function MarketDataDashboard({
                 }
                 panelNumber={index + 1}
                 pair={pair}
-                strategyId={enabledStrategyId}
+                composite={selectedOverlay?.composite ?? null}
+                {...(selectedOverlay?.params === undefined
+                  ? {}
+                  : { params: selectedOverlay.params })}
+                strategyId={selectedOverlay?.strategyId ?? null}
                 timeframe={timeframe}
               />
             ))}
@@ -174,6 +212,20 @@ export function MarketDataDashboard({
   );
 }
 
-function formatStrategyName(strategyId: string): string {
-  return strategyId.replaceAll(/[-_]+/g, ' ').toUpperCase();
+function toOverlayOption(strategy: SavedStrategy): StrategyOverlayOption {
+  if (strategy.kind === 'composite') {
+    return {
+      composite: strategy.composite,
+      label: `Saved · ${strategy.name}`,
+      strategyId: 'composite',
+      value: `saved:${strategy.id}`,
+    };
+  }
+
+  return {
+    label: `Saved · ${strategy.name}`,
+    params: strategy.params,
+    strategyId: strategy.strategyId,
+    value: `saved:${strategy.id}`,
+  };
 }

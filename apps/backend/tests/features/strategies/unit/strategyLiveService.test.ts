@@ -5,6 +5,7 @@ import type { ExchangeAdapter } from '../../../../src/api/features/marketData/ap
 import { MarketDataService } from '../../../../src/api/features/marketData/application/services/marketDataService';
 import { InMemoryDomainEventBus } from '../../../../src/events/inMemoryDomainEventBus';
 import { StrategyLiveService } from '../../../../src/api/features/strategies/services/strategyLiveService';
+import { StrategyRegistry } from '@crypto-strategy-lab/strategy-engine';
 
 const START_TIME = 1_756_000_000_000;
 
@@ -25,6 +26,225 @@ function makeCandle(index: number, close: number): Candle {
 }
 
 describe('StrategyLiveService', () => {
+  it('assembles a weighted composite from registry-backed strategy versions', async () => {
+    const initialCandles = Array.from({ length: 60 }, (_, index) =>
+      makeCandle(index, 10),
+    );
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, _handlers) => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'composite',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        composite: {
+          mode: 'weighted',
+          members: [
+            { strategyId: 'ma', params: { fast: 3, slow: 5 }, weight: 2 },
+            { strategyId: 'rsi', params: { period: 2 }, weight: 1 },
+          ],
+          threshold: 0.3,
+        },
+      },
+      () => undefined,
+    );
+
+    expect(subscription.history).toHaveLength(60);
+    expect(subscription.history.at(-1)).toMatchObject({
+      signal: { action: 'HOLD', strength: 0 },
+    });
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
+  it('reports a live member evaluation failure without publishing a HOLD signal', async () => {
+    const throwingStrategyId = 'throwing-composite-member';
+    const safeStrategyId = 'safe-composite-member';
+    const failure = new Error('composite member failed');
+    const futureOpenTime = START_TIME + 60 * 60_000;
+    const throwingAnalyze = vi.fn(
+      ({ candles }: { candles: readonly Candle[] }) => {
+        if (candles.at(-1)?.openTime === futureOpenTime) throw failure;
+        return { action: 'HOLD' as const };
+      },
+    );
+    const createFixtureStrategy = (
+      id: string,
+      analyze: typeof throwingAnalyze,
+    ) => ({
+      id,
+      params: {},
+      requiredHistory: 1,
+      analyze,
+    });
+    StrategyRegistry.register(
+      throwingStrategyId,
+      Object.assign(
+        () => createFixtureStrategy(throwingStrategyId, throwingAnalyze),
+        { paramsSchema: { type: 'object' as const, properties: {} } },
+      ),
+    );
+    StrategyRegistry.register(
+      safeStrategyId,
+      Object.assign(
+        () =>
+          createFixtureStrategy(
+            safeStrategyId,
+            vi.fn(() => ({ action: 'HOLD' as const })),
+          ),
+        { paramsSchema: { type: 'object' as const, properties: {} } },
+      ),
+    );
+
+    let streamHandlers:
+      Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;
+    const initialCandles = Array.from({ length: 60 }, (_, index) =>
+      makeCandle(index, 10),
+    );
+    const eventBus = new InMemoryDomainEventBus();
+    const service = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, handlers) => {
+          streamHandlers = handlers;
+          return () => undefined;
+        },
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService: service,
+    });
+    const updates: unknown[] = [];
+    const errors: Error[] = [];
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'composite',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        composite: {
+          mode: 'weighted',
+          members: [
+            { strategyId: throwingStrategyId },
+            { strategyId: safeStrategyId },
+          ],
+        },
+      },
+      (update) => updates.push(update),
+      (error) => errors.push(error),
+    );
+    throwingAnalyze.mockClear();
+
+    const futureCandle = makeCandle(60, 11);
+    await streamHandlers?.onCandle(futureCandle);
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+
+    expect(throwingAnalyze).toHaveBeenCalledOnce();
+    expect(errors).toEqual([failure]);
+    expect(updates).toEqual([]);
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await service.close();
+  });
+
+  it('reports initial-history member evaluation failures without aborting subscription', async () => {
+    const throwingStrategyId = 'initial-throwing-composite-member';
+    const safeStrategyId = 'initial-safe-composite-member';
+    const failure = new Error('initial composite member failed');
+    const failedOpenTime = START_TIME + 59 * 60_000;
+    const throwingAnalyze = vi.fn(
+      ({ candles }: { candles: readonly Candle[] }) => {
+        if (candles.at(-1)?.openTime === failedOpenTime) throw failure;
+        return { action: 'HOLD' as const };
+      },
+    );
+    const createFixtureStrategy = (
+      id: string,
+      analyze: typeof throwingAnalyze,
+    ) => ({
+      id,
+      params: {},
+      requiredHistory: 1,
+      analyze,
+    });
+    StrategyRegistry.register(
+      throwingStrategyId,
+      Object.assign(
+        () => createFixtureStrategy(throwingStrategyId, throwingAnalyze),
+        { paramsSchema: { type: 'object' as const, properties: {} } },
+      ),
+    );
+    StrategyRegistry.register(
+      safeStrategyId,
+      Object.assign(
+        () =>
+          createFixtureStrategy(
+            safeStrategyId,
+            vi.fn(() => ({ action: 'HOLD' as const })),
+          ),
+        { paramsSchema: { type: 'object' as const, properties: {} } },
+      ),
+    );
+
+    const initialCandles = Array.from({ length: 60 }, (_, index) =>
+      makeCandle(index, 10),
+    );
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, _handlers) => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+    });
+    const errors: Error[] = [];
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'composite',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        composite: {
+          mode: 'weighted',
+          members: [
+            { strategyId: throwingStrategyId },
+            { strategyId: safeStrategyId },
+          ],
+        },
+      },
+      () => undefined,
+      (error) => errors.push(error),
+    );
+
+    expect(errors).toEqual([failure]);
+    expect(subscription.history).toHaveLength(59);
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
   it('returns indicator history for the existing closed candles on subscribe', async () => {
     const initialCandles = Array.from({ length: 60 }, (_, index) =>
       makeCandle(index, 10),

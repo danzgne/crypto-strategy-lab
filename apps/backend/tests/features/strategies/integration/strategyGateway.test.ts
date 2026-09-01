@@ -63,8 +63,17 @@ describe('strategy realtime gateway', () => {
 
     const ma = catalog.strategies.find((entry) => entry.id === 'ma');
     const rule = catalog.strategies.find((entry) => entry.id === 'rule');
-    expect(ma).toEqual({ id: 'ma', requiresParams: false });
-    expect(rule).toEqual({ id: 'rule', requiresParams: true });
+    expect(ma).toMatchObject({
+      id: 'ma',
+      paramsSchema: { type: 'object' },
+      requiresParams: false,
+    });
+    expect(rule).toMatchObject({
+      id: 'rule',
+      paramsSchema: { type: 'object' },
+      requiresParams: true,
+    });
+    expect(catalog.strategyIds).toEqual(expect.arrayContaining(['ma', 'rule']));
   });
 
   it('subscribes a RuleStrategy with authored params and streams its signal', async () => {
@@ -184,9 +193,12 @@ describe('strategy realtime gateway', () => {
       },
     });
 
-    await expect(errorPromise).resolves.toEqual({
+    await expect(errorPromise).resolves.toMatchObject({
       chartId: 'chart-rule',
       strategyId: 'rule',
+      pair: 'BTCUSDT',
+      timeframe: '1m',
+      phase: 'validation',
       message: expect.stringMatching(/unknown name/i),
     });
   });

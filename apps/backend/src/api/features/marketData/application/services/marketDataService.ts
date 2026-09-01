@@ -4,9 +4,12 @@ import type {
   CandleQuery,
   CandleUpdateMetadata,
   MarketKey,
-  Timeframe,
 } from '@crypto-strategy-lab/shared';
-import { createDomainEvent, marketKey } from '@crypto-strategy-lab/shared';
+import {
+  TIMEFRAME_INTERVAL_MS,
+  createDomainEvent,
+  marketKey,
+} from '@crypto-strategy-lab/shared';
 import {
   DEFAULT_CANDLE_LIMIT,
   MAX_CANDLE_LIMIT,
@@ -32,15 +35,6 @@ export {
   MAX_CANDLE_LIMIT,
 } from '@crypto-strategy-lab/shared/market-data';
 
-const CANDLE_INTERVAL_MS: Record<Timeframe, number> = {
-  '1m': 60_000,
-  '5m': 5 * 60_000,
-  '15m': 15 * 60_000,
-  '1h': 60 * 60_000,
-  '4h': 4 * 60 * 60_000,
-  '1d': 24 * 60 * 60_000,
-};
-
 const DEFAULT_RECONNECT_POLICY = {
   initialDelayMs: 500,
   maxDelayMs: 30_000,
@@ -57,6 +51,12 @@ export interface MarketDataSubscriptionHandlers {
 export interface MarketDataSubscription {
   candles: Candle[];
   unsubscribe(): Promise<void>;
+}
+
+export interface HistoricalCandlePreparation {
+  candles: Candle[];
+  selectedCandles: Candle[];
+  warmupCandleCount: number;
 }
 
 export interface MarketDataReconnectPolicy {
@@ -252,6 +252,95 @@ export class MarketDataService {
     return candles;
   }
 
+  /**
+   * Fetches the immutable input for a historical simulation. The exchange is
+   * reached only through this service; callers receive closed, contiguous
+   * candles with the strategy's warm-up history prepended.
+   */
+  public async prepareHistoricalCandles(
+    query: CandleQuery,
+    requiredHistory: number,
+    maxSelectedCandles: number,
+  ): Promise<HistoricalCandlePreparation> {
+    const normalizedQuery = normalizeQuery(query);
+    const interval = TIMEFRAME_INTERVAL_MS[normalizedQuery.timeframe];
+    const startTime = normalizedQuery.startTime;
+    const endTime = normalizedQuery.endTime;
+    if (startTime === undefined || endTime === undefined) {
+      throw new Error(
+        'Historical candle preparation requires a complete range',
+      );
+    }
+    if (!Number.isInteger(requiredHistory) || requiredHistory < 0) {
+      throw new Error(
+        'Strategy warm-up history must be a non-negative integer',
+      );
+    }
+    if (!Number.isInteger(maxSelectedCandles) || maxSelectedCandles < 1) {
+      throw new Error('Historical candle maximum must be a positive integer');
+    }
+    const duration = endTime - startTime;
+    if (
+      duration <= 0 ||
+      startTime % interval !== 0 ||
+      endTime % interval !== 0 ||
+      duration % interval !== 0
+    ) {
+      throw new Error('Backtest range must be UTC-aligned to its timeframe');
+    }
+    if (duration / interval > maxSelectedCandles) {
+      throw new Error(
+        `Backtest range exceeds the ${maxSelectedCandles.toLocaleString()} candle limit`,
+      );
+    }
+
+    const selectedCandles = (
+      await this.fetchCandles({
+        ...normalizedQuery,
+        endTime: endTime - interval,
+        limit: Math.min(MAX_CANDLE_LIMIT, maxSelectedCandles),
+      })
+    )
+      .filter(
+        (candle) => candle.openTime >= startTime && candle.openTime < endTime,
+      )
+      .sort((left, right) => left.openTime - right.openTime);
+    validateHistoricalRange(
+      selectedCandles,
+      normalizedQuery,
+      startTime,
+      endTime,
+      maxSelectedCandles,
+    );
+
+    const warmupCandles =
+      requiredHistory === 0
+        ? []
+        : (
+            await this.fetchCandles({
+              pair: normalizedQuery.pair,
+              timeframe: normalizedQuery.timeframe,
+              startTime: startTime - requiredHistory * interval,
+              endTime: startTime - interval,
+              limit: Math.min(MAX_CANDLE_LIMIT, requiredHistory),
+            })
+          )
+            .filter((candle) => candle.openTime < startTime)
+            .sort((left, right) => left.openTime - right.openTime)
+            .slice(-requiredHistory);
+    validateWarmup(warmupCandles, normalizedQuery, startTime, requiredHistory);
+
+    const candles = [...warmupCandles, ...selectedCandles];
+    for (const candle of candles) {
+      await this.candleRepository.upsertClosed(candle);
+    }
+    return {
+      candles,
+      selectedCandles,
+      warmupCandleCount: warmupCandles.length,
+    };
+  }
+
   public async close(): Promise<void> {
     const states = [...this.activeStates.values()];
     this.activeStates.clear();
@@ -399,7 +488,7 @@ export class MarketDataService {
       return this.exchangeAdapter.fetchCandles(normalizedQuery);
     }
 
-    const interval = CANDLE_INTERVAL_MS[normalizedQuery.timeframe];
+    const interval = TIMEFRAME_INTERVAL_MS[normalizedQuery.timeframe];
     const expectedBars =
       Math.floor(
         (normalizedQuery.endTime - normalizedQuery.startTime) / interval,
@@ -653,7 +742,7 @@ export class MarketDataService {
       await this.stopStream(state);
       if (state.disposed || state.referenceCount === 0) return;
 
-      const interval = CANDLE_INTERVAL_MS[state.timeframe];
+      const interval = TIMEFRAME_INTERVAL_MS[state.timeframe];
       const lastClosedOpenTime =
         state.closedOpenTimes.size > 0
           ? Math.max(...state.closedOpenTimes)
@@ -828,6 +917,85 @@ function normalizeHandlers(
   handlers: MarketDataSubscriptionHandlers | MarketDataCandleListener,
 ): MarketDataSubscriptionHandlers {
   return typeof handlers === 'function' ? { onCandle: handlers } : handlers;
+}
+
+function validateHistoricalRange(
+  candles: readonly Candle[],
+  query: CandleQuery,
+  startTime: number,
+  endTime: number,
+  maximum: number,
+): void {
+  const interval = TIMEFRAME_INTERVAL_MS[query.timeframe];
+  const duration = endTime - startTime;
+  if (
+    duration <= 0 ||
+    startTime % interval !== 0 ||
+    endTime % interval !== 0 ||
+    duration % interval !== 0
+  ) {
+    throw new Error('Backtest range must be UTC-aligned to its timeframe');
+  }
+  const expectedCount = duration / interval;
+  if (expectedCount > maximum) {
+    throw new Error(
+      `Backtest range exceeds the ${maximum.toLocaleString()} candle limit`,
+    );
+  }
+  if (candles.length !== expectedCount) {
+    throw new Error(
+      'Historical candle data is incomplete for the requested range',
+    );
+  }
+  assertClosedContiguous(candles, query, startTime, expectedCount);
+}
+
+function validateWarmup(
+  candles: readonly Candle[],
+  query: CandleQuery,
+  startTime: number,
+  requiredHistory: number,
+): void {
+  if (candles.length !== requiredHistory) {
+    throw new Error(
+      'Historical candle data does not contain enough strategy warm-up history',
+    );
+  }
+  if (requiredHistory === 0) return;
+  assertClosedContiguous(
+    candles,
+    query,
+    startTime - requiredHistory * TIMEFRAME_INTERVAL_MS[query.timeframe],
+    requiredHistory,
+  );
+}
+
+function assertClosedContiguous(
+  candles: readonly Candle[],
+  query: CandleQuery,
+  startTime: number,
+  expectedCount: number,
+): void {
+  const interval = TIMEFRAME_INTERVAL_MS[query.timeframe];
+  for (const [index, candle] of candles.entries()) {
+    if (
+      candle.pair.toUpperCase() !== query.pair ||
+      candle.timeframe !== query.timeframe ||
+      !candle.isClosed
+    ) {
+      throw new Error(
+        'Historical backtest data must contain only closed matching candles',
+      );
+    }
+    if (candle.openTime !== startTime + index * interval) {
+      throw new Error(`Historical candle data has a gap at ${candle.openTime}`);
+    }
+  }
+  if (candles.length !== expectedCount) {
+    throw new Error(
+      'Historical candle count does not match the requested range',
+    );
+  }
 }
 
 function getSnapshot(

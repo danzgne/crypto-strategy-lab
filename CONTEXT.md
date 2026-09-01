@@ -161,13 +161,21 @@ parameter and an explicitly written default are one version, not two.
 ### Backtesting & Evaluation
 
 **Backtester** / **Backtest Worker**:
-Simulates trades for a CandidateStrategy against historical Candles over a date range and Timeframe, producing
-Trades. Runs as an independently-scalable process (see ADR-0001), separate from the request that queued it.
+Simulates trades for a Strategy Version or Composite Strategy against an immutable Dataset Snapshot over a selected
+date range and Timeframe, producing closed Trades. The Backtest Worker runs this work independently from the request
+that queued it and does not rank the result.
+
+**Dataset Snapshot**:
+The exact ordered closed Candles, including any strategy warm-up history, used by one or more Experiments. It is
+immutable once captured, so the same fingerprint always means the same historical input.
+
+**Backtest Job**:
+The queue-level unit of work that asks a Backtest Worker to process one Experiment. A Job may be retried after a
+failure, but only one active lease may persist its Experiment result.
 
 **Trade**:
-One simulated entry+exit pair from a backtest run, carrying both `entryTime` and `exitTime`, and its resulting
-profit or loss. Retained in full only while its Experiment is on a Leaderboard or pinned by its owner; otherwise
-pruned after a retention window, while the Experiment and its Metrics are kept permanently (see ADR-0007).
+One simulated entry+exit pair from a backtest run, carrying direction, fill prices, investment, costs, exit reason,
+and resulting profit or loss. The position is closed at a signal, risk trigger, or selected-range boundary.
 
 **Evaluator**:
 Computes Metrics (Return, Win Rate, Max Drawdown, Number of Trades, Profit Factor, Sharpe Ratio) from a
@@ -175,13 +183,29 @@ CandidateStrategy's Trades. Kept as a separate component from the Backtester —
 swappable without touching simulation logic.
 
 **Metrics**:
-The computed performance numbers an Evaluator produces for one CandidateStrategy's backtest run.
+The computed performance numbers an Evaluator produces for one Experiment: total profit, Return, Win Rate, Wins,
+Losses, Max Drawdown, Number of Trades, Profit Factor, Sharpe Ratio, and Score.
 
 **Experiment**:
-One full generate, backtest, evaluate run: a specific CandidateStrategy against a specific Dataset, Timeframe,
-and parameter set, producing a Result (Metrics + Trades). Its inputs include the Transaction Cost and Slippage
-the simulation used, so a result can be reproduced exactly.
+One manual or generated evaluation run: a specific Strategy Version or Composite Strategy against a specific Dataset
+Snapshot, Timeframe, and parameter set, producing a Result (Metrics + Trades). Its inputs include Transaction Cost,
+Slippage, Simulation Rules Version, and Evaluator Version, so a result can be reproduced exactly.
 _Avoid_: Run, Job (Job is the queue-level unit of work; Experiment is the domain-level record of what it produced).
+
+**Transaction Cost**:
+The quote-currency fee ratio charged independently on every simulated entry and exit, such as `0.0008` for
+`0.08%`.
+
+**Slippage**:
+The adverse fill adjustment applied independently on every simulated entry and exit, expressed in basis points;
+for example, `5` means five basis points.
+
+**Simulation Rules Version**:
+The named rule set governing how an Experiment turns closed-candle signals, OHLC risk triggers, fills, costs, and
+range-boundary exits into Trades.
+
+**Evaluator Version**:
+The named formula set governing how an Experiment's Trades become Metrics and Score.
 
 **Score**:
 The single number a CandidateStrategy is ranked by on the Leaderboard (e.g. a weighted blend of Return, Win

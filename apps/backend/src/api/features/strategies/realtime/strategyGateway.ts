@@ -47,7 +47,11 @@ export function registerStrategyGateway(
 
   socketServer.on('connection', (socket) => {
     const sendCatalog = (): void => {
-      socket.emit('strategy:catalog', { strategies: buildCatalog() });
+      const strategies = buildCatalog();
+      socket.emit('strategy:catalog', {
+        strategyIds: strategies.map(({ id }) => id),
+        strategies,
+      });
     };
     socket.on('strategy:catalog:request', sendCatalog);
     sendCatalog();
@@ -80,15 +84,28 @@ async function subscribeStrategy(
   await unsubscribeStrategy(socket, request, subscriptions);
 
   try {
+    const params = 'params' in request ? request.params : undefined;
     const subscription = await strategyLiveService.subscribe(
       {
         strategyId: request.strategyId,
         pair: request.pair,
         timeframe: request.timeframe,
         ...(request.limit === undefined ? {} : { limit: request.limit }),
-        ...(request.params === undefined ? {} : { params: request.params }),
+        ...(params === undefined ? {} : { params }),
+        ...(request.composite === undefined
+          ? {}
+          : { composite: request.composite }),
       },
       (update) => socket.emit('strategy:signal', update),
+      (error) =>
+        socket.emit('strategy:error', {
+          chartId: request.chartId,
+          strategyId: request.strategyId,
+          pair: request.pair.toUpperCase(),
+          timeframe: request.timeframe,
+          phase: 'evaluation',
+          message: error.message,
+        }),
     );
     socket.emit('strategy:snapshot', {
       chartId: request.chartId,
@@ -120,6 +137,9 @@ async function subscribeStrategy(
     socket.emit('strategy:error', {
       chartId: request.chartId,
       strategyId: request.strategyId,
+      pair: request.pair.toUpperCase(),
+      timeframe: request.timeframe,
+      phase: 'validation',
       message:
         error instanceof Error ? error.message : 'Strategy subscription failed',
     });
@@ -128,8 +148,13 @@ async function subscribeStrategy(
 
 function buildCatalog(): StrategyCatalogEntry[] {
   return StrategyRegistry.list().map((id) => {
-    const required = StrategyRegistry.get(id)?.paramsSchema.required ?? [];
-    return { id, requiresParams: required.length > 0 };
+    const paramsSchema = StrategyRegistry.get(id)!.paramsSchema;
+    const required = paramsSchema.required ?? [];
+    return {
+      id,
+      paramsSchema,
+      requiresParams: required.length > 0,
+    };
   });
 }
 
@@ -168,7 +193,10 @@ function isValidRequest(request: StrategySubscribeRequest): boolean {
     request.strategyId.length > 0 &&
     typeof request.pair === 'string' &&
     request.pair.length > 0 &&
-    typeof request.timeframe === 'string'
+    typeof request.timeframe === 'string' &&
+    (request.strategyId === 'composite'
+      ? request.composite !== undefined
+      : request.composite === undefined)
   );
 }
 

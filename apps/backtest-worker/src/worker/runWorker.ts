@@ -14,6 +14,8 @@ export interface DatabaseConnection {
 export interface WorkerRuntimeConfig {
   workerId: string;
   heartbeatIntervalMs: number;
+  pollIntervalMs?: number;
+  leaseDurationMs?: number;
 }
 
 interface WorkerDependencies {
@@ -51,14 +53,31 @@ export async function runWorker(
     heartbeatTimer.unref();
 
     if (database.client) {
-      const jobRepository = new PrismaJobRepository(database.client);
+      const leaseDurationMs = config.leaseDurationMs ?? 5 * 60 * 1_000;
+      const jobRepository = new PrismaJobRepository(
+        database.client,
+        leaseDurationMs,
+      );
       const queue = new PostgresJobQueue(jobRepository);
-      worker = new BacktestWorker(config.workerId, queue, logger);
-      worker.start().catch((err) => {
-        logger.error({ err }, 'Worker crashed');
-      });
+      worker = new BacktestWorker(
+        config.workerId,
+        queue,
+        logger,
+        undefined,
+        undefined,
+        {
+          leaseRenewIntervalMs: Math.max(250, Math.floor(leaseDurationMs / 3)),
+          ...(config.pollIntervalMs === undefined
+            ? {}
+            : { pollIntervalMs: config.pollIntervalMs }),
+        },
+      );
+      worker.start();
     } else {
-      logger.warn('No database client provided, BacktestWorker not started');
+      logger.warn(
+        { workerId: config.workerId },
+        'No database client provided, BacktestWorker not started',
+      );
     }
 
     try {
@@ -66,7 +85,7 @@ export async function runWorker(
     } finally {
       clearInterval(heartbeatTimer);
       if (worker) {
-        worker.stop();
+        await worker.stop();
       }
     }
   } finally {
