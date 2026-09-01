@@ -12,6 +12,7 @@ describe('PostgresJobQueue Integration', () => {
   let ownerId: string;
   let strategyDefId: string;
   let strategyVerId: string;
+  const experimentIds: string[] = [];
 
   beforeAll(async () => {
     const databaseUrl =
@@ -32,6 +33,12 @@ describe('PostgresJobQueue Integration', () => {
       },
     });
     ownerId = user.id;
+
+    await prisma.backtestJob.deleteMany({ where: { ownerId } });
+    await prisma.trade.deleteMany({ where: { ownerId } });
+    await prisma.experiment.deleteMany({ where: { ownerId } });
+    await prisma.strategyVersion.deleteMany({ where: { ownerId } });
+    await prisma.strategyDefinition.deleteMany({ where: { ownerId } });
 
     // create def
     const def = await prisma.strategyDefinition.create({
@@ -60,21 +67,38 @@ describe('PostgresJobQueue Integration', () => {
 
   afterAll(async () => {
     // clean up
-    await prisma.backtestJob.deleteMany();
-    await prisma.experiment.deleteMany();
-    await prisma.strategyVersion.deleteMany();
-    await prisma.strategyDefinition.deleteMany();
+    await prisma.trade.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.backtestJob.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.experiment.deleteMany({
+      where: { id: { in: experimentIds } },
+    });
+    await prisma.strategyVersion.deleteMany({ where: { id: strategyVerId } });
+    await prisma.strategyDefinition.deleteMany({
+      where: { id: strategyDefId },
+    });
     await prisma.user.deleteMany({ where: { id: ownerId } });
     await prisma.$disconnect();
   });
 
   beforeEach(async () => {
-    await prisma.backtestJob.deleteMany();
-    await prisma.experiment.deleteMany();
+    await prisma.trade.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.backtestJob.deleteMany({
+      where: { experimentId: { in: experimentIds } },
+    });
+    await prisma.experiment.deleteMany({
+      where: { id: { in: experimentIds } },
+    });
+    experimentIds.length = 0;
   });
 
   async function createExperiment() {
-    return prisma.experiment.create({
+    const experiment = await prisma.experiment.create({
       data: {
         ownerId,
         strategyVersionId: strategyVerId,
@@ -86,6 +110,8 @@ describe('PostgresJobQueue Integration', () => {
         slippage: 0,
       },
     });
+    experimentIds.push(experiment.id);
+    return experiment;
   }
 
   it('should enqueue and claim a job successfully', async () => {

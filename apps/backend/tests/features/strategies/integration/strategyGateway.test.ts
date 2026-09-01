@@ -73,9 +73,7 @@ describe('strategy realtime gateway', () => {
       paramsSchema: { type: 'object' },
       requiresParams: true,
     });
-    expect(catalog.strategyIds).toEqual(
-      expect.arrayContaining(['ma', 'rule']),
-    );
+    expect(catalog.strategyIds).toEqual(expect.arrayContaining(['ma', 'rule']));
   });
 
   it('subscribes a RuleStrategy with authored params and streams its signal', async () => {

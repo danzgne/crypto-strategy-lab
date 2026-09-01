@@ -162,9 +162,14 @@ describe('MarketDataDashboard', () => {
   it('offers only strategies that need no authored params, without naming any strategy id', () => {
     render(<MarketDataDashboard />);
 
-    expect(screen.getByRole('option', { name: 'MA' })).toBeInTheDocument();
+    const strategySelector = screen.getByRole('combobox', {
+      name: 'Strategy overlay',
+    });
     expect(
-      screen.queryByRole('option', { name: 'RULE' }),
+      within(strategySelector).getByRole('option', { name: 'MA' }),
+    ).toBeInTheDocument();
+    expect(
+      within(strategySelector).queryByRole('option', { name: 'RULE' }),
     ).not.toBeInTheDocument();
   });
 });

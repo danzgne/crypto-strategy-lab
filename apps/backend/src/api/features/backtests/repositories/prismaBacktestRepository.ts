@@ -8,6 +8,7 @@ import type {
 } from '../types';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
 import type { Candle, SimulatedTrade } from '@crypto-strategy-lab/shared';
+import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 export class PrismaBacktestRepository implements BacktestRepository {
@@ -315,15 +316,23 @@ async function findOrCreatePrivateVersion(
       isPrivate: true,
       name: `${input.target.strategyId} backtest target`,
       ownerId,
+      source: 'USER_PROMPT',
+      sourceInput: `Manual backtest target for ${input.target.strategyId}`,
+      tags: [],
       type: input.target.strategyId,
     },
   });
   return transaction.strategyVersion.create({
     data: {
       canonicalIdentity,
+      libraryVersion: '1.0.0',
       ownerId,
       params: toInputJson(input.target.params),
       strategyDefinitionId: definition.id,
+      versionTag: computeStrategyVersionTag(
+        input.target.strategyId,
+        input.target.params,
+      ),
     },
   });
 }

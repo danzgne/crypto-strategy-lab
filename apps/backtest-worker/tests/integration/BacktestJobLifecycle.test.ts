@@ -33,6 +33,9 @@ describe('backtest job lifecycle integration', () => {
       data: {
         name: 'Issue 37 worker fixture',
         ownerId,
+        source: 'USER_PROMPT',
+        sourceInput: 'Issue 37 worker fixture',
+        tags: [],
         type: 'ma',
       },
     });
@@ -40,9 +43,11 @@ describe('backtest job lifecycle integration', () => {
 
     const version = await prisma.strategyVersion.create({
       data: {
+        libraryVersion: '1.0.0',
         ownerId,
         params: { fast: 2, slow: 3 },
         strategyDefinitionId,
+        versionTag: 'issue37-worker-fixture',
       },
     });
     strategyVersionId = version.id;

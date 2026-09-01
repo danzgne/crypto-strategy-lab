@@ -40,9 +40,7 @@ interface StrategyDefinitionRow {
   }>;
 }
 
-export class PrismaStrategyLibraryRepository
-  implements StrategyLibraryRepository
-{
+export class PrismaStrategyLibraryRepository implements StrategyLibraryRepository {
   public constructor(private readonly prisma: AppPrismaClient) {}
 
   public async createWithFirstVersion(

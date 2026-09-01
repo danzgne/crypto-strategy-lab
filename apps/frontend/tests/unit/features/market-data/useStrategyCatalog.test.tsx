@@ -49,8 +49,16 @@ describe('useStrategyCatalog', () => {
     );
     await waitFor(() =>
       expect(result.current.strategies).toEqual([
-        { id: 'ma', requiresParams: false },
-        { id: 'rsi', requiresParams: false },
+        {
+          id: 'ma',
+          paramsSchema: { type: 'object', properties: {} },
+          requiresParams: false,
+        },
+        {
+          id: 'rsi',
+          paramsSchema: { type: 'object', properties: {} },
+          requiresParams: false,
+        },
       ]),
     );
   });
