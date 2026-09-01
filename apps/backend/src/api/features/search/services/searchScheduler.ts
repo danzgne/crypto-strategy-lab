@@ -10,7 +10,10 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { DEFAULT_STOP_POLICY } from '@crypto-strategy-lab/shared';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
-import type { SearchCoordinator } from './searchCoordinator';
+import type {
+  SearchCoordinator,
+  SearchCoordinatorProgressEvent,
+} from './searchCoordinator';
 
 export interface StartSessionOptions {
   userId: string;
@@ -293,23 +296,58 @@ export class SearchScheduler {
     }
   }
 
-  private emitProgress(session: ActiveUserSession): void {
+  public handleCoordinatorProgress(
+    event: SearchCoordinatorProgressEvent,
+  ): void {
+    const session = this.activeSessions.get(event.ownerId);
+    if (!session) return;
+
+    if (session.currentRunId === event.searchRunId) {
+      if (
+        event.bestScore !== null &&
+        (session.bestScore === null || event.bestScore > session.bestScore)
+      ) {
+        session.bestScore = event.bestScore;
+      }
+      if (event.stopReason) {
+        session.lastRunStopReason = event.stopReason;
+      }
+      this.emitProgress(session, event);
+    }
+  }
+
+  private emitProgress(
+    session: ActiveUserSession,
+    activeRunProgress?: SearchCoordinatorProgressEvent,
+  ): void {
     if (!this.onProgress) {
       return;
     }
 
+    const run = session.currentRunId
+      ? this.coordinator.getRun(session.currentRunId)
+      : undefined;
+
+    const currentAccepted =
+      activeRunProgress?.acceptedCandidates ??
+      run?.acceptedCandidates ??
+      session.totalAcceptedCandidates;
+
+    const inFlight = activeRunProgress?.inFlightJobs ?? run?.inFlightJobs ?? 0;
+
+    const runStatus = activeRunProgress?.status ?? run?.status ?? undefined;
+
+    const bestScore =
+      activeRunProgress?.bestScore ?? run?.bestScore ?? session.bestScore;
+
     const payload: DiscoveryProgressPayload = {
-      acceptedCandidates: session.totalAcceptedCandidates,
-      bestScore: session.bestScore,
+      acceptedCandidates: currentAccepted,
+      bestScore,
       currentRunId: session.currentRunId,
-      inFlightJobs: session.currentRunId
-        ? (this.coordinator.getRun(session.currentRunId)?.inFlightJobs ?? 0)
-        : 0,
+      inFlightJobs: inFlight,
       maxCandidates:
         session.stopPolicy.maxCandidates ?? DEFAULT_STOP_POLICY.maxCandidates,
-      runStatus: session.currentRunId
-        ? (this.coordinator.getRun(session.currentRunId)?.status ?? undefined)
-        : undefined,
+      runStatus,
       sessionId: session.sessionId,
       sessionStatus: session.status,
       stopReason: session.lastRunStopReason,

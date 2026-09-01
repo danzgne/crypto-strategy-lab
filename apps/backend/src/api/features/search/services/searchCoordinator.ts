@@ -17,6 +17,8 @@ import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
+import type { BacktestHistoryProvider } from '../../backtests';
+import { fingerprintDataset } from '../../backtests';
 import type { DomainEventPublisher } from '../../marketData/application/interfaces/domainEventPublisher.interface';
 import { RandomGenerator } from '../generators/randomGenerator';
 import { MathRandomSource } from '../generators/randomSource';
@@ -51,9 +53,21 @@ export interface EnqueueJobInput {
   ownerId: string;
 }
 
+export interface SearchCoordinatorProgressEvent {
+  searchRunId: string;
+  ownerId: string;
+  status: SearchRunStatus;
+  stopReason: StopReason | null;
+  acceptedCandidates: number;
+  bestScore: number | null;
+  inFlightJobs: number;
+}
+
 export interface SearchCoordinatorDependencies {
   prisma: AppPrismaClient;
   eventBus: SearchEventBus;
+  historyProvider?: BacktestHistoryProvider | undefined;
+  onProgress?: ((event: SearchCoordinatorProgressEvent) => void) | undefined;
   enqueueJob?: ((input: EnqueueJobInput) => Promise<string>) | undefined;
   logger?:
     | {
@@ -83,12 +97,16 @@ interface ActiveRunState {
   activeExperimentIds: Set<string>;
   drainResolvers: (() => void)[];
   inFlightResolvers: (() => void)[];
+  datasetSnapshotId?: string | null | undefined;
   timeBudgetTimer?: NodeJS.Timeout | undefined;
 }
 
 export class SearchCoordinator {
   private readonly prisma: AppPrismaClient;
   private readonly eventBus: SearchEventBus;
+  private readonly historyProvider: BacktestHistoryProvider | undefined;
+  private readonly onProgress:
+    ((event: SearchCoordinatorProgressEvent) => void) | undefined;
   private readonly enqueueJobFn: (input: EnqueueJobInput) => Promise<string>;
   private readonly logger: SearchCoordinatorDependencies['logger'];
   private readonly activeRuns = new Map<string, ActiveRunState>();
@@ -98,6 +116,8 @@ export class SearchCoordinator {
   public constructor(deps: SearchCoordinatorDependencies) {
     this.prisma = deps.prisma;
     this.eventBus = deps.eventBus;
+    this.historyProvider = deps.historyProvider;
+    this.onProgress = deps.onProgress;
     this.logger = deps.logger;
     this.enqueueJobFn =
       deps.enqueueJob ??
@@ -173,6 +193,66 @@ export class SearchCoordinator {
         algorithmName,
       );
 
+    let datasetSnapshotId: string | null = null;
+    if (this.historyProvider) {
+      try {
+        const prepared = await this.historyProvider.prepareHistoricalCandles(
+          {
+            endTime: options.searchSpace.endTime,
+            pair: options.searchSpace.pair,
+            startTime: options.searchSpace.startTime,
+            timeframe: options.searchSpace.timeframe,
+          },
+          200,
+          100_000,
+        );
+
+        const fingerprint = fingerprintDataset({
+          candles: prepared.candles,
+          endTime: options.searchSpace.endTime,
+          pair: options.searchSpace.pair,
+          startTime: options.searchSpace.startTime,
+          timeframe: options.searchSpace.timeframe,
+          warmupCandleCount: prepared.warmupCandleCount,
+        });
+
+        const snapshot = await this.prisma.datasetSnapshot?.upsert?.({
+          where: { fingerprint },
+          create: {
+            candles: prepared.candles as unknown as Prisma.InputJsonValue,
+            endTime: BigInt(options.searchSpace.endTime),
+            fingerprint,
+            pair: options.searchSpace.pair,
+            startTime: BigInt(options.searchSpace.startTime),
+            timeframe: options.searchSpace.timeframe,
+            warmupCandleCount: prepared.warmupCandleCount,
+          },
+          update: {},
+        });
+
+        datasetSnapshotId = snapshot ? snapshot.id : null;
+      } catch (error) {
+        this.logger?.warn(
+          { error, searchSpace: options.searchSpace },
+          'Failed to prepare historical dataset for search run via historyProvider',
+        );
+      }
+    }
+
+    if (!datasetSnapshotId && this.prisma.datasetSnapshot?.findFirst) {
+      const existing = await this.prisma.datasetSnapshot.findFirst({
+        where: {
+          endTime: BigInt(options.searchSpace.endTime),
+          pair: options.searchSpace.pair,
+          startTime: BigInt(options.searchSpace.startTime),
+          timeframe: options.searchSpace.timeframe,
+        },
+      });
+      if (existing) {
+        datasetSnapshotId = existing.id;
+      }
+    }
+
     const searchRun = await this.prisma.searchRun.create({
       data: {
         algorithm: algorithmName,
@@ -191,6 +271,7 @@ export class SearchCoordinator {
       bestScore: null,
       consecutiveFailures: 0,
       consecutiveNoImprovement: 0,
+      datasetSnapshotId,
       drainResolvers: [],
       generator,
       inFlightJobs: 0,
@@ -210,6 +291,7 @@ export class SearchCoordinator {
     }, stopPolicy.timeBudgetMs);
 
     this.activeRuns.set(searchRun.id, runState);
+    this.notifyProgress(runState);
 
     // Launch background generation loop
     void this.runGenerationLoop(runState);
@@ -360,6 +442,8 @@ export class SearchCoordinator {
           where: { id: run.searchRunId },
         });
 
+        this.notifyProgress(run);
+
         // Check candidate cap immediately after incrementing
         if (run.acceptedCandidates >= maxCandidates) {
           await this.transitionToStopping(run, 'CANDIDATE_CAP');
@@ -418,6 +502,9 @@ export class SearchCoordinator {
 
           const experiment = await transaction.experiment.create({
             data: {
+              ...(run.datasetSnapshotId
+                ? { datasetSnapshotId: run.datasetSnapshotId }
+                : {}),
               endTime: BigInt(run.searchSpace.endTime),
               evaluatorVersion: 'default-v1',
               fingerprint: candidate.fingerprint,
@@ -576,6 +663,7 @@ export class SearchCoordinator {
           where: { id: run.searchRunId },
         });
 
+        this.notifyProgress(run);
         this.notifyInFlightAvailable(run);
         await this.checkTerminalState(run);
       }
@@ -612,6 +700,7 @@ export class SearchCoordinator {
             where: { id: run.searchRunId },
           });
 
+          this.notifyProgress(run);
           this.notifyInFlightAvailable(run);
           await this.checkTerminalState(run);
         }
@@ -642,6 +731,7 @@ export class SearchCoordinator {
       where: { id: run.searchRunId },
     });
 
+    this.notifyProgress(run);
     this.notifyInFlightAvailable(run);
     await this.checkTerminalState(run);
   }
@@ -663,11 +753,25 @@ export class SearchCoordinator {
         where: { id: run.searchRunId },
       });
 
+      this.notifyProgress(run);
+
       for (const resolver of run.drainResolvers) {
         resolver();
       }
       run.drainResolvers = [];
     }
+  }
+
+  private notifyProgress(run: ActiveRunState): void {
+    this.onProgress?.({
+      acceptedCandidates: run.acceptedCandidates,
+      bestScore: run.bestScore,
+      inFlightJobs: run.inFlightJobs,
+      ownerId: run.ownerId,
+      searchRunId: run.searchRunId,
+      status: run.status,
+      stopReason: run.stopReason,
+    });
   }
 
   private notifyInFlightAvailable(run: ActiveRunState): void {

@@ -6,6 +6,7 @@ import type {
   SearchSpace,
   StrategyGenerator,
 } from '@crypto-strategy-lab/shared';
+import { createDomainEvent } from '@crypto-strategy-lab/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AppPrismaClient } from '@/database/prismaClient';
 import type {
@@ -105,6 +106,14 @@ interface MockPrisma {
     findMany: (
       args?: Record<string, unknown>,
     ) => Promise<Record<string, unknown>[]>;
+  };
+  datasetSnapshot?: {
+    findFirst: (
+      args?: Record<string, unknown>,
+    ) => Promise<Record<string, unknown> | null>;
+    upsert: (
+      args?: Record<string, unknown>,
+    ) => Promise<Record<string, unknown>>;
   };
   searchRun: {
     create: (args: {
@@ -630,5 +639,129 @@ describe('SearchCoordinator', () => {
     expect(state?.seenFingerprints.has('fp-2')).toBe(true);
     expect(state?.inFlightJobs).toBe(1);
     expect(state?.bestScore).toBe(1.2);
+  });
+
+  it('prepares dataset snapshot via historyProvider and attaches datasetSnapshotId to candidate experiments', async () => {
+    const createdExperiments: Record<string, unknown>[] = [];
+    fakePrisma.$transaction = vi.fn(async (cb) =>
+      cb({
+        experiment: {
+          create: vi.fn(async (args) => {
+            const exp = {
+              id: `exp-${createdExperiments.length + 1}`,
+              ...args.data,
+            };
+            createdExperiments.push(exp);
+            return exp;
+          }),
+        },
+        strategyDefinition: {
+          create: vi.fn(async (args) => ({ id: 'def-1', ...args.data })),
+        },
+        strategyVersion: {
+          create: vi.fn(async (args) => ({ id: 'ver-1', ...args.data })),
+          findFirst: vi.fn(async () => null),
+        },
+      }),
+    );
+
+    const mockHistoryProvider = {
+      prepareHistoricalCandles: vi.fn(async () => ({
+        candles: [
+          {
+            close: 100,
+            high: 105,
+            low: 95,
+            open: 100,
+            openTime: 1000,
+            volume: 10,
+          },
+        ],
+        warmupCandleCount: 1,
+      })),
+    };
+
+    fakePrisma.datasetSnapshot = {
+      findFirst: vi.fn(async () => null),
+      upsert: vi.fn(async () => ({ id: 'snapshot-123' })),
+    };
+
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      historyProvider: mockHistoryProvider as never,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.startRun({
+      generator: new FakeGenerator(),
+      ownerId: 'user-1',
+      searchSpace: defaultSearchSpace,
+      stopPolicy: { maxCandidates: 1 },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(mockHistoryProvider.prepareHistoricalCandles).toHaveBeenCalled();
+    expect(fakePrisma.datasetSnapshot.upsert).toHaveBeenCalled();
+    expect(createdExperiments.length).toBe(1);
+    expect(createdExperiments[0]?.datasetSnapshotId).toBe('snapshot-123');
+  });
+
+  it('notifies onProgress callback during candidate generation and evaluation', async () => {
+    const progressUpdates: unknown[] = [];
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      onProgress: (event) => {
+        progressUpdates.push(event);
+      },
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    await coordinator.startRun({
+      generator: new FakeGenerator(),
+      ownerId: 'user-1',
+      searchSpace: defaultSearchSpace,
+      stopPolicy: { maxCandidates: 2, maxInFlight: 2 },
+    });
+
+    // Wait a bit for candidates to be generated
+    await new Promise((r) => setTimeout(r, 50));
+
+    expect(progressUpdates.length).toBeGreaterThanOrEqual(1);
+
+    // Simulate evaluation
+    await fakeEventBus.publish(
+      createDomainEvent('StrategyEvaluated', {
+        endTime: 1700000000000,
+        experimentId: 'exp-1',
+        maxDrawdown: '0.1',
+        memberStrategies: [{ label: 'MA', strategyId: 'ma' }],
+        ownerId: 'user-1',
+        pair: 'BTCUSDT',
+        return: '0.2',
+        score: '1.8',
+        startTime: 1690000000000,
+        strategyDisplayName: 'MA (14)',
+        strategyKind: 'singular',
+        strategyVersionId: 'ver-1',
+        timeframe: '1h',
+        totalProfit: '2000',
+        totalTrades: 10,
+        winRate: '0.6',
+      }),
+    );
+
+    await new Promise((r) => setTimeout(r, 20));
+    expect(progressUpdates.length).toBeGreaterThan(2);
   });
 });

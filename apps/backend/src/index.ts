@@ -147,9 +147,15 @@ async function startBackend(): Promise<void> {
     scheduler: newsScheduler,
   });
 
+  const searchSchedulerRef: { current?: SearchScheduler } = {};
+
   const searchCoordinator = new SearchCoordinator({
     eventBus,
+    historyProvider: marketDataService,
     logger,
+    onProgress: (event) => {
+      searchSchedulerRef.current?.handleCoordinatorProgress(event);
+    },
     prisma,
   });
 
@@ -167,6 +173,7 @@ async function startBackend(): Promise<void> {
     perUserMaxInFlight: 5,
     prisma,
   });
+  searchSchedulerRef.current = searchScheduler;
 
   const searchController = new SearchController(
     searchScheduler,

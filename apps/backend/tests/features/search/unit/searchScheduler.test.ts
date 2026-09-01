@@ -251,4 +251,41 @@ describe('SearchScheduler', () => {
     expect(history[0]?.stopReason).toBe('TIME_BUDGET');
     expect(history[0]?.bestScore).toBe(1.45);
   });
+
+  it('handles coordinator progress and emits live discovery progress payload', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-live-1');
+    fakeCoordinator.waitForRunCompletion.mockReturnValue(new Promise(() => {})); // pending
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      onProgress: (p) => {
+        progressUpdates.push(p);
+      },
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+
+    await scheduler.startSession({
+      searchSpace: defaultSearchSpace,
+      userId: 'user-live',
+    });
+
+    scheduler.handleCoordinatorProgress({
+      acceptedCandidates: 15,
+      bestScore: 2.34,
+      inFlightJobs: 3,
+      ownerId: 'user-live',
+      searchRunId: 'run-live-1',
+      status: 'RUNNING',
+      stopReason: null,
+    });
+
+    expect(progressUpdates.length).toBeGreaterThanOrEqual(2);
+    const lastUpdate = progressUpdates[progressUpdates.length - 1];
+    expect(lastUpdate?.acceptedCandidates).toBe(15);
+    expect(lastUpdate?.bestScore).toBe(2.34);
+    expect(lastUpdate?.inFlightJobs).toBe(3);
+    expect(lastUpdate?.runStatus).toBe('RUNNING');
+  });
 });
