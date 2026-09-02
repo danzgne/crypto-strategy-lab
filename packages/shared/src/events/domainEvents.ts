@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 export type { Pair, Timeframe } from '../marketData/candle';
 import { isTimeframe, type Pair, type Timeframe } from '../marketData/candle';
 import type { LeaderboardEntrySnapshot } from '../leaderboard/types';
+import type { NewsEventType, SentimentLabel } from '../news/types';
 
 export interface MarketPriceUpdatedPayload {
   pair: Pair;
@@ -111,8 +112,10 @@ export interface NewsCollectedPayload {
 
 export interface SentimentAnalyzedPayload {
   newsItemId: string;
-  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
+  sentiment: SentimentLabel;
   score: number;
+  eventType: NewsEventType;
+  relatedCoins: string[];
 }
 
 export interface DomainEventCatalog {
@@ -152,7 +155,7 @@ export const DOMAIN_EVENT_VERSIONS = {
   StrategyEvaluated: 2,
   LeaderboardUpdated: 2,
   NewsCollected: 1,
-  SentimentAnalyzed: 1,
+  SentimentAnalyzed: 2,
 } as const satisfies Record<DomainEventName, 1 | 2>;
 
 interface EventMetadata {

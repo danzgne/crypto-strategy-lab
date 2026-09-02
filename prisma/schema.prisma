@@ -344,6 +344,21 @@ enum CrawlStatus {
   FAILURE
 }
 
+enum SentimentLabel {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+enum NewsEventType {
+  ETF_FUND_FLOW
+  PROTOCOL_UPGRADE
+  REGULATION
+  PARTNERSHIP
+  MARKET_TREND
+  OTHER
+}
+
 model NewsSource {
   id           String             @id @default(uuid()) @db.Uuid
   name         String
@@ -360,17 +375,20 @@ model NewsSource {
 }
 
 model NewsItem {
-  id           String      @id @default(uuid()) @db.Uuid
-  title        String
-  content      String      @db.Text
-  source       String
-  url          String      @unique
-  publishedAt  DateTime    @db.Timestamptz(3)
-  relatedCoins String[]    @default([])
-  newsSourceId String?     @db.Uuid
-  newsSource   NewsSource? @relation(fields: [newsSourceId], references: [id], onDelete: SetNull)
-  createdAt    DateTime    @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime    @updatedAt @db.Timestamptz(3)
+  id             String          @id @default(uuid()) @db.Uuid
+  title          String
+  content        String          @db.Text
+  source         String
+  url            String          @unique
+  publishedAt    DateTime        @db.Timestamptz(3)
+  relatedCoins   String[]        @default([])
+  sentimentLabel SentimentLabel?
+  sentimentScore Decimal?        @db.Decimal(38, 18)
+  eventType      NewsEventType?
+  newsSourceId   String?         @db.Uuid
+  newsSource     NewsSource?     @relation(fields: [newsSourceId], references: [id], onDelete: SetNull)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
 
   @@index([publishedAt(sort: Desc)])
   @@index([newsSourceId])

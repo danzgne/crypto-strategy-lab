@@ -12,6 +12,8 @@ import type {
   RawNewsItem,
   NewsItem,
   NewsStats,
+  NewsAnalytics,
+  NewsSentiment,
   NewsCrawlAttempt,
   AnyDomainEvent,
   CrawlStatus,
@@ -91,6 +93,31 @@ class FakeNewsRepository implements NewsRepository {
     }
     return { persistedItems: persisted, skippedCount: skipped };
   }
+  public async findUnscoredNewsItems(limit: number): Promise<NewsItem[]> {
+    return this.items
+      .filter((item) => item.sentiment === null || item.sentiment === undefined)
+      .slice(0, limit);
+  }
+  public async persistSentimentBatch(
+    updates: readonly {
+      newsItemId: string;
+      sentiment: NewsSentiment;
+      relatedCoins: string[];
+    }[],
+    _events?: readonly AnyDomainEvent[],
+  ): Promise<NewsItem[]> {
+    const persisted: NewsItem[] = [];
+    for (const update of updates) {
+      const item = this.items.find(
+        (candidate) => candidate.id === update.newsItemId,
+      );
+      if (!item) throw new Error('Not found');
+      item.sentiment = update.sentiment;
+      item.relatedCoins = update.relatedCoins;
+      persisted.push(item);
+    }
+    return persisted;
+  }
   public async recordCrawlAttempt(data: {
     newsSourceId: string;
     status: CrawlStatus;
@@ -113,12 +140,36 @@ class FakeNewsRepository implements NewsRepository {
   public async getRecentCrawlAttempts(): Promise<NewsCrawlAttempt[]> {
     return this.attempts;
   }
-  public async getNewsStats(): Promise<NewsStats> {
+  public async getNewsStats(_pair?: string): Promise<NewsStats> {
     return {
       totalItems: this.items.length,
       totalSources: this.sources.length,
       activeSources: this.sources.filter((s) => s.isActive).length,
       coveragePercent: 100,
+    };
+  }
+
+  public async getNewsAnalytics(
+    _pair?: string,
+    _now?: Date,
+  ): Promise<NewsAnalytics> {
+    return {
+      aggregate: {
+        positive: 0,
+        neutral: 0,
+        negative: 0,
+        score: 0,
+        sampleSize: 0,
+      },
+      eventTypes: {
+        ETF_FUND_FLOW: 0,
+        PROTOCOL_UPGRADE: 0,
+        REGULATION: 0,
+        PARTNERSHIP: 0,
+        MARKET_TREND: 0,
+        OTHER: 0,
+      },
+      analyzedCount: 0,
     };
   }
 

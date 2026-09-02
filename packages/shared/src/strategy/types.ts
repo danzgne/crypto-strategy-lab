@@ -47,11 +47,13 @@ export interface Strategy<TParams = unknown> {
   readonly id: string;
   readonly params: Readonly<TParams>;
   readonly requiredHistory: number;
+  readonly liveOnly?: boolean;
   analyze(context: StrategyContext): Signal;
 }
 
 export interface StrategyFactory {
   (params?: unknown): Strategy;
+  readonly liveOnly?: boolean;
   readonly paramsSchema: StrategyParamsSchema;
 }
 

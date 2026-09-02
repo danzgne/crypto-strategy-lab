@@ -8,7 +8,10 @@ import type {
   SimulatedTrade,
   TradeDirection,
 } from '@crypto-strategy-lab/shared/backtest';
-import type { Strategy } from '@crypto-strategy-lab/strategy-engine';
+import {
+  assertStrategyBacktestable,
+  type Strategy,
+} from '@crypto-strategy-lab/strategy-engine';
 
 import type { BacktestInput, BacktestSimulation, Backtester } from './types';
 
@@ -41,6 +44,7 @@ interface ExitInstruction {
 export class HistoricalBacktester implements Backtester {
   public run(input: BacktestInput): BacktestSimulation {
     validateInput(input);
+    assertStrategyBacktestable(input.strategy);
     const candles = input.candles
       .slice()
       .sort((left, right) => left.openTime - right.openTime);

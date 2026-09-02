@@ -4,6 +4,7 @@ import './bbStrategy';
 import './srStrategy';
 import './smcStrategy';
 import './wyckoffStrategy';
+import './newsSentimentStrategy';
 import '../rules/ruleStrategy';
 
 export {
@@ -49,6 +50,13 @@ export {
   WyckoffStrategy,
   type WyckoffParams,
 } from './wyckoffStrategy';
+
+export {
+  NEWS_SENTIMENT_PARAMS_SCHEMA,
+  NEWS_SENTIMENT_STRATEGY_ID,
+  NewsSentimentStrategy,
+  type NewsSentimentParams,
+} from './newsSentimentStrategy';
 
 export {
   RULE_PARAMS_SCHEMA,

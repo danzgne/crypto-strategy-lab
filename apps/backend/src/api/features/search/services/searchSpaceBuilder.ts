@@ -22,11 +22,25 @@ export interface BuildSearchSpaceOptions {
   slippage?: string;
 }
 
+export function assertSearchSpaceBacktestable(searchSpace: SearchSpace): void {
+  const liveOnlyIds = searchSpace.enabledStrategies
+    .filter((descriptor) => StrategyRegistry.get(descriptor.id)?.liveOnly)
+    .map((descriptor) => descriptor.id);
+
+  if (liveOnlyIds.length > 0) {
+    throw new Error(
+      `Live-only strategies cannot be used in historical search: ${liveOnlyIds.join(', ')}`,
+    );
+  }
+}
+
 export function buildSearchSpace(
   options: BuildSearchSpaceOptions,
 ): SearchSpace {
   const allIds = StrategyRegistry.list();
-  const selectedIds = options.enabledStrategyIds ?? allIds;
+  const selectedIds =
+    options.enabledStrategyIds ??
+    allIds.filter((id) => StrategyRegistry.get(id)?.liveOnly !== true);
 
   const enabledStrategies: EnabledStrategyDescriptor[] = [];
 
@@ -45,7 +59,7 @@ export function buildSearchSpace(
     });
   }
 
-  return {
+  const searchSpace: SearchSpace = {
     enabledStrategies,
     endTime: options.endTime,
     initialInvestment: options.initialInvestment ?? '10000',
@@ -59,4 +73,7 @@ export function buildSearchSpace(
     timeframe: options.timeframe,
     transactionCost: options.transactionCost ?? '0.0008',
   };
+
+  assertSearchSpaceBacktestable(searchSpace);
+  return searchSpace;
 }

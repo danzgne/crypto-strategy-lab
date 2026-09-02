@@ -2,6 +2,7 @@ import type { CompositeStrategyRequest } from '@crypto-strategy-lab/shared';
 import '@crypto-strategy-lab/strategy-engine/strategies';
 import {
   assertStrategyApplicable,
+  assertStrategyBacktestable,
   CombinationEngine,
   StrategyRegistry,
   type Strategy,
@@ -137,6 +138,7 @@ export class BacktestWorker {
 
       const input = await this.queue.loadInput(job);
       const strategy = createStrategy(input);
+      assertStrategyBacktestable(strategy);
       assertStrategyApplicable(strategy, input.pair, input.timeframe);
       const simulation = this.backtester.run({ ...input, strategy });
       if (leaseLost) throw new JobLeaseLostError(job.id);
@@ -196,6 +198,7 @@ function createStrategy(input: BacktestExecutionInput): Strategy {
   const engine = new CombinationEngine();
   const members = input.strategyParams.members.map((member) => {
     const strategy = StrategyRegistry.create(member.strategyId, member.params);
+    assertStrategyBacktestable(strategy);
     return member.weight === undefined
       ? { strategy }
       : { strategy, weight: member.weight };

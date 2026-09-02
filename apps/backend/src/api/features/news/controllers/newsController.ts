@@ -77,12 +77,14 @@ export class NewsController {
   };
 
   public getStats = async (
-    _req: Request,
+    req: Request,
     res: Response,
     next: NextFunction,
   ): Promise<void> => {
     try {
-      const stats = await this.newsService.getStats();
+      const coin =
+        typeof req.query.coin === 'string' ? req.query.coin : undefined;
+      const stats = await this.newsService.getStats(coin);
       sendSuccess(res, stats);
     } catch (error) {
       next(error);

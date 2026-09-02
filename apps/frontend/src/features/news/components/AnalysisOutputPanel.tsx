@@ -1,6 +1,10 @@
 'use client';
 
 import type { NewsStats } from '../types';
+import {
+  NEWS_EVENT_TYPES,
+  type NewsEventType,
+} from '@crypto-strategy-lab/shared/news';
 
 interface AnalysisOutputPanelProps {
   stats: NewsStats;
@@ -14,7 +18,23 @@ export function AnalysisOutputPanel({
   const activeSourcesCount = stats.activeSources;
   const totalSourcesCount = stats.totalSources;
   const coveragePct = stats.coveragePercent;
-  const totalAnalyzed = stats.totalItems.toLocaleString();
+  const aggregate = stats.analytics?.aggregate ?? {
+    positive: 0,
+    neutral: 0,
+    negative: 0,
+    score: 0,
+    sampleSize: 0,
+  };
+  const eventTypes: Partial<Record<NewsEventType, number>> =
+    stats.analytics?.eventTypes ?? {};
+  const totalAnalyzed = (stats.analytics?.analyzedCount ?? 0).toLocaleString();
+  const topEventTypes = NEWS_EVENT_TYPES.map((eventType) => ({
+    eventType,
+    percentage: eventTypes[eventType] ?? 0,
+  }))
+    .filter((entry) => entry.percentage > 0)
+    .sort((left, right) => right.percentage - left.percentage)
+    .slice(0, 5);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -32,30 +52,27 @@ export function AnalysisOutputPanel({
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
           <span>Sentiment tổng hợp (24h)</span>
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
-            Preview #42
-          </span>
         </div>
 
         {/* Progress Bar */}
         <div className="mt-2 flex h-5 w-full overflow-hidden rounded-lg bg-slate-100 text-[11px] font-bold text-white shadow-inner">
           <div
-            style={{ width: '58%' }}
+            style={{ width: `${aggregate.positive}%` }}
             className="flex items-center justify-center bg-emerald-500 transition-all duration-500"
           >
-            58%
+            {aggregate.positive}%
           </div>
           <div
-            style={{ width: '27%' }}
+            style={{ width: `${aggregate.neutral}%` }}
             className="flex items-center justify-center bg-slate-400 transition-all duration-500"
           >
-            27%
+            {aggregate.neutral}%
           </div>
           <div
-            style={{ width: '15%' }}
+            style={{ width: `${aggregate.negative}%` }}
             className="flex items-center justify-center bg-rose-500 transition-all duration-500"
           >
-            15%
+            {aggregate.negative}%
           </div>
         </div>
 
@@ -63,15 +80,15 @@ export function AnalysisOutputPanel({
         <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-600">
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-emerald-500" />
-            <span>Positive (58%)</span>
+            <span>Positive ({aggregate.positive}%)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-slate-400" />
-            <span>Neutral (27%)</span>
+            <span>Neutral ({aggregate.neutral}%)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="size-2 rounded-full bg-rose-500" />
-            <span>Negative (15%)</span>
+            <span>Negative ({aggregate.negative}%)</span>
           </div>
         </div>
       </div>
@@ -82,39 +99,27 @@ export function AnalysisOutputPanel({
           <p className="text-xs font-semibold text-slate-700">
             Event Type (Top)
           </p>
-          <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[9px] font-medium text-slate-500">
-            Preview #42
-          </span>
         </div>
         <div className="mt-2.5 flex flex-wrap gap-2">
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-            <span className="font-medium">ETF / Fund Flow</span>
-            <span className="font-bold text-blue-600">28%</span>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-            <span className="font-medium">Protocol Upgrade</span>
-            <span className="font-bold text-blue-600">22%</span>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-            <span className="font-medium">Regulation</span>
-            <span className="font-bold text-blue-600">15%</span>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-            <span className="font-medium">Partnership</span>
-            <span className="font-bold text-blue-600">12%</span>
-          </div>
-          <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700">
-            <span className="font-medium">Market Trend</span>
-            <span className="font-bold text-blue-600">23%</span>
-          </div>
+          {topEventTypes.map(({ eventType, percentage }) => (
+            <div
+              key={eventType}
+              className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] text-slate-700"
+            >
+              <span className="font-medium">{formatEventType(eventType)}</span>
+              <span className="font-bold text-blue-600">{percentage}%</span>
+            </div>
+          ))}
         </div>
       </div>
 
       {/* Metrics */}
       <div className="mt-5 space-y-3 border-t border-slate-100 pt-4 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-slate-500">Confidence Score (TB)</span>
-          <span className="font-bold text-emerald-600">0.92</span>
+          <span className="text-slate-500">Sentiment score (TB)</span>
+          <span className="font-bold text-emerald-600">
+            {aggregate.score.toFixed(2)}
+          </span>
         </div>
 
         <div className="flex items-center justify-between">
@@ -145,4 +150,15 @@ export function AnalysisOutputPanel({
       </div>
     </div>
   );
+}
+
+function formatEventType(eventType: NewsEventType): string {
+  return {
+    ETF_FUND_FLOW: 'ETF / Fund Flow',
+    PROTOCOL_UPGRADE: 'Protocol Upgrade',
+    REGULATION: 'Regulation',
+    PARTNERSHIP: 'Partnership',
+    MARKET_TREND: 'Market Trend',
+    OTHER: 'Other',
+  }[eventType];
 }

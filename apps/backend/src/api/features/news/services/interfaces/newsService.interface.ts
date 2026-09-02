@@ -27,7 +27,7 @@ export interface NewsServiceInterface {
   ): Promise<{ intervalMinutes: number }>;
   getCrawlInterval(): { intervalMinutes: number };
   ingestHtml(dto: IngestHtmlDto): Promise<NewsItem>;
-  getStats(): Promise<NewsStats>;
+  getStats(pair?: string): Promise<NewsStats>;
   ensureDefaultSources(): Promise<void>;
   init?(): Promise<void>;
 }

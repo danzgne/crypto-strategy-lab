@@ -18,6 +18,7 @@ import type {
   SearchCoordinatorProgressEvent,
 } from './searchCoordinator';
 import type { TradeRetentionService } from './tradeRetentionService';
+import { assertSearchSpaceBacktestable } from './searchSpaceBuilder';
 
 export interface StartSessionOptions {
   userId: string;
@@ -107,6 +108,7 @@ export class SearchScheduler {
     options: StartSessionOptions,
   ): Promise<DiscoverySessionState> {
     const { userId, searchSpace } = options;
+    assertSearchSpaceBacktestable(searchSpace);
     const algorithm = options.algorithm ?? 'random';
     const stopPolicy: StopPolicy = {
       ...options.stopPolicy,

@@ -28,8 +28,13 @@ export async function fetchNewsSources(): Promise<NewsSource[]> {
   return browserHttpClient<NewsSource[]>('/api/v1/news/sources');
 }
 
-export async function fetchNewsStats(): Promise<NewsStats> {
-  return browserHttpClient<NewsStats>('/api/v1/news/stats');
+export async function fetchNewsStats(
+  coin?: string | undefined,
+): Promise<NewsStats> {
+  const endpoint = coin
+    ? `/api/v1/news/stats?coin=${encodeURIComponent(coin)}`
+    : '/api/v1/news/stats';
+  return browserHttpClient<NewsStats>(endpoint);
 }
 
 export async function triggerCrawl(): Promise<CrawlSummary> {
