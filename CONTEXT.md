@@ -68,7 +68,7 @@ Where a Strategy Library entry's parameters originated: `USER_PROMPT` for the na
 Composite Strategy). Immutable, so editing a generated strategy never rewrites where it came from, and descriptive
 only: it is entry metadata, never part of `params` and never part of the Strategy Version. The entry's **source
 input**, the original prompt text or URL, is present exactly when Provenance is `USER_PROMPT` or `WEB_IMPORT`, and
-absent for `MANUAL` (see ADR-0021).
+absent for `MANUAL` (see ADR-0022).
 _Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source), Record Kind (a different
 property; see below).
 
@@ -90,7 +90,7 @@ rendered from `paramsSchema` is the default; a Strategy may register a custom ed
 recursive (see ADR-0013). Built-in Strategies are read-only in place but can be forked into a User's own entry.
 Before an entry exists, the editor sits beside a **raw parameter layer**, a text view of the same unsaved `params`
 value that the editor writes structurally; a saved entry's parameters are edited only through the editor, and its
-raw view is display-and-copy (see ADR-0022).
+raw view is display-and-copy (see ADR-0023).
 
 **Applicability**:
 A RuleStrategy's declared `timeframe` and permitted Pairs. Enforced server-side before execution, by the
@@ -108,7 +108,7 @@ alone does not. Its display name includes the member types and parameter summari
 `MA[fast=20,slow=50] + RSI[period=14] · weighted`), while its machine identity is the canonical definition. When
 saved as a Strategy Library entry it stores its members as copied parameter snapshots rather than references, so
 "member versions" means the version identity computed from those copies, not a foreign key to a stored Strategy
-Version (see ADR-0021).
+Version (see ADR-0022).
 _Avoid_: Combination (reserve for the Combination Engine, the component that builds Composite Strategies).
 
 **Combination Engine**:
@@ -163,7 +163,7 @@ one. Provenance and the source input live on the entry, never on a version, whic
 impossible for a later edit to rewrite where an entry's parameters came from (see ADR-0014). Built-in Strategies
 appear in the Library as read-only rows with no entry record behind them, so they carry no name, tags, Provenance,
 or Library Version until forked. An entry may be **archived**, which hides it from the default listing; it is
-never deleted, because Experiments reference its Strategy Versions (see ADR-0021).
+never deleted, because Experiments reference its Strategy Versions (see ADR-0022).
 
 **Library Version**:
 The human-authored semantic-version label on one Strategy Version inside a Strategy Library entry (for example
