@@ -302,13 +302,51 @@ _Avoid_: News Source (the configured instance, not the adapter; see below).
 
 **News Source**:
 One configured feed URL or site that a News Provider crawls. Many News Sources share one News Provider. A Source
-is **active** when its most recent crawl attempt succeeded within its configured refresh interval; the ratio of
-active to configured Sources is what the source-health coverage figure reports.
+is **Enabled** or not, and separately **active** or not: active is health, meaning its most recent Crawl Attempt
+succeeded within twice its configured refresh interval, so one skipped tick is not an outage. The source-health
+coverage figure is the ratio of active to Enabled Sources.
+_Avoid_: Active as a word for the on/off switch (that is **Enabled**), Inactive for a Source that is merely
+unhealthy.
+
+**Enabled**:
+A News Source's admin-controlled on/off switch, deciding whether the Crawler visits it at all. Independent of
+Active, which is health: a Source can be Enabled and failing, while a disabled Source is neither active nor a
+health failure and counts on neither side of coverage.
+_Avoid_: Active (the health notion).
+
+**Crawl Attempt**:
+One recorded visit to one News Source, carrying its outcome, timestamp, how many items it found and persisted,
+and, for a Website Source, which Template Version it applied and that application's validation metrics. Source
+health and Drift are both derived from the attempt log rather than tracked as their own state.
 
 **Extraction Template**:
-A versioned, LLM-generated description of where a Website Source's title, summary, timestamp, and related fields
-live in its HTML. When drift is detected from crawl validation metrics, a replacement version is *proposed* with
-a diff and activated only by an explicit admin action, never automatically (see ADR-0008).
+A versioned, LLM-generated description of where a Website Source's news items live in its HTML. It locates a
+*listing*: an item container plus each item's title, summary, timestamp, and link, every one of them read from an
+element's text or from one of its attributes. A model writes a template only when a version is generated or
+proposed, never while crawling, so applying one is selector evaluation and nothing else. The Template is the
+abstraction and a Template Version is the record (see ADR-0008, ADR-0024).
+
+**Template Version**:
+One immutable snapshot of an Extraction Template, numbered per News Source and carrying its own selectors,
+Extraction Confidence, and status. Exactly one version per Source is active at a time; the others are proposed,
+superseded, or rejected. The first version for a Source activates on generation, because it replaces nothing;
+every later activation, rolling back to an earlier version included, is an explicit admin action.
+_Avoid_: Strategy Version and Library Version (unrelated concepts in the strategy pipeline).
+
+**Extraction Confidence**:
+How sure the model was about a Template Version when it wrote it, from 0 to 1. Stored on the version and reported
+on each Crawl Attempt that applies it, so a trailing average spans versions and Sources. Distinct from the
+empty-field and malformed-field rates: confidence describes the template, the rates describe how it is holding
+up.
+
+**Drift**:
+The condition where a Website Source's active Template Version has stopped matching its page: the sum of the
+empty-field and malformed-field rates crosses the configured threshold, measured only over Crawl Attempts that
+applied the currently active version since it was activated. An attempt matching no item containers at all is
+fully empty rather than absent evidence. Crossing the threshold proposes a replacement version with a diff; it
+never applies one.
+_Avoid_: Self-healing (the mockup's label for the panel; nothing heals itself here, a person approves every
+change).
 
 **Sentiment Service**:
 The stateless, swappable component that scores a NewsItem's text into a Sentiment. Realized as an in-process
