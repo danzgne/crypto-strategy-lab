@@ -46,6 +46,29 @@ vi.mock('../../../../src/features/leaderboard', () => ({
   LeaderboardPanel: () => <div data-testid="leaderboard-panel" />,
 }));
 
+vi.mock('../../../../src/features/search', () => ({
+  DiscoveryProgressCard: () => <div data-testid="discovery-progress-card" />,
+  DiscoveryRunHistoryTable: () => (
+    <div data-testid="discovery-run-history-table" />
+  ),
+  DiscoverySessionControl: () => (
+    <div data-testid="discovery-session-control" />
+  ),
+  useDiscoverySession: () => ({
+    error: null,
+    history: [],
+    loading: false,
+    pauseSession: vi.fn(),
+    pinExperiment: vi.fn(),
+    progress: null,
+    refreshHistory: vi.fn(),
+    resumeSession: vi.fn(),
+    session: null,
+    startSession: vi.fn(),
+    stopSession: vi.fn(),
+  }),
+}));
+
 import { DiscoveryDashboard } from '../../../../src/features/combinations';
 
 describe('DiscoveryDashboard', () => {

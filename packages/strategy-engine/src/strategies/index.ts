@@ -23,6 +23,7 @@ export {
 export {
   BB_PARAMS_SCHEMA,
   BB_STRATEGY_ID,
+  BOLLINGER_STRATEGY_ID,
   BBStrategy,
   type BBParams,
 } from './bbStrategy';
@@ -30,6 +31,7 @@ export {
 export {
   SR_PARAMS_SCHEMA,
   SR_STRATEGY_ID,
+  SUPPORT_RESISTANCE_STRATEGY_ID,
   SRStrategy,
   type SRParams,
 } from './srStrategy';

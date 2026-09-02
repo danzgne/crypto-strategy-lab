@@ -164,10 +164,16 @@ model Experiment {
   trades             Trade[]
   backtestJob        BacktestJob?
   leaderboardEntries LeaderboardEntry[]
+  searchRunId        String?            @db.Uuid
+  searchRun          SearchRun?         @relation(fields: [searchRunId], references: [id], onDelete: SetNull)
+  fingerprint        String?
+  isPinned           Boolean            @default(false)
   createdAt          DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
 
   @@index([ownerId, createdAt])
+  @@index([searchRunId])
+  @@index([isPinned])
   @@map("experiments")
 }
 
@@ -199,11 +205,35 @@ model Trade {
   @@map("trades")
 }
 
-model SearchRun {
-  id      String @id @default(uuid()) @db.Uuid
-  ownerId String @db.Uuid
-  owner   User   @relation(fields: [ownerId], references: [id])
+enum SearchRunStatus {
+  RUNNING
+  STOPPING
+  COMPLETED
+  FAILED
+}
 
+model SearchRun {
+  id                      String          @id @default(uuid()) @db.Uuid
+  ownerId                 String          @db.Uuid
+  owner                   User            @relation(fields: [ownerId], references: [id])
+  status                  SearchRunStatus @default(RUNNING)
+  algorithm               String          @default("random")
+  searchConfig            Json
+  stopReason              String?
+  acceptedCandidates      Int             @default(0)
+  bestScore               Decimal?        @db.Decimal(38, 18)
+  consecutiveNoImprovement Int             @default(0)
+  consecutiveFailures     Int             @default(0)
+  inFlightJobs            Int             @default(0)
+  startedAt               DateTime        @default(now()) @db.Timestamptz(3)
+  stoppedAt               DateTime?       @db.Timestamptz(3)
+  createdAt               DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime        @updatedAt @db.Timestamptz(3)
+
+  experiments             Experiment[]
+  backtestJobs            BacktestJob[]
+
+  @@index([ownerId, status])
   @@map("search_runs")
 }
 
@@ -220,6 +250,8 @@ model BacktestJob {
   owner          User       @relation(fields: [ownerId], references: [id])
   experimentId   String     @unique @db.Uuid
   experiment     Experiment @relation(fields: [experimentId], references: [id])
+  searchRunId    String?    @db.Uuid
+  searchRun      SearchRun? @relation(fields: [searchRunId], references: [id], onDelete: SetNull)
   status         JobStatus  @default(PENDING)
   claimedAt      DateTime?  @db.Timestamptz(3)
   workerId       String?
@@ -232,6 +264,7 @@ model BacktestJob {
   updatedAt DateTime @updatedAt @db.Timestamptz(3)
 
   @@index([status, claimedAt])
+  @@index([searchRunId])
   @@map("backtest_jobs")
 }
 

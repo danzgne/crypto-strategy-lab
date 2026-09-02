@@ -41,6 +41,13 @@ import {
   PrismaLeaderboardRepository,
   RankingService,
 } from '@/api/features/leaderboard';
+import {
+  SearchCoordinator,
+  SearchScheduler,
+  TradeRetentionService,
+  SearchController,
+} from '@/api/features/search';
+import type { DiscoveryProgressPayload } from '@crypto-strategy-lab/shared';
 
 loadEnvironment({
   path: new URL('../../../.env', import.meta.url),
@@ -140,9 +147,45 @@ async function startBackend(): Promise<void> {
     scheduler: newsScheduler,
   });
 
+  const searchSchedulerRef: { current?: SearchScheduler } = {};
+
+  const searchCoordinator = new SearchCoordinator({
+    eventBus,
+    historyProvider: marketDataService,
+    logger,
+    onProgress: (event) => {
+      searchSchedulerRef.current?.handleCoordinatorProgress(event);
+    },
+    prisma,
+  });
+
+  const tradeRetentionService = new TradeRetentionService(prisma);
+
+  let discoveryGatewayEmitter:
+    ((progress: DiscoveryProgressPayload) => void) | undefined;
+
+  const searchScheduler = new SearchScheduler({
+    coordinator: searchCoordinator,
+    logger,
+    onProgress: (progress) => {
+      discoveryGatewayEmitter?.(progress);
+    },
+    perUserMaxInFlight: 5,
+    prisma,
+    tradeRetentionService,
+  });
+  searchSchedulerRef.current = searchScheduler;
+
+  const searchController = new SearchController(
+    searchScheduler,
+    tradeRetentionService,
+  );
+
   await prisma.$connect();
   await backtestService.start();
   await leaderboardService.start();
+  await searchCoordinator.start();
+  await searchScheduler.start();
   outboxDispatcher.start();
   await healthService.recordStarted(config.instanceId);
 
@@ -169,29 +212,33 @@ async function startBackend(): Promise<void> {
   });
 
   const app = createApp({
-    healthRepository,
+    allowedOrigin: config.frontendOrigin,
     authService,
+    backtestService,
+    healthRepository,
+    leaderboardService,
+    logger,
     newsService,
+    searchController,
+    sessionMiddleware,
     strategies: {
       generationService: strategyGenerationService,
       libraryService: strategyLibraryService,
     },
-    sessionMiddleware,
-    allowedOrigin: config.frontendOrigin,
-    logger,
-    backtestService,
-    leaderboardService,
   });
   const httpServer = createServer(app);
   const socketServer = createSocketServer(httpServer, {
     allowedOrigin: config.frontendOrigin,
-    sessionMiddleware,
+    leaderboardEventBus: eventBus,
     logger,
     marketDataService,
     marketDataSource: 'Binance API + WebSocket',
     marketTickService,
+    onDiscoveryGatewayRegistered: (emitter) => {
+      discoveryGatewayEmitter = emitter;
+    },
+    sessionMiddleware,
     strategyLiveService,
-    leaderboardEventBus: eventBus,
   });
 
   await new Promise<void>((resolve, reject) => {
@@ -211,6 +258,8 @@ async function startBackend(): Promise<void> {
     logger.info({ signal }, 'Backend shutdown started');
 
     newsScheduler.stop();
+    await searchScheduler.stop();
+    await searchCoordinator.stop();
     await strategyLiveService.close();
     outboxDispatcher.stop();
     leaderboardService.stop();

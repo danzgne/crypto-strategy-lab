@@ -2,21 +2,22 @@ import type { AnyDomainEvent } from '@crypto-strategy-lab/shared';
 import { createDomainEvent } from '@crypto-strategy-lab/shared';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
-import { Prisma } from '../../../../../../generated/prisma/client';
 import {
   createPrismaClient,
+  Prisma,
   type AppPrismaClient,
 } from '@/database/prismaClient';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 import { PrismaOutboxDispatcher } from '@/events/prismaOutboxDispatcher';
 import { createAppLogger } from '@/utils/logger';
+import { getTestDatabaseUrl } from '../../../helpers/testDatabaseUrl';
 
 describe('PrismaOutboxDispatcher integration', () => {
   let prisma: AppPrismaClient;
   const eventIds: string[] = [];
 
   beforeAll(async () => {
-    prisma = createPrismaClient(process.env.DATABASE_URL!);
+    prisma = createPrismaClient(getTestDatabaseUrl());
     await prisma.$connect();
   });
 

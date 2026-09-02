@@ -21,7 +21,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:migrate:dev": "prisma migrate dev",
-    "test": "pnpm prisma:generate && pnpm --recursive --if-present test",
+    "test": "pnpm prisma:generate && pnpm --recursive --workspace-concurrency=1 --if-present test",
     "typecheck": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/strategy-engine build && pnpm --recursive --if-present typecheck"
   },
   "dependencies": {

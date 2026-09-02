@@ -7,6 +7,7 @@ import {
 } from '../../src/database/prismaClient';
 import { PostgresJobQueue } from '../../src/queue/PostgresJobQueue';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
+import { getTestDatabaseUrl } from '../helpers/testDatabaseUrl';
 import type { PersistedBacktestOutcome } from '../../src/worker/types';
 
 describe('backtest job lifecycle integration', () => {
@@ -18,8 +19,11 @@ describe('backtest job lifecycle integration', () => {
   const snapshotIds: string[] = [];
 
   beforeAll(async () => {
-    prisma = createPrismaClient(process.env.DATABASE_URL!);
+    prisma = createPrismaClient(getTestDatabaseUrl());
     await prisma.$connect();
+    await prisma.backtestJob.deleteMany({
+      where: { status: { in: ['PENDING', 'CLAIMED'] } },
+    });
 
     const user = await prisma.user.create({
       data: {
@@ -89,6 +93,7 @@ describe('backtest job lifecycle integration', () => {
         where: { id: { in: snapshotIds } },
       });
     }
+    await prisma.leaderboard.deleteMany({ where: { ownerId } });
     await prisma.strategyVersion.delete({ where: { id: strategyVersionId } });
     await prisma.strategyDefinition.delete({
       where: { id: strategyDefinitionId },

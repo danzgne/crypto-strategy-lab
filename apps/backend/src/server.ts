@@ -8,6 +8,7 @@ import type { NewsServiceInterface } from '@/api/features/news';
 import type { StrategyLibraryServiceInterface } from '@/api/features/strategies/library';
 import type { BacktestServiceInterface } from '@/api/features/backtests';
 import type { LeaderboardServiceInterface } from '@/api/features/leaderboard';
+import type { SearchController } from '@/api/features/search';
 import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
 import { notFoundHandler } from '@/api/middlewares/handlers/notFoundHandler';
 import { requestLogger } from '@/api/middlewares/logging/requestLogger';
@@ -29,6 +30,7 @@ interface AppDependencies {
   logger?: AppLogger;
   backtestService?: BacktestServiceInterface;
   leaderboardService?: LeaderboardServiceInterface;
+  searchController?: SearchController;
 }
 
 export function createApp({
@@ -42,6 +44,7 @@ export function createApp({
   logger = createAppLogger({ service: 'backend-test', enabled: false }),
   backtestService,
   leaderboardService,
+  searchController,
 }: AppDependencies): Express {
   const app = express();
 
@@ -62,6 +65,7 @@ export function createApp({
       strategyLibraryService,
       backtestService,
       leaderboardService,
+      searchController,
     ),
   );
   app.use(notFoundHandler);

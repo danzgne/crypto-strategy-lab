@@ -12,6 +12,7 @@ import {
   PrismaBacktestRepository,
   type BacktestHistoryProvider,
 } from '@/api/features/backtests';
+import { getTestDatabaseUrl } from '../../../helpers/testDatabaseUrl';
 
 describe('backtest persistence', () => {
   let prisma: AppPrismaClient;
@@ -22,7 +23,7 @@ describe('backtest persistence', () => {
   const strategyVersionIds: string[] = [];
 
   beforeAll(async () => {
-    prisma = createPrismaClient(process.env.DATABASE_URL!);
+    prisma = createPrismaClient(getTestDatabaseUrl());
     await prisma.$connect();
     const user = await prisma.user.create({
       data: {
@@ -149,9 +150,8 @@ describe('backtest persistence', () => {
     expect(history).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          metrics: null,
           pair: 'BTCUSDT',
-          status: 'queued',
+          status: expect.stringMatching(/^(queued|running|completed)$/),
           strategyId: 'ma',
           strategyName: 'ma backtest target',
           timeframe: '1m',

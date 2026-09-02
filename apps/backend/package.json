@@ -11,8 +11,8 @@
     "dev": "NODE_OPTIONS='--max-http-header-size=131072' tsx watch src/index.ts",
     "lint": "eslint src tests *.ts *.mjs",
     "start": "node --max-http-header-size=131072 dist/index.js",
-    "test": "NODE_OPTIONS='--max-http-header-size=131072' vitest run",
-    "test:integration": "NODE_OPTIONS='--max-http-header-size=131072' vitest run tests/integration",
+    "test": "NODE_OPTIONS='--max-http-header-size=131072 --max-old-space-size=4096' vitest run",
+    "test:integration": "NODE_OPTIONS='--max-http-header-size=131072 --max-old-space-size=4096' vitest run tests/integration",
     "typecheck": "tsc --project tsconfig.json --noEmit"
   },
   "dependencies": {

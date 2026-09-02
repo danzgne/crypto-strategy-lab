@@ -13,12 +13,19 @@ import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { useSavedStrategies } from '../../strategies';
 import { useStrategyCatalog } from '../../market-data/hooks/useStrategyCatalog';
 import { LeaderboardPanel } from '../../leaderboard';
+import {
+  DiscoveryProgressCard,
+  DiscoveryRunHistoryTable,
+  DiscoverySessionControl,
+  useDiscoverySession,
+} from '../../search';
 import { ManualCompositeBuilder } from './ManualCompositeBuilder';
 import { SingularStrategyBuilder } from './SingularStrategyBuilder';
 
 export function DiscoveryDashboard() {
   const catalog = useStrategyCatalog();
   const saved = useSavedStrategies();
+  const discovery = useDiscoverySession();
   const [draftComposite, setDraftComposite] =
     useState<CompositeStrategyRequest | null>(null);
 
@@ -30,8 +37,8 @@ export function DiscoveryDashboard() {
             Strategy Engine &amp; Loop Discovery
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Create a standalone strategy, combine strategy versions, and save
-            the exact definitions you want to follow in Realtime.
+            Configure continuous discovery sessions, generate strategy
+            combinations, and watch live backtests update the leaderboard.
           </p>
         </div>
         <StatusBadge tone="positive">
@@ -49,7 +56,24 @@ export function DiscoveryDashboard() {
         </div>
       )}
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)]">
+      {discovery.error !== null && (
+        <div
+          className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800"
+          role="alert"
+        >
+          {discovery.error}
+        </div>
+      )}
+
+      {/* Discovery Session Engine & Live Progress */}
+      <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+        <DiscoverySessionControl catalog={catalog} discovery={discovery} />
+        <DiscoveryProgressCard discovery={discovery} />
+      </div>
+
+      <DiscoveryRunHistoryTable discovery={discovery} />
+
+      <div className="mt-8 grid gap-5 xl:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.22fr)]">
         <SingularStrategyBuilder
           catalog={catalog}
           isSaving={saved.saving}
