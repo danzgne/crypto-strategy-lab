@@ -89,7 +89,6 @@ class FakeStrategyLibraryRepository implements StrategyLibraryRepository {
     entryId: string,
     input: {
       params: unknown;
-      canonicalIdentity: string;
       versionTag: string;
       libraryVersion: string;
     },

@@ -116,7 +116,6 @@ describe('PrismaStrategyLibraryRepository', () => {
     await expect(
       repository.addVersion(otherOwnerId, entry.id, {
         params: { fast: 1, slow: 2 },
-        canonicalIdentity: 'ma:hijack',
         versionTag: 'tag-hijack',
         libraryVersion: '9.9.9',
       }),
@@ -126,57 +125,60 @@ describe('PrismaStrategyLibraryRepository', () => {
     expect(stillOriginal?.name).toBe('Owner-only entry');
   });
 
-  it('is idempotent when addVersion repeats the same canonical identity', async () => {
-    const entry = await createEntry('Idempotent entry');
-    const input = {
-      params: { fast: 5, slow: 50 },
-      canonicalIdentity: 'ma:idempotent-identity',
-      versionTag: 'tag-idempotent',
-      libraryVersion: '1.1.0',
-    };
-
-    const first = await repository.addVersion(ownerId, entry.id, input);
-    const second = await repository.addVersion(ownerId, entry.id, {
-      ...input,
-      libraryVersion: '1.1.0',
-    });
-
-    expect(first?.outcome).toBe('CREATED');
-    expect(second?.outcome).toBe('CREATED');
-    if (second?.outcome !== 'CREATED') throw new Error('expected CREATED');
-    expect(second.entry.versions).toHaveLength(2);
-  });
-
-  it('relabels the identity-matching version in place when only the Library Version changes', async () => {
-    const canonicalIdentity = uniqueCanonicalIdentity('Relabel-only entry');
-    const entry = await createEntry('Relabel-only entry', canonicalIdentity);
+  it('creates a new version even when the params are unchanged, without touching the earlier one', async () => {
+    const entry = await createEntry('Label-only-change entry');
 
     const result = await repository.addVersion(ownerId, entry.id, {
       params: entry.latestVersion.params,
-      canonicalIdentity,
       versionTag: entry.latestVersion.versionTag,
       libraryVersion: '1.0.1',
     });
 
     expect(result?.outcome).toBe('CREATED');
     if (result?.outcome !== 'CREATED') throw new Error('expected CREATED');
-    expect(result.entry.versions).toHaveLength(1);
-    expect(result.entry.latestVersion.id).toBe(entry.latestVersion.id);
+    expect(result.entry.versions).toHaveLength(2);
+    expect(result.entry.latestVersion.id).not.toBe(entry.latestVersion.id);
     expect(result.entry.latestVersion.libraryVersion).toBe('1.0.1');
+    const original = result.entry.versions.find(
+      (version) => version.id === entry.latestVersion.id,
+    );
+    expect(original?.libraryVersion).toBe(entry.latestVersion.libraryVersion);
   });
 
-  it('rejects a duplicate Library Version for a genuinely new canonical identity', async () => {
+  it('tracks the most recently saved version as latest, even across saves with matching params', async () => {
+    const entry = await createEntry('Chronology entry');
+
+    const second = await repository.addVersion(ownerId, entry.id, {
+      params: { fast: 10, slow: 30 },
+      versionTag: 'tag-second',
+      libraryVersion: '1.1.0',
+    });
+    if (second?.outcome !== 'CREATED') throw new Error('expected CREATED');
+
+    const third = await repository.addVersion(ownerId, entry.id, {
+      params: { fast: 10, slow: 30 },
+      versionTag: 'tag-third',
+      libraryVersion: '1.2.0',
+    });
+    if (third?.outcome !== 'CREATED') throw new Error('expected CREATED');
+
+    expect(third.entry.versions).toHaveLength(3);
+    expect(third.entry.latestVersion.libraryVersion).toBe('1.2.0');
+    expect(third.entry.latestVersion.id).not.toBe(
+      second.entry.latestVersion.id,
+    );
+  });
+
+  it('rejects a Library Version label already used on the entry, even for different params', async () => {
     const entry = await createEntry('Duplicate label entry');
     await repository.addVersion(ownerId, entry.id, {
       params: { fast: 5, slow: 50 },
-      canonicalIdentity: 'ma:first-identity',
       versionTag: 'tag-a',
       libraryVersion: '1.1.0',
     });
 
     const result = await repository.addVersion(ownerId, entry.id, {
       params: { fast: 6, slow: 50 },
-      canonicalIdentity: 'ma:second-identity',
       versionTag: 'tag-b',
       libraryVersion: '1.1.0',
     });

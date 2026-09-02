@@ -124,42 +124,24 @@ export class PrismaStrategyLibraryRepository implements StrategyLibraryRepositor
           libraryVersion: input.libraryVersion,
         },
       });
-      const existingByIdentity = await transaction.strategyVersion.findUnique({
-        where: {
-          ownerId_strategyDefinitionId_canonicalIdentity: {
-            ownerId,
-            strategyDefinitionId: entryId,
-            canonicalIdentity: input.canonicalIdentity,
-          },
-        },
-      });
-
-      if (
-        duplicateLabel !== null &&
-        existingByIdentity?.id !== duplicateLabel.id
-      ) {
+      if (duplicateLabel !== null) {
         return { outcome: 'DUPLICATE_LIBRARY_VERSION' };
       }
 
-      if (existingByIdentity === null) {
-        await transaction.strategyVersion.create({
-          data: {
-            ownerId,
-            strategyDefinitionId: entryId,
-            params: toInputJson(input.params),
-            versionTag: input.versionTag,
-            libraryVersion: input.libraryVersion,
-            canonicalIdentity: input.canonicalIdentity,
-          },
-        });
-      } else if (existingByIdentity.libraryVersion !== input.libraryVersion) {
-        // The params are unchanged, so this isn't a new Strategy Version; only its
-        // descriptive Library Version label moves.
-        await transaction.strategyVersion.update({
-          where: { id: existingByIdentity.id },
-          data: { libraryVersion: input.libraryVersion },
-        });
-      }
+      // canonicalIdentity is left null here: a Library Version the owner explicitly
+      // named is always a new, permanent history entry, never a stand-in for an
+      // earlier one with matching params. (BACKTEST_TARGET/SEARCH_CANDIDATE rows,
+      // which do dedupe on identity, live under their own StrategyDefinition and are
+      // unaffected.)
+      await transaction.strategyVersion.create({
+        data: {
+          ownerId,
+          strategyDefinitionId: entryId,
+          params: toInputJson(input.params),
+          versionTag: input.versionTag,
+          libraryVersion: input.libraryVersion,
+        },
+      });
 
       const reloaded = await transaction.strategyDefinition.findUniqueOrThrow({
         where: { id: entryId },

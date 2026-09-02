@@ -177,7 +177,6 @@ export class StrategyLibraryService {
 
     return this.repository.addVersion(ownerId, entryId, {
       params: resolved.params,
-      canonicalIdentity: resolved.canonicalIdentity,
       versionTag: resolved.versionTag,
       libraryVersion,
     });

@@ -54,7 +54,6 @@ export interface ListLibraryEntriesResult {
 
 export interface AddLibraryVersionInput {
   params: unknown;
-  canonicalIdentity: string;
   versionTag: string;
   libraryVersion: string;
 }

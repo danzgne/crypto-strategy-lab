@@ -524,17 +524,18 @@ describe('Strategies API Integration Tests', () => {
       expect(res.body.data.latestVersion.libraryVersion).toBe('1.1.0');
     });
 
-    it('relabels the current version instead of erroring when only the Library Version changes', async () => {
+    it('creates a new version instead of erroring when only the Library Version changes', async () => {
       const created = await request(app)
         .post('/api/v1/strategies')
         .set('Cookie', userCookie)
         .send({
-          name: 'MA relabel',
+          name: 'MA label-only change',
           source: 'MANUAL',
           strategyId: 'ma',
           params: { fast: 20, slow: 50 },
         });
       const entryId = created.body.data.id;
+      const firstVersionId = created.body.data.latestVersion.id;
 
       const res = await request(app)
         .post(`/api/v1/strategies/${entryId}/versions`)
@@ -542,8 +543,9 @@ describe('Strategies API Integration Tests', () => {
         .send({ libraryVersion: '1.0.1', params: { fast: 20, slow: 50 } });
 
       expect(res.status).toBe(201);
-      expect(res.body.data.versions).toHaveLength(1);
+      expect(res.body.data.versions).toHaveLength(2);
       expect(res.body.data.latestVersion.libraryVersion).toBe('1.0.1');
+      expect(res.body.data.latestVersion.id).not.toBe(firstVersionId);
     });
 
     it('rejects a Library Version already used inside the entry', async () => {
