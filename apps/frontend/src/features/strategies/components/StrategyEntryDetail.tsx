@@ -114,18 +114,19 @@ export function StrategyEntryDetail({ entryId }: { entryId: string }) {
     setSavingVersion(true);
     setVersionError(null);
     try {
-      if (entry.kind === 'composite') {
-        await strategyLibraryClient.addVersion(entry.id, {
-          libraryVersion: newLibraryVersion.trim(),
-          composite: selectedVersion.composite!,
-        });
-      } else {
-        await strategyLibraryClient.addVersion(entry.id, {
-          libraryVersion: newLibraryVersion.trim(),
-          params: effectiveParams,
-        });
-      }
+      const updated =
+        entry.kind === 'composite'
+          ? await strategyLibraryClient.addVersion(entry.id, {
+              libraryVersion: newLibraryVersion.trim(),
+              composite: selectedVersion.composite!,
+            })
+          : await strategyLibraryClient.addVersion(entry.id, {
+              libraryVersion: newLibraryVersion.trim(),
+              params: effectiveParams,
+            });
       setNewLibraryVersion('');
+      setDraftParams({});
+      setSelectedVersionId(updated.latestVersion.id);
       void refresh();
     } catch (reason: unknown) {
       setVersionError(

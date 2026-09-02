@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { LibraryEntryDetail } from '@crypto-strategy-lab/shared';
@@ -55,6 +56,24 @@ const ruleEntry: LibraryEntryDetail = {
 
 addVersion.mockResolvedValue(ruleEntry);
 
+const secondVersion = {
+  id: 'version-2',
+  versionTag: 'tag-2',
+  libraryVersion: '1.0.2',
+  createdAt: '2026-09-02T00:00:00.000Z',
+  params: {
+    indicators: [{ name: 'RSI', period: 21 }],
+    conditions: ruleEntry.latestVersion.params!.conditions,
+    timeframe: '5m',
+  },
+};
+
+const entryWithSecondVersion: LibraryEntryDetail = {
+  ...ruleEntry,
+  latestVersion: secondVersion,
+  versions: [...ruleEntry.versions, secondVersion],
+};
+
 const emptyLibrary: StrategyLibraryState = {
   builtins: [],
   entries: [],
@@ -70,13 +89,13 @@ const emptyLibrary: StrategyLibraryState = {
 };
 
 vi.mock('../../../../src/features/strategies/hooks/useLibraryEntry', () => ({
-  useLibraryEntry: () => ({
-    entry: ruleEntry,
-    loading: false,
-    error: null,
-    notFound: false,
-    refresh,
-  }),
+  useLibraryEntry: () => {
+    const [entry, setEntry] = useState<LibraryEntryDetail>(ruleEntry);
+    refresh.mockImplementation(async () => {
+      setEntry(entryWithSecondVersion);
+    });
+    return { entry, loading: false, error: null, notFound: false, refresh };
+  },
 }));
 
 vi.mock('../../../../src/features/strategies/hooks/useStrategyLibrary', () => ({
@@ -121,5 +140,21 @@ describe('StrategyEntryDetail', () => {
       libraryVersion: '1.0.2',
       params: ruleEntry.latestVersion.params,
     });
+  });
+
+  it('shows the new version after saving, instead of leaving the old one selected', async () => {
+    addVersion.mockResolvedValueOnce(entryWithSecondVersion);
+    render(<StrategyEntryDetail entryId="entry-1" />);
+
+    fireEvent.change(screen.getByLabelText('Save as new Library Version'), {
+      target: { value: '1.0.2' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save version' }));
+
+    await waitFor(() =>
+      expect(screen.getByLabelText('Period for indicator 1')).toHaveValue(21),
+    );
+    expect(screen.queryByText(/not latest/)).not.toBeInTheDocument();
+    expect(screen.getByText('v1.0.1')).toBeInTheDocument();
   });
 });
