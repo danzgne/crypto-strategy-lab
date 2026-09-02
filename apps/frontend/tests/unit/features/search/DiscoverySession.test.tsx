@@ -37,7 +37,10 @@ describe('Discovery UI Components', () => {
     it('shows 3 methods with only Random Search active and the others disabled', () => {
       const mockDiscovery = createMockDiscovery();
       render(
-        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+        />,
       );
 
       expect(screen.getByText('Random Search')).toBeInTheDocument();
@@ -53,7 +56,10 @@ describe('Discovery UI Components', () => {
     it('starts discovery session when Start Discovery Session is clicked', async () => {
       const mockDiscovery = createMockDiscovery();
       render(
-        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+        />,
       );
 
       const startBtn = screen.getByRole('button', {
@@ -96,7 +102,10 @@ describe('Discovery UI Components', () => {
       });
 
       render(
-        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+        />,
       );
 
       expect(
@@ -140,7 +149,10 @@ describe('Discovery UI Components', () => {
       });
 
       render(
-        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+        />,
       );
 
       const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
@@ -174,7 +186,10 @@ describe('Discovery UI Components', () => {
 
       const mockDiscovery = createMockDiscovery({ session: null });
       render(
-        <DiscoverySessionControl builtins={builtins} discovery={mockDiscovery} />,
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+        />,
       );
 
       const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
