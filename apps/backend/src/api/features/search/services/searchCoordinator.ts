@@ -31,6 +31,7 @@ import type { DomainEventPublisher } from '../../marketData/application/interfac
 import type { AppLogger } from '../../../../utils/logger';
 import { RandomGenerator } from '../generators/randomGenerator';
 import { MathRandomSource } from '../generators/randomSource';
+import { assertSearchSpaceBacktestable } from './searchSpaceBuilder';
 
 export type SearchEventBus = DomainEventPublisher & {
   subscribe<TName extends DomainEventName>(
@@ -223,6 +224,7 @@ export class SearchCoordinator {
       endTime: alignedEndTime,
       startTime: alignedStartTime,
     };
+    assertSearchSpaceBacktestable(alignedSearchSpace);
 
     const generator =
       options.generator ??

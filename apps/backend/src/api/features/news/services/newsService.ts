@@ -149,8 +149,8 @@ export class NewsService implements NewsServiceInterface {
     return this.crawler.ingestHtml(dto);
   }
 
-  public async getStats(): Promise<NewsStats> {
-    return this.newsRepository.getNewsStats();
+  public async getStats(pair?: string): Promise<NewsStats> {
+    return this.newsRepository.getNewsStats(pair);
   }
 
   public async init(): Promise<void> {

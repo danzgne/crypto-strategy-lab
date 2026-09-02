@@ -12,6 +12,7 @@ import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared';
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import {
   assertStrategyApplicable,
+  assertStrategyBacktestable,
   CombinationEngine,
   StrategyRegistry,
   strategyVersionIdentity,
@@ -92,6 +93,14 @@ export class BacktestService implements BacktestServiceInterface {
       normalized.pair,
       normalized.timeframe,
     );
+    try {
+      assertStrategyBacktestable(target.strategy);
+    } catch (error) {
+      throw new BacktestValidationError(
+        error instanceof Error ? error.message : 'Strategy is live-only',
+        'STRATEGY_LIVE_ONLY',
+      );
+    }
     try {
       assertStrategyApplicable(
         target.strategy,
@@ -437,6 +446,7 @@ export class BacktestService implements BacktestServiceInterface {
           member.strategyId,
           member.params,
         );
+        assertStrategyBacktestable(strategy);
         if (pair !== undefined && timeframe !== undefined) {
           try {
             assertStrategyApplicable(strategy, pair, timeframe);

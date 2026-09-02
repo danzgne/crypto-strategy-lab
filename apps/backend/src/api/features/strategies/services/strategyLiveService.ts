@@ -5,6 +5,7 @@ import type {
   DomainEventEnvelope,
   DomainEventName,
   Pair,
+  SentimentAggregate,
   StrategyContext,
   StrategySignalUpdate,
   Timeframe,
@@ -27,6 +28,7 @@ import type {
   MarketDataService,
   MarketDataSubscription,
 } from '../../marketData/application/services/marketDataService';
+import type { AppLogger } from '@/utils/logger';
 
 const EMPTY_SENTIMENT = {
   positive: 0,
@@ -39,7 +41,7 @@ const EMPTY_SENTIMENT = {
 export interface StrategyDomainEventBus {
   subscribe<TName extends DomainEventName>(
     name: TName,
-    handler: (event: DomainEventEnvelope<TName>) => void,
+    handler: (event: DomainEventEnvelope<TName>) => void | Promise<void>,
   ): () => void;
 }
 
@@ -61,6 +63,10 @@ export interface StrategySubscription {
   unsubscribe(): Promise<void>;
 }
 
+export interface SentimentAggregateReader {
+  getAggregate(pair: Pair): Promise<SentimentAggregate>;
+}
+
 interface ActiveStrategyState {
   strategyId: string;
   pair: Pair;
@@ -76,6 +82,7 @@ interface ActiveStrategyState {
   pendingClosedOpenTimes: Set<number>;
   errorListeners: Set<StrategyErrorListener>;
   ready: boolean;
+  sentiment: SentimentAggregate;
   marketSubscription?: MarketDataSubscription;
   initialization: Promise<void>;
 }
@@ -84,6 +91,8 @@ export interface StrategyLiveServiceDependencies {
   marketDataService: MarketDataService;
   eventBus: StrategyDomainEventBus;
   combinationEngine?: CombinationEngine;
+  sentimentAggregateReader?: SentimentAggregateReader;
+  logger?: AppLogger;
 }
 
 export class StrategyLiveService {
@@ -91,20 +100,37 @@ export class StrategyLiveService {
 
   private readonly combinationEngine: CombinationEngine;
 
+  private readonly sentimentAggregateReader:
+    SentimentAggregateReader | undefined;
+
+  private readonly logger: AppLogger | undefined;
+
+  private sentimentRefreshPromise: Promise<void> | undefined;
+
   private readonly activeStrategies = new Map<string, ActiveStrategyState>();
 
   private readonly unsubscribeFromCandleClosed: () => void;
+
+  private readonly unsubscribeFromSentimentAnalyzed: () => void;
 
   public constructor({
     marketDataService,
     eventBus,
     combinationEngine = new CombinationEngine(),
+    sentimentAggregateReader,
+    logger,
   }: StrategyLiveServiceDependencies) {
     this.marketDataService = marketDataService;
     this.combinationEngine = combinationEngine;
+    this.sentimentAggregateReader = sentimentAggregateReader;
+    this.logger = logger;
     this.unsubscribeFromCandleClosed = eventBus.subscribe(
       'CandleClosed',
       (event) => this.handleCandleClosed(event),
+    );
+    this.unsubscribeFromSentimentAnalyzed = eventBus.subscribe(
+      'SentimentAnalyzed',
+      () => this.refreshActiveSentiment(),
     );
   }
 
@@ -179,6 +205,7 @@ export class StrategyLiveService {
 
   public async close(): Promise<void> {
     this.unsubscribeFromCandleClosed();
+    this.unsubscribeFromSentimentAnalyzed();
     const states = [...this.activeStrategies.values()];
     this.activeStrategies.clear();
     await Promise.all(
@@ -209,6 +236,7 @@ export class StrategyLiveService {
       pendingClosedOpenTimes: new Set(),
       errorListeners: new Set(),
       ready: false,
+      sentiment: EMPTY_SENTIMENT,
       initialization: Promise.resolve(),
     };
   }
@@ -228,6 +256,7 @@ export class StrategyLiveService {
       subscription.candles.filter((candle) => candle.isClosed),
     );
     state.candles = mergeCandles([], initialCandles, state.historyLimit);
+    await this.refreshStateSentiment(state);
     state.ready = true;
 
     for (const candle of state.candles) {
@@ -249,9 +278,15 @@ export class StrategyLiveService {
     state: ActiveStrategyState,
     openTime: number,
     notifyListeners = true,
+    allowReevaluation = false,
   ): StrategySignalUpdate | undefined {
     try {
-      return this.evaluateClosedCandle(state, openTime, notifyListeners);
+      return this.evaluateClosedCandle(
+        state,
+        openTime,
+        notifyListeners,
+        allowReevaluation,
+      );
     } catch (error) {
       this.notifyEvaluationFailure(state, error);
       return undefined;
@@ -292,6 +327,66 @@ export class StrategyLiveService {
     state.candles = mergeCandles(state.candles, [candle], state.historyLimit);
   }
 
+  private async refreshActiveSentiment(): Promise<void> {
+    if (this.sentimentRefreshPromise !== undefined) {
+      return this.sentimentRefreshPromise;
+    }
+
+    const refresh = Promise.all(
+      [...this.activeStrategies.values()].map((state) =>
+        this.refreshStateSentiment(state),
+      ),
+    );
+    const settled = refresh.then(
+      () => undefined,
+      (error: unknown) => {
+        this.logger?.warn(
+          { err: error },
+          'Active strategy sentiment refresh failed',
+        );
+      },
+    );
+    const pending = settled.finally(() => {
+      if (this.sentimentRefreshPromise === pending) {
+        this.sentimentRefreshPromise = undefined;
+      }
+    });
+    this.sentimentRefreshPromise = pending;
+    return pending;
+  }
+
+  private async refreshStateSentiment(
+    state: ActiveStrategyState,
+  ): Promise<void> {
+    if (this.sentimentAggregateReader === undefined) return;
+    try {
+      const nextSentiment = await this.sentimentAggregateReader.getAggregate(
+        state.pair,
+      );
+      const sentimentChanged = !sameSentiment(state.sentiment, nextSentiment);
+      state.sentiment = nextSentiment;
+      if (sentimentChanged && state.ready && state.strategy.liveOnly) {
+        const latestClosedCandle = [...state.candles]
+          .reverse()
+          .find((candle) => candle.isClosed);
+        if (latestClosedCandle !== undefined) {
+          this.evaluateClosedCandleSafely(
+            state,
+            latestClosedCandle.openTime,
+            true,
+            true,
+          );
+        }
+      }
+    } catch (error) {
+      // Keep the last known aggregate when analytics are temporarily unavailable.
+      this.logger?.warn(
+        { err: error, pair: state.pair },
+        'Sentiment aggregate refresh failed; using last known value',
+      );
+    }
+  }
+
   private handleCandleClosed(event: DomainEventEnvelope<'CandleClosed'>): void {
     const { timeframe, openTime } = event.payload;
     const pair = event.payload.pair.toUpperCase();
@@ -313,14 +408,20 @@ export class StrategyLiveService {
     state: ActiveStrategyState,
     openTime: number,
     notifyListeners = true,
+    allowReevaluation = false,
   ): StrategySignalUpdate | undefined {
-    if (state.evaluatedOpenTimes.has(openTime)) return;
+    if (state.evaluatedOpenTimes.has(openTime) && !allowReevaluation) {
+      return;
+    }
     const candleIndex = state.candles.findIndex(
       (candidate) => candidate.openTime === openTime,
     );
     if (candleIndex < 0) return;
     const candle = state.candles[candleIndex];
     if (candle === undefined) return;
+    const previousUpdate = state.signalHistory.find(
+      (update) => update.candle.openTime === openTime,
+    );
 
     const context: StrategyContext = {
       candles: state.candles
@@ -328,7 +429,7 @@ export class StrategyLiveService {
         .slice(-state.strategy.requiredHistory),
       pair: state.pair,
       timeframe: state.timeframe,
-      sentiment: EMPTY_SENTIMENT,
+      sentiment: state.sentiment,
     };
     state.evaluatedOpenTimes.add(openTime);
     const signal = state.strategy.analyze(context);
@@ -344,7 +445,7 @@ export class StrategyLiveService {
       update,
       Math.min(MAX_CANDLE_LIMIT, state.historyLimit),
     );
-    if (notifyListeners) {
+    if (notifyListeners && signalChanged(previousUpdate, update)) {
       for (const listener of state.listeners) listener(update);
     }
     return update;
@@ -438,4 +539,24 @@ function upsertSignalHistory(
   return [...byOpenTime.values()]
     .sort((left, right) => left.candle.openTime - right.candle.openTime)
     .slice(-Math.max(1, limit));
+}
+
+function sameSentiment(
+  left: SentimentAggregate,
+  right: SentimentAggregate,
+): boolean {
+  return (
+    left.positive === right.positive &&
+    left.neutral === right.neutral &&
+    left.negative === right.negative &&
+    left.score === right.score &&
+    left.sampleSize === right.sampleSize
+  );
+}
+
+function signalChanged(
+  previous: StrategySignalUpdate | undefined,
+  next: StrategySignalUpdate,
+): boolean {
+  return JSON.stringify(previous?.signal) !== JSON.stringify(next.signal);
 }

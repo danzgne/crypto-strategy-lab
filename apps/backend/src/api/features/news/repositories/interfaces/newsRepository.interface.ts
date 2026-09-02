@@ -7,6 +7,9 @@ import type {
   RawNewsItem,
   NewsListFilterQuery,
   NewsStats,
+  NewsAnalytics,
+  NewsSentiment,
+  AnyDomainEvent,
 } from '@crypto-strategy-lab/shared';
 
 export interface CreateNewsSourceData {
@@ -43,6 +46,15 @@ export interface NewsRepository {
     items: RawNewsItem[],
     newsSourceId?: string,
   ): Promise<{ persistedItems: NewsItem[]; skippedCount: number }>;
+  findUnscoredNewsItems(limit: number): Promise<NewsItem[]>;
+  persistSentimentBatch(
+    updates: readonly {
+      newsItemId: string;
+      sentiment: NewsSentiment;
+      relatedCoins: string[];
+    }[],
+    events?: readonly AnyDomainEvent[],
+  ): Promise<NewsItem[]>;
 
   // Crawl Attempts
   recordCrawlAttempt(data: {
@@ -55,7 +67,8 @@ export interface NewsRepository {
   getRecentCrawlAttempts(limit?: number): Promise<NewsCrawlAttempt[]>;
 
   // Stats
-  getNewsStats(): Promise<NewsStats>;
+  getNewsStats(pair?: string): Promise<NewsStats>;
+  getNewsAnalytics(pair?: string, now?: Date): Promise<NewsAnalytics>;
 
   // System Settings
   getSetting(key: string): Promise<string | null>;

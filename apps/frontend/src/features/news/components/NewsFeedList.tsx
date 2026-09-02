@@ -67,6 +67,23 @@ function formatTime(isoString: string): string {
   }
 }
 
+function SentimentBadge({ label, score }: { label: string; score: number }) {
+  const colors =
+    label === 'POSITIVE'
+      ? 'bg-emerald-50 text-emerald-700'
+      : label === 'NEGATIVE'
+        ? 'bg-rose-50 text-rose-700'
+        : 'bg-slate-100 text-slate-600';
+  return (
+    <span
+      className={`inline-flex rounded-md px-1.5 py-0.5 text-[10px] font-semibold ${colors}`}
+    >
+      {label} {score >= 0 ? '+' : ''}
+      {score.toFixed(2)}
+    </span>
+  );
+}
+
 export function NewsFeedList({
   items,
   total,
@@ -170,6 +187,14 @@ export function NewsFeedList({
                     >
                       {item.content}
                     </p>
+                    {item.sentiment && (
+                      <div className="mt-1.5">
+                        <SentimentBadge
+                          label={item.sentiment.label}
+                          score={item.sentiment.score}
+                        />
+                      </div>
+                    )}
                   </div>
 
                   <div className="truncate text-xs font-medium text-slate-600">

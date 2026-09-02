@@ -32,6 +32,7 @@ import {
   NewsCrawler,
   NewsScheduler,
   NewsService,
+  SentimentScoringService,
 } from '@/api/features/news';
 import {
   BacktestService,
@@ -103,9 +104,24 @@ async function startBackend(): Promise<void> {
     exchangeAdapter,
     logger,
   });
+  const newsRepository = new PrismaNewsRepository(prisma);
+  const sentimentScoringService = new SentimentScoringService({
+    repository: newsRepository,
+    llmProvider: sentimentAndExtractionLlmProvider,
+    eventPublisher: eventBus,
+    logger,
+  });
+  const unsubscribeFromNewsCollected = eventBus.subscribe('NewsCollected', () =>
+    sentimentScoringService.schedulePass(),
+  );
   const strategyLiveService = new StrategyLiveService({
     eventBus,
     marketDataService,
+    sentimentAggregateReader: {
+      getAggregate: async (pair) =>
+        (await newsRepository.getNewsAnalytics(pair)).aggregate,
+    },
+    logger,
   });
   const strategyGenerationService = new StrategyGenerationService({
     llmProvider: strategyGenerationLlmProvider,
@@ -129,7 +145,6 @@ async function startBackend(): Promise<void> {
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
 
-  const newsRepository = new PrismaNewsRepository(prisma);
   const newsCrawler = new NewsCrawler({
     newsRepository,
     eventPublisher: eventBus,
@@ -207,6 +222,7 @@ async function startBackend(): Promise<void> {
 
   await newsService.init?.();
   await newsService.ensureDefaultSources();
+  sentimentScoringService.schedulePass();
   void newsService.triggerCrawlNow().catch((err: unknown) => {
     logger.error({ err }, 'Initial background news crawl encountered an error');
   });
@@ -261,6 +277,8 @@ async function startBackend(): Promise<void> {
     await searchScheduler.stop();
     await searchCoordinator.stop();
     await strategyLiveService.close();
+    unsubscribeFromNewsCollected();
+    await sentimentScoringService.close();
     outboxDispatcher.stop();
     leaderboardService.stop();
     await backtestService.stop();

@@ -114,6 +114,8 @@ class CompositeStrategyImplementation implements CompositeStrategy {
 
   public readonly requiredHistory: number;
 
+  public readonly liveOnly: boolean;
+
   public readonly members: readonly NormalizedCompositeMember[];
 
   public readonly mode: CombinationMode;
@@ -161,6 +163,9 @@ class CompositeStrategyImplementation implements CompositeStrategy {
     );
     this.requiredHistory = Math.max(
       ...this.runtimeMembers.map((member) => member.strategy.requiredHistory),
+    );
+    this.liveOnly = this.runtimeMembers.some(
+      (member) => member.strategy.liveOnly === true,
     );
     this.identity = identity;
     this.versionId = identity;
@@ -608,6 +613,14 @@ export function assertStrategyApplicable(
   ) {
     throw new Error(
       `Strategy ${strategy.id} is not applicable to pair ${pair}`,
+    );
+  }
+}
+
+export function assertStrategyBacktestable(strategy: Strategy): void {
+  if (strategy.liveOnly === true) {
+    throw new Error(
+      `Strategy ${strategy.id} is live-only and requires a sentiment snapshot for backtesting`,
     );
   }
 }

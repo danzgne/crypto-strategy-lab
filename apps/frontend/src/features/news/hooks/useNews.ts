@@ -35,7 +35,7 @@ async function fetchNewsBundle(params: {
       coin,
     }),
     fetchNewsSources().catch(() => []),
-    fetchNewsStats().catch(() => ({
+    fetchNewsStats(coin).catch(() => ({
       totalItems: 0,
       totalSources: 0,
       activeSources: 0,

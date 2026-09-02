@@ -1,4 +1,33 @@
+import type { SentimentAggregate } from '../strategy/types';
+
 export type NewsProviderType = 'RSS' | 'WEBSITE' | 'HTML';
+
+export const SENTIMENT_LABELS = ['POSITIVE', 'NEUTRAL', 'NEGATIVE'] as const;
+
+export type SentimentLabel = (typeof SENTIMENT_LABELS)[number];
+
+export const NEWS_EVENT_TYPES = [
+  'ETF_FUND_FLOW',
+  'PROTOCOL_UPGRADE',
+  'REGULATION',
+  'PARTNERSHIP',
+  'MARKET_TREND',
+  'OTHER',
+] as const;
+
+export type NewsEventType = (typeof NEWS_EVENT_TYPES)[number];
+
+export interface NewsSentiment {
+  label: SentimentLabel;
+  score: number;
+  eventType: NewsEventType;
+}
+
+export interface NewsAnalytics {
+  aggregate: SentimentAggregate;
+  eventTypes: Record<NewsEventType, number>;
+  analyzedCount: number;
+}
 
 export type CrawlStatus = 'SUCCESS' | 'FAILURE';
 
@@ -10,6 +39,7 @@ export interface NewsItem {
   url: string;
   publishedAt: string;
   relatedCoins: string[];
+  sentiment?: NewsSentiment | null | undefined;
   newsSourceId?: string | null | undefined;
   createdAt: string;
   updatedAt: string;
@@ -77,6 +107,7 @@ export interface NewsStats {
   totalSources: number;
   activeSources: number;
   coveragePercent: number;
+  analytics?: NewsAnalytics | null | undefined;
 }
 
 export const DEFAULT_NEWS_SOURCES = [

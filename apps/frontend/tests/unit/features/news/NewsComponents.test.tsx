@@ -18,6 +18,11 @@ describe('News Frontend Components', () => {
       url: 'https://example.com/btc-etf',
       publishedAt: '2026-08-29T10:40:00.000Z',
       relatedCoins: ['BTC'],
+      sentiment: {
+        label: 'POSITIVE',
+        score: 0.8,
+        eventType: 'ETF_FUND_FLOW',
+      },
       createdAt: '2026-08-29T10:40:00.000Z',
       updatedAt: '2026-08-29T10:40:00.000Z',
     },
@@ -55,6 +60,8 @@ describe('News Frontend Components', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('CoinDesk')).toBeInTheDocument();
     expect(screen.getByText('The Block')).toBeInTheDocument();
+    expect(screen.getByText('POSITIVE +0.80')).toBeInTheDocument();
+    expect(screen.queryByText(/PENDING/)).not.toBeInTheDocument();
   });
 
   it('NewsControlBar renders tabs and triggers tab selection', () => {
@@ -100,6 +107,24 @@ describe('News Frontend Components', () => {
           totalSources: 5,
           activeSources: 5,
           coveragePercent: 100,
+          analytics: {
+            aggregate: {
+              positive: 58,
+              neutral: 27,
+              negative: 15,
+              score: 0.43,
+              sampleSize: 120,
+            },
+            eventTypes: {
+              ETF_FUND_FLOW: 28,
+              PROTOCOL_UPGRADE: 22,
+              REGULATION: 15,
+              PARTNERSHIP: 12,
+              MARKET_TREND: 23,
+              OTHER: 0,
+            },
+            analyzedCount: 120,
+          },
         }}
         lastUpdated="10:45"
       />,

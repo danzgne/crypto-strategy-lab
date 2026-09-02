@@ -270,6 +270,8 @@ exchange reports it directly.
 
 **NewsItem**:
 The normalized shape (id, title, content, source, publishedAt, relatedCoins, url) any News Provider produces.
+`relatedCoins` may begin as a provider or author hint, but the scorer's deduplicated uppercase base-asset list is
+authoritative after successful scoring. An unscored item's hints do not contribute to a Sentiment Aggregate.
 
 **News Provider**:
 A swappable *kind* of NewsItem source, implemented as one adapter: RSS, Website (URL plus an Extraction
@@ -296,8 +298,9 @@ _Avoid_: Sentiment Analysis (the activity, not the component).
 
 **Sentiment**:
 The `POSITIVE | NEUTRAL | NEGATIVE` classification plus numeric score the Sentiment Service attaches to a
-NewsItem, produced in the same scoring call as its Event Type and `relatedCoins`. Persistence of the result stays
-with the consumer, not the Sentiment Service itself.
+NewsItem, produced in the same scoring call as its Event Type and `relatedCoins`. The score is directional and
+normalized to `-1..1`; a NewsItem has one current result or no result when it is unscored. Persistence of the
+result stays with the consumer, not the Sentiment Service itself.
 
 **Event Type**:
 The single category a scored NewsItem falls into, from a closed set: `ETF_FUND_FLOW`, `PROTOCOL_UPGRADE`,
@@ -305,9 +308,16 @@ The single category a scored NewsItem falls into, from a closed set: `ETF_FUND_F
 percentages of a whole.
 
 **Sentiment Aggregate**:
-The per-Pair rollup of recent Sentiment over a trailing window (`{ positive, neutral, negative, score,
-sampleSize }`), matched to a Pair by `relatedCoins`. This is what populates `Context.sentiment` and what
-NewsSentimentStrategy reads; individual NewsItems never reach a Strategy.
+The per-Pair rollup of recent Sentiment over a trailing 24-hour window based on `publishedAt` (`{ positive, neutral,
+negative, score, sampleSize }`). The first three fields are percentages, `score` is the arithmetic mean of signed
+scores, and `sampleSize` is the number of scored items matching the Pair's base asset through `relatedCoins`. An
+item with multiple related coins counts once for each matching Pair; an untagged item is excluded. This is what
+populates `Context.sentiment` and what NewsSentimentStrategy reads; individual NewsItems never reach a Strategy.
+
+**NewsSentimentStrategy**:
+A Strategy plugin that reads the live `Sentiment Aggregate` from Context, uses a configured score threshold and
+minimum sample size to emit BUY or SELL, and emits HOLD when the sample is insufficient. Historical backtesting is
+outside #42 until an immutable sentiment snapshot exists.
 
 ### LLM Infrastructure
 

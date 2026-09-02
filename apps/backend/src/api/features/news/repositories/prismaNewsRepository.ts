@@ -11,9 +11,18 @@ import type {
   RawNewsItem,
   NewsListFilterQuery,
   NewsStats,
+  NewsAnalytics,
   NewsProviderType,
   CrawlStatus,
+  NewsEventType,
+  SentimentLabel,
+  AnyDomainEvent,
 } from '@crypto-strategy-lab/shared';
+import {
+  calculateSentimentAnalytics,
+  normalizeBaseAsset,
+  type ScoredNewsItemForAnalytics,
+} from '../services/sentimentAnalytics';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 function mapNewsSource(source: {
@@ -61,10 +70,24 @@ function mapNewsItem(item: {
   url: string;
   publishedAt: Date;
   relatedCoins: string[];
+  sentimentLabel: SentimentLabel | null;
+  sentimentScore: Prisma.Decimal | null;
+  eventType: NewsEventType | null;
   newsSourceId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }): NewsItem {
+  const sentiment =
+    item.sentimentLabel !== null &&
+    item.sentimentScore !== null &&
+    item.eventType !== null
+      ? {
+          label: item.sentimentLabel,
+          score: Number(item.sentimentScore),
+          eventType: item.eventType,
+        }
+      : null;
+
   return {
     id: item.id,
     title: item.title,
@@ -73,6 +96,7 @@ function mapNewsItem(item: {
     url: item.url,
     publishedAt: item.publishedAt.toISOString(),
     relatedCoins: item.relatedCoins,
+    sentiment,
     newsSourceId: item.newsSourceId,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -317,6 +341,84 @@ export class PrismaNewsRepository implements NewsRepository {
     return { persistedItems: persisted, skippedCount: skipped };
   }
 
+  public async findUnscoredNewsItems(limit: number): Promise<NewsItem[]> {
+    const items = await this.prisma.newsItem.findMany({
+      where: {
+        sentimentLabel: null,
+        sentimentScore: null,
+        eventType: null,
+      },
+      orderBy: { publishedAt: 'desc' },
+      take: Math.max(1, Math.floor(limit)),
+    });
+    return items.map(mapNewsItem);
+  }
+
+  public async persistSentimentBatch(
+    updates: readonly {
+      newsItemId: string;
+      sentiment: {
+        label: SentimentLabel;
+        score: number;
+        eventType: NewsEventType;
+      };
+      relatedCoins: string[];
+    }[],
+    events: readonly AnyDomainEvent[] = [],
+  ): Promise<NewsItem[]> {
+    return this.prisma.$transaction(async (transaction) => {
+      if (events.length !== 0 && events.length !== updates.length) {
+        throw new Error(
+          'Sentiment updates and events must have matching counts',
+        );
+      }
+      const persisted: NewsItem[] = [];
+      for (const update of updates) {
+        const changed = await transaction.newsItem.updateMany({
+          where: {
+            id: update.newsItemId,
+            sentimentLabel: null,
+            sentimentScore: null,
+            eventType: null,
+          },
+          data: {
+            sentimentLabel: update.sentiment.label,
+            sentimentScore: update.sentiment.score,
+            eventType: update.sentiment.eventType,
+            relatedCoins: update.relatedCoins,
+          },
+        });
+        if (changed.count === 0) {
+          throw new Error(
+            `News item was already scored or missing: ${update.newsItemId}`,
+          );
+        }
+
+        const item = await transaction.newsItem.findUnique({
+          where: { id: update.newsItemId },
+        });
+        if (!item) {
+          throw new Error(
+            `News item disappeared during sentiment scoring: ${update.newsItemId}`,
+          );
+        }
+        persisted.push(mapNewsItem(item));
+      }
+      for (const event of events) {
+        await transaction.outboxEvent.create({
+          data: {
+            eventId: event.eventId,
+            name: event.name,
+            occurredAt: new Date(event.occurredAt),
+            payload: event.payload as unknown as Prisma.InputJsonValue,
+            version: event.version,
+          },
+        });
+      }
+      return persisted;
+    });
+  }
+
   public async recordCrawlAttempt(data: {
     newsSourceId: string;
     status: CrawlStatus;
@@ -344,16 +446,18 @@ export class PrismaNewsRepository implements NewsRepository {
     return attempts.map(mapCrawlAttempt);
   }
 
-  public async getNewsStats(): Promise<NewsStats> {
+  public async getNewsStats(pair?: string): Promise<NewsStats> {
     const activeNewsFilter: Prisma.NewsItemWhereInput = {
       OR: [{ newsSource: { isActive: true } }, { newsSourceId: null }],
     };
 
-    const [totalItems, totalSources, activeSources] = await Promise.all([
-      this.prisma.newsItem.count({ where: activeNewsFilter }),
-      this.prisma.newsSource.count(),
-      this.prisma.newsSource.count({ where: { isActive: true } }),
-    ]);
+    const [totalItems, totalSources, activeSources, analytics] =
+      await Promise.all([
+        this.prisma.newsItem.count({ where: activeNewsFilter }),
+        this.prisma.newsSource.count(),
+        this.prisma.newsSource.count({ where: { isActive: true } }),
+        this.getNewsAnalytics(pair),
+      ]);
 
     const coveragePercent =
       totalSources > 0 ? Math.round((activeSources / totalSources) * 100) : 0;
@@ -363,7 +467,46 @@ export class PrismaNewsRepository implements NewsRepository {
       totalSources,
       activeSources,
       coveragePercent,
+      analytics,
     };
+  }
+
+  public async getNewsAnalytics(
+    pair?: string,
+    now = new Date(),
+  ): Promise<NewsAnalytics> {
+    const windowStart = new Date(now.getTime() - 24 * 60 * 60 * 1_000);
+    const items = await this.prisma.newsItem.findMany({
+      where: {
+        publishedAt: { gte: windowStart, lte: now },
+        sentimentLabel: { not: null },
+        sentimentScore: { not: null },
+        eventType: { not: null },
+      },
+    });
+
+    const scoredItems: ScoredNewsItemForAnalytics[] = items.flatMap((item) => {
+      if (
+        item.sentimentLabel === null ||
+        item.sentimentScore === null ||
+        item.eventType === null
+      ) {
+        return [];
+      }
+      return [
+        {
+          publishedAt: item.publishedAt.toISOString(),
+          relatedCoins: item.relatedCoins.map(normalizeBaseAsset),
+          sentiment: {
+            label: item.sentimentLabel,
+            score: Number(item.sentimentScore),
+            eventType: item.eventType,
+          },
+        },
+      ];
+    });
+
+    return calculateSentimentAnalytics(scoredItems, pair, now);
   }
 
   public async getSetting(key: string): Promise<string | null> {

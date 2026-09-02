@@ -10,5 +10,7 @@ export * from './services/providers/websiteProvider';
 export * from './services/newsCrawler';
 export * from './services/scheduler/newsScheduler';
 export * from './services/newsService';
+export * from './services/sentimentAnalytics';
+export * from './services/sentimentScoringService';
 export * from './controllers/newsController';
 export * from './routes/v1/news.routes';

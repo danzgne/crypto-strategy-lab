@@ -1,4 +1,8 @@
-import type { Candle } from '@crypto-strategy-lab/shared';
+import {
+  createDomainEvent,
+  type Candle,
+  type SentimentAggregate,
+} from '@crypto-strategy-lab/shared';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { ExchangeAdapter } from '../../../../src/api/features/marketData/application/interfaces/exchangeAdapter.interface';
@@ -26,6 +30,119 @@ function makeCandle(index: number, close: number): Candle {
 }
 
 describe('StrategyLiveService', () => {
+  it('passes the current sentiment aggregate to live strategies', async () => {
+    const initialCandles = [makeCandle(0, 10)];
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, _handlers) => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const sentiment: SentimentAggregate = {
+      positive: 100,
+      neutral: 0,
+      negative: 0,
+      score: 0.6,
+      sampleSize: 3,
+    };
+    const getAggregate = vi.fn(async () => sentiment);
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+      sentimentAggregateReader: { getAggregate },
+    });
+
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'news-sentiment',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+      },
+      () => undefined,
+    );
+
+    expect(getAggregate).toHaveBeenCalledWith('BTCUSDT');
+    expect(subscription.history.at(-1)?.signal.action).toBe('BUY');
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
+  it('re-evaluates the latest candle once when sentiment changes', async () => {
+    const initialCandles = [makeCandle(0, 10)];
+    const eventBus = new InMemoryDomainEventBus();
+    const marketDataService = new MarketDataService({
+      exchangeAdapter: {
+        fetchCandles: async () => initialCandles,
+        openKlineStream: (_keys, _handlers) => () => undefined,
+      },
+      candleRepository: { upsertClosed: async () => undefined },
+      eventPublisher: eventBus,
+    });
+    const initialSentiment: SentimentAggregate = {
+      positive: 100,
+      neutral: 0,
+      negative: 0,
+      score: 0.6,
+      sampleSize: 3,
+    };
+    const updatedSentiment: SentimentAggregate = {
+      positive: 0,
+      neutral: 0,
+      negative: 100,
+      score: -0.6,
+      sampleSize: 3,
+    };
+    const getAggregate = vi
+      .fn<() => Promise<SentimentAggregate>>()
+      .mockResolvedValueOnce(initialSentiment)
+      .mockResolvedValue(updatedSentiment);
+    const strategyLiveService = new StrategyLiveService({
+      eventBus,
+      marketDataService,
+      sentimentAggregateReader: { getAggregate },
+    });
+    const updates: string[] = [];
+    const subscription = await strategyLiveService.subscribe(
+      {
+        strategyId: 'news-sentiment',
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+      },
+      (update) => updates.push(update.signal.action),
+    );
+
+    await eventBus.publish(
+      createDomainEvent('SentimentAnalyzed', {
+        eventType: 'MARKET_TREND',
+        newsItemId: 'news-1',
+        relatedCoins: ['BTC'],
+        score: -0.6,
+        sentiment: 'NEGATIVE',
+      }),
+    );
+    await eventBus.publish(
+      createDomainEvent('SentimentAnalyzed', {
+        eventType: 'REGULATION',
+        newsItemId: 'news-2',
+        relatedCoins: ['BTC'],
+        score: -0.5,
+        sentiment: 'NEGATIVE',
+      }),
+    );
+
+    expect(updates).toEqual(['SELL']);
+    expect(getAggregate).toHaveBeenCalledTimes(3);
+
+    await subscription.unsubscribe();
+    await strategyLiveService.close();
+    await marketDataService.close();
+  });
+
   it('assembles a weighted composite from registry-backed strategy versions', async () => {
     const initialCandles = Array.from({ length: 60 }, (_, index) =>
       makeCandle(index, 10),
