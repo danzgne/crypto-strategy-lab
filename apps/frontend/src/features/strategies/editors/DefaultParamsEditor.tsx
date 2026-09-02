@@ -22,9 +22,11 @@ export function DefaultParamsEditor({
     toTextValues(params, paramsSchema),
   );
   const [syncedParams, setSyncedParams] = useState(params);
+  const [syncedSchema, setSyncedSchema] = useState(paramsSchema);
 
-  if (params !== syncedParams) {
+  if (params !== syncedParams || paramsSchema !== syncedSchema) {
     setSyncedParams(params);
+    setSyncedSchema(paramsSchema);
     setText(toTextValues(params, paramsSchema));
   }
 
