@@ -99,6 +99,26 @@ export type StopReason =
 
 export type DiscoverySessionStatus = 'ACTIVE' | 'PAUSED' | 'STOPPED';
 
+export interface EvaluatingCandidateSummary {
+  readonly name: string;
+  readonly strategyIds: string[];
+  readonly mode?: 'majority' | 'weighted' | undefined;
+  readonly pair: string;
+  readonly timeframe: string;
+}
+
+export interface BestCandidateSummary {
+  readonly experimentId: string;
+  readonly name: string;
+  readonly strategyIds: string[];
+  readonly mode?: 'majority' | 'weighted' | undefined;
+  readonly score: number;
+  readonly profit?: number | undefined;
+  readonly winRate?: number | undefined;
+  readonly maxDrawdown?: number | undefined;
+  readonly returnPct?: number | undefined;
+}
+
 export interface DiscoverySessionState {
   readonly sessionId: string;
   readonly userId: string;
@@ -112,6 +132,8 @@ export interface DiscoverySessionState {
   readonly bestScore: number | null;
   readonly startedAt: number;
   readonly lastRunStopReason?: StopReason | undefined;
+  readonly latestCandidate?: EvaluatingCandidateSummary | undefined;
+  readonly bestCandidate?: BestCandidateSummary | undefined;
 }
 
 export interface SearchRunSummary {
@@ -138,6 +160,8 @@ export interface DiscoveryProgressPayload {
   readonly inFlightJobs: number;
   readonly stopReason?: StopReason | undefined;
   readonly totalRunsCompleted: number;
+  readonly latestCandidate?: EvaluatingCandidateSummary | undefined;
+  readonly bestCandidate?: BestCandidateSummary | undefined;
 }
 
 export interface StartDiscoverySessionInput {

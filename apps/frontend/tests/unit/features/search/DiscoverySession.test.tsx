@@ -231,6 +231,63 @@ describe('Discovery UI Components', () => {
         'Reached candidate quota of 100 accepted unique strategies.',
       );
     });
+
+    it('renders live evaluating candidate banner and best strategy spotlight card', () => {
+      const mockDiscovery = createMockDiscovery({
+        progress: {
+          acceptedCandidates: 12,
+          bestCandidate: {
+            experimentId: 'exp-best-123',
+            maxDrawdown: 0.05,
+            mode: 'weighted',
+            name: 'Composite (weighted)',
+            profit: 520.75,
+            returnPct: 0.285,
+            score: 2.4581,
+            strategyIds: ['ma', 'rsi'],
+            winRate: 0.72,
+          },
+          bestScore: 2.4581,
+          inFlightJobs: 1,
+          latestCandidate: {
+            mode: 'majority',
+            name: 'Composite (majority)',
+            pair: 'BTCUSDT',
+            strategyIds: ['bb', 'sr'],
+            timeframe: '1h',
+          },
+          maxCandidates: 100,
+          sessionId: 's-live-1',
+          sessionStatus: 'ACTIVE',
+          totalRunsCompleted: 0,
+          userId: 'u-1',
+        },
+      });
+
+      render(<DiscoveryProgressCard discovery={mockDiscovery} />);
+
+      // Evaluating banner assertions
+      const banner = screen.getByTestId('evaluating-candidate-banner');
+      expect(banner).toBeInTheDocument();
+      expect(banner).toHaveTextContent('Đang đánh giá (Evaluating):');
+      expect(banner).toHaveTextContent('Composite (majority)');
+      expect(banner).toHaveTextContent('BTCUSDT • 1h');
+      expect(banner).toHaveTextContent('Majority Vote');
+      expect(banner).toHaveTextContent('BB');
+      expect(banner).toHaveTextContent('SR');
+
+      // Best candidate spotlight assertions
+      const spotlight = screen.getByTestId('best-candidate-spotlight');
+      expect(spotlight).toBeInTheDocument();
+      expect(spotlight).toHaveTextContent('Best Candidate Spotlight');
+      expect(spotlight).toHaveTextContent('2.4581');
+      expect(spotlight).toHaveTextContent('+520.75 USDT');
+      expect(spotlight).toHaveTextContent('72.0%');
+      expect(spotlight).toHaveTextContent('+28.5%');
+
+      const tradesLink = screen.getByTestId('view-best-backtest-link');
+      expect(tradesLink).toHaveAttribute('href', '/backtests/exp-best-123');
+    });
   });
 
   describe('DiscoveryRunHistoryTable', () => {

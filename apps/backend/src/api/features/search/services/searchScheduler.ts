@@ -1,7 +1,9 @@
 import type {
+  BestCandidateSummary,
   DiscoveryProgressPayload,
   DiscoverySessionState,
   DiscoverySessionStatus,
+  EvaluatingCandidateSummary,
   SearchRunStatus,
   SearchRunSummary,
   SearchSpace,
@@ -60,6 +62,8 @@ interface ActiveUserSession {
   bestScore: number | null;
   startedAt: number;
   lastRunStopReason?: StopReason | undefined;
+  latestCandidate?: EvaluatingCandidateSummary | undefined;
+  bestCandidate?: BestCandidateSummary | undefined;
   isLooping: boolean;
 }
 
@@ -303,6 +307,12 @@ export class SearchScheduler {
     if (!session) return;
 
     if (session.currentRunId === event.searchRunId) {
+      if (event.latestCandidate) {
+        session.latestCandidate = event.latestCandidate;
+      }
+      if (event.bestCandidate) {
+        session.bestCandidate = event.bestCandidate;
+      }
       if (
         event.bestScore !== null &&
         (session.bestScore === null || event.bestScore > session.bestScore)
@@ -340,11 +350,19 @@ export class SearchScheduler {
     const bestScore =
       activeRunProgress?.bestScore ?? run?.bestScore ?? session.bestScore;
 
+    const latestCandidate =
+      activeRunProgress?.latestCandidate ?? session.latestCandidate;
+
+    const bestCandidate =
+      activeRunProgress?.bestCandidate ?? session.bestCandidate;
+
     const payload: DiscoveryProgressPayload = {
       acceptedCandidates: currentAccepted,
+      bestCandidate,
       bestScore,
       currentRunId: session.currentRunId,
       inFlightJobs: inFlight,
+      latestCandidate,
       maxCandidates:
         session.stopPolicy.maxCandidates ?? DEFAULT_STOP_POLICY.maxCandidates,
       runStatus,
@@ -361,9 +379,11 @@ export class SearchScheduler {
   private toSessionState(session: ActiveUserSession): DiscoverySessionState {
     return {
       algorithm: session.algorithm,
+      bestCandidate: session.bestCandidate,
       bestScore: session.bestScore,
       currentRunId: session.currentRunId,
       lastRunStopReason: session.lastRunStopReason,
+      latestCandidate: session.latestCandidate,
       searchSpace: session.searchSpace,
       sessionId: session.sessionId,
       startedAt: session.startedAt,

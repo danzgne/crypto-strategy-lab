@@ -75,9 +75,11 @@ export function useDiscoverySession(): UseDiscoverySessionResult {
         if (!prev) return null;
         return {
           ...prev,
+          bestCandidate: update.bestCandidate ?? prev.bestCandidate,
           bestScore: update.bestScore,
           currentRunId: update.currentRunId,
           lastRunStopReason: update.stopReason,
+          latestCandidate: update.latestCandidate ?? prev.latestCandidate,
           status: update.sessionStatus,
           totalAcceptedCandidates: update.acceptedCandidates,
           totalRunsCompleted: update.totalRunsCompleted,

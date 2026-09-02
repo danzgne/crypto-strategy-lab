@@ -1,7 +1,9 @@
 import type {
+  BestCandidateSummary,
   CandidateStrategy,
   DomainEventEnvelope,
   DomainEventName,
+  EvaluatingCandidateSummary,
   SearchRunStatus,
   SearchSpace,
   StopPolicy,
@@ -63,6 +65,8 @@ export interface SearchCoordinatorProgressEvent {
   acceptedCandidates: number;
   bestScore: number | null;
   inFlightJobs: number;
+  latestCandidate?: EvaluatingCandidateSummary | undefined;
+  bestCandidate?: BestCandidateSummary | undefined;
 }
 
 export interface SearchCoordinatorDependencies {
@@ -97,6 +101,12 @@ interface ActiveRunState {
   startedAt: number;
   seenFingerprints: Set<string>;
   activeExperimentIds: Set<string>;
+  experimentCandidateMap: Map<
+    string,
+    { name: string; strategyIds: string[]; mode?: 'majority' | 'weighted' }
+  >;
+  latestCandidate?: EvaluatingCandidateSummary | undefined;
+  bestCandidate?: BestCandidateSummary | undefined;
   drainResolvers: (() => void)[];
   inFlightResolvers: (() => void)[];
   datasetSnapshotId?: string | null | undefined;
@@ -292,6 +302,7 @@ export class SearchCoordinator {
       consecutiveNoImprovement: 0,
       datasetSnapshotId,
       drainResolvers: [],
+      experimentCandidateMap: new Map(),
       generator,
       inFlightJobs: 0,
       inFlightResolvers: [],
@@ -555,6 +566,29 @@ export class SearchCoordinator {
 
       run.activeExperimentIds.add(experimentId);
 
+      const isComposite = candidate.strategyIds.length > 1;
+      const candidateName = isComposite
+        ? `Composite (${candidate.combinationConfig?.mode ?? 'majority'})`
+        : (candidate.strategyIds[0]?.toUpperCase() ?? 'UNKNOWN');
+
+      const evaluatingSummary: EvaluatingCandidateSummary = {
+        ...(candidate.combinationConfig?.mode
+          ? { mode: candidate.combinationConfig.mode }
+          : {}),
+        name: candidateName,
+        pair: run.searchSpace.pair,
+        strategyIds: [...candidate.strategyIds],
+        timeframe: run.searchSpace.timeframe,
+      };
+      run.latestCandidate = evaluatingSummary;
+      run.experimentCandidateMap.set(experimentId, {
+        ...(candidate.combinationConfig?.mode
+          ? { mode: candidate.combinationConfig.mode }
+          : {}),
+        name: candidateName,
+        strategyIds: [...candidate.strategyIds],
+      });
+
       // Emit StrategyGenerated domain event after persistence and enqueue succeed
       await this.eventBus.publish(
         createDomainEvent('StrategyGenerated', {
@@ -654,12 +688,36 @@ export class SearchCoordinator {
         const score = Number(payload.score);
         const { maxNoImprovement, scoreEpsilon } = run.stopPolicy;
 
-        if (run.bestScore === null) {
+        const isNewBest =
+          run.bestScore === null || score > run.bestScore + scoreEpsilon;
+
+        if (isNewBest) {
           run.bestScore = score;
           run.consecutiveNoImprovement = 0;
-        } else if (score > run.bestScore + scoreEpsilon) {
-          run.bestScore = score;
-          run.consecutiveNoImprovement = 0;
+          const candidateInfo = run.experimentCandidateMap.get(
+            payload.experimentId,
+          );
+          run.bestCandidate = {
+            experimentId: payload.experimentId,
+            maxDrawdown:
+              payload.maxDrawdown !== undefined
+                ? Number(payload.maxDrawdown)
+                : undefined,
+            mode: candidateInfo?.mode,
+            name: candidateInfo?.name ?? 'Best Strategy',
+            profit:
+              payload.totalProfit !== undefined
+                ? Number(payload.totalProfit)
+                : undefined,
+            returnPct:
+              payload.return !== undefined ? Number(payload.return) : undefined,
+            score,
+            strategyIds: candidateInfo?.strategyIds ?? [],
+            winRate:
+              payload.winRate !== undefined
+                ? Number(payload.winRate)
+                : undefined,
+          };
         } else {
           run.consecutiveNoImprovement++;
         }
@@ -784,8 +842,10 @@ export class SearchCoordinator {
   private notifyProgress(run: ActiveRunState): void {
     this.onProgress?.({
       acceptedCandidates: run.acceptedCandidates,
+      bestCandidate: run.bestCandidate,
       bestScore: run.bestScore,
       inFlightJobs: run.inFlightJobs,
+      latestCandidate: run.latestCandidate,
       ownerId: run.ownerId,
       searchRunId: run.searchRunId,
       status: run.status,
@@ -870,6 +930,7 @@ export class SearchCoordinator {
         consecutiveFailures: record.consecutiveFailures,
         consecutiveNoImprovement: record.consecutiveNoImprovement,
         drainResolvers: [],
+        experimentCandidateMap: new Map(),
         generator,
         inFlightJobs: inFlight,
         inFlightResolvers: [],

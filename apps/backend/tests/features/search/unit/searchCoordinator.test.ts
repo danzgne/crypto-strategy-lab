@@ -763,5 +763,21 @@ describe('SearchCoordinator', () => {
 
     await new Promise((r) => setTimeout(r, 20));
     expect(progressUpdates.length).toBeGreaterThan(2);
+
+    const lastProgress = progressUpdates[progressUpdates.length - 1] as {
+      latestCandidate?: { name: string; pair: string; timeframe: string };
+      bestCandidate?: {
+        score: number;
+        profit?: number;
+        winRate?: number;
+        experimentId: string;
+      };
+    };
+    expect(lastProgress.latestCandidate).toBeDefined();
+    expect(lastProgress.latestCandidate?.pair).toBe('BTCUSDT');
+    expect(lastProgress.bestCandidate).toBeDefined();
+    expect(lastProgress.bestCandidate?.score).toBe(1.8);
+    expect(lastProgress.bestCandidate?.profit).toBe(2000);
+    expect(lastProgress.bestCandidate?.winRate).toBe(0.6);
   });
 });
