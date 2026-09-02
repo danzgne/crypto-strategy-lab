@@ -172,4 +172,4 @@ const createSRStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(SR_STRATEGY_ID, createSRStrategy);
-StrategyRegistry.register(SUPPORT_RESISTANCE_STRATEGY_ID, createSRStrategy);
+StrategyRegistry.registerAlias(SUPPORT_RESISTANCE_STRATEGY_ID, SR_STRATEGY_ID);
