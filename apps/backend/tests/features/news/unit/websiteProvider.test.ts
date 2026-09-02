@@ -1,153 +1,88 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import type {
+  ExtractionTemplate,
+  NewsSource,
+} from '@crypto-strategy-lab/shared';
 import { WebsiteNewsProvider } from '@/api/features/news/services/providers/websiteProvider';
-import type { NewsSource } from '@crypto-strategy-lab/shared';
+import type { ActiveTemplatePort } from '@/api/features/news/services/extraction/activeTemplatePort.interface';
+
+const TEMPLATE: ExtractionTemplate = {
+  item: 'article.card',
+  fields: {
+    title: { selector: 'h2' },
+    summary: { selector: 'p' },
+    publishedAt: { selector: 'time', attr: 'datetime' },
+    url: { selector: 'a' },
+  },
+  confidence: 0.9,
+};
+
+const SOURCE: NewsSource = {
+  id: 'source-1',
+  name: 'CryptoSlate',
+  url: 'https://cryptoslate.com/news/',
+  providerType: 'WEBSITE',
+  isActive: true,
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+};
+
+const HTML = `<html><body>
+  <article class="card">
+    <a href="/one/"><h2>Title One</h2><p>Summary one</p><time datetime="2026-09-02T14:45:03+01:00">now</time></a>
+  </article>
+</body></html>`;
 
 describe('WebsiteNewsProvider', () => {
-  const provider = new WebsiteNewsProvider();
-  const dummySource: NewsSource = {
-    id: 'source-web-1',
-    name: 'CryptoNews Web',
-    url: 'https://cryptonews.example.com/article/1',
-    providerType: 'WEBSITE',
-    isActive: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  it('applies the active template and reports extraction metrics', async () => {
+    const templatePort: ActiveTemplatePort = {
+      getActiveTemplate: vi
+        .fn()
+        .mockResolvedValue({ versionId: 'v1', template: TEMPLATE }),
+    };
+    const fetchHtml = vi.fn().mockResolvedValue(HTML);
+    const provider = new WebsiteNewsProvider(
+      templatePort,
+      fetchHtml,
+      () => new Date('2026-09-02T15:00:00Z'),
+    );
 
-  const OG_HTML_FIXTURE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta property="og:title" content="SEC Approves New Crypto Index &amp; ETP" />
-  <meta property="og:description" content="Regulators have greenlit the first diversified crypto index vehicle in the US." />
-  <title>Default Page Title - Ignored if OG present</title>
-</head>
-<body>
-  <h1>Article Content</h1>
-</body>
-</html>`;
+    const result = await provider.fetchNewsWithMetrics(SOURCE);
 
-  const STANDARD_HTML_FIXTURE = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="description" content="Bitcoin dominance rises past 60% amidst market consolidation." />
-  <title>Bitcoin Dominance Rallies | Market Update</title>
-</head>
-<body>
-  <p>Some text</p>
-</body>
-</html>`;
-
-  const MINIMAL_HTML_FIXTURE = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Ethereum Scalability Breakthrough</title>
-</head>
-<body></body>
-</html>`;
-
-  const EMPTY_HTML_FIXTURE = `<!DOCTYPE html><html><head></head><body>No title here</body></html>`;
-
-  const YAHOO_STYLE_HTML = `<!DOCTYPE html>
-<html>
-<head>
-  <meta name="twitter:title" content="Bitcoin BTC (BTC-USD) Live Price, News, Chart &amp; History - Yahoo Finance" />
-  <meta name="description" content="Find the live Bitcoin USD (BTC-USD) price, history, news and other vital information." />
-  <meta property="article:published_time" content="2026-08-29T10:00:00.000Z" />
-</head>
-<body>
-  <p>Detailed overview of Bitcoin cryptocurrency market price performance.</p>
-</body>
-</html>`;
-
-  afterEach(() => {
-    vi.restoreAllMocks();
+    expect(fetchHtml).toHaveBeenCalledWith(SOURCE.url);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]?.title).toBe('Title One');
+    expect(result.metrics).toEqual({
+      templateVersionId: 'v1',
+      emptyFieldRate: 0,
+      malformedFieldRate: 0,
+      avgConfidence: 0.9,
+    });
   });
 
-  it('should extract title and description from OpenGraph meta tags and unescape entities', () => {
-    const items = provider.parseHtml(OG_HTML_FIXTURE, dummySource);
+  it('exposes the plain fetchNews contract by delegating to fetchNewsWithMetrics', async () => {
+    const templatePort: ActiveTemplatePort = {
+      getActiveTemplate: vi
+        .fn()
+        .mockResolvedValue({ versionId: 'v1', template: TEMPLATE }),
+    };
+    const provider = new WebsiteNewsProvider(
+      templatePort,
+      vi.fn().mockResolvedValue(HTML),
+    );
+
+    const items = await provider.fetchNews(SOURCE);
     expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('SEC Approves New Crypto Index & ETP');
-    expect(items[0]?.content).toBe(
-      'Regulators have greenlit the first diversified crypto index vehicle in the US.',
-    );
-    expect(items[0]?.url).toBe(dummySource.url);
-    expect(items[0]?.source).toBe(dummySource.name);
   });
 
-  it('should fallback to standard <title> and <meta name="description"> tags and extract coins', () => {
-    const items = provider.parseHtml(STANDARD_HTML_FIXTURE, dummySource);
-    expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('Bitcoin Dominance Rallies | Market Update');
-    expect(items[0]?.content).toBe(
-      'Bitcoin dominance rises past 60% amidst market consolidation.',
-    );
-    expect(items[0]?.relatedCoins).toContain('BTC');
-  });
+  it('throws, without any fallback, when no usable template is available', async () => {
+    const templatePort: ActiveTemplatePort = {
+      getActiveTemplate: vi.fn().mockResolvedValue(null),
+    };
+    const provider = new WebsiteNewsProvider(templatePort, vi.fn());
 
-  it('should use title as content when description is missing and extract ETH', () => {
-    const items = provider.parseHtml(MINIMAL_HTML_FIXTURE, dummySource);
-    expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('Ethereum Scalability Breakthrough');
-    expect(items[0]?.content).toBe('Ethereum Scalability Breakthrough');
-    expect(items[0]?.relatedCoins).toContain('ETH');
-  });
-
-  it('should extract Twitter card, published time, and coins from Yahoo-style HTML', () => {
-    const items = provider.parseHtml(YAHOO_STYLE_HTML, dummySource);
-    expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe(
-      'Bitcoin BTC (BTC-USD) Live Price, News, Chart & History - Yahoo Finance',
-    );
-    expect(items[0]?.relatedCoins).toContain('BTC');
-    expect(items[0]?.publishedAt.toISOString()).toBe(
-      '2026-08-29T10:00:00.000Z',
-    );
-  });
-
-  it('should return empty list when no title is found in HTML', () => {
-    const items = provider.parseHtml(EMPTY_HTML_FIXTURE, dummySource);
-    expect(items).toEqual([]);
-  });
-
-  it('should fetch HTML via network and parse news item successfully', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        text: async () => OG_HTML_FIXTURE,
-      }),
-    );
-
-    const items = await provider.fetchNews(dummySource);
-    expect(items).toHaveLength(1);
-    expect(items[0]?.title).toBe('SEC Approves New Crypto Index & ETP');
-  });
-
-  it('should throw an informative error when fetch fails with non-200 status', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: false,
-        status: 404,
-        statusText: 'Not Found',
-      }),
-    );
-
-    await expect(provider.fetchNews(dummySource)).rejects.toThrow(
-      'Website fetch failed for https://cryptonews.example.com/article/1: HTTP 404 Not Found',
-    );
-  });
-
-  it('should throw an error when content is RSS/Atom XML instead of HTML', () => {
-    const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
-<rss version="2.0">
-  <channel><title>CoinDesk</title></channel>
-</rss>`;
-
-    expect(() => provider.parseHtml(rssXml, dummySource)).toThrow(
-      'Nội dung nhận được là RSS/Atom feed XML, không phải trang Web HTML',
+    await expect(provider.fetchNewsWithMetrics(SOURCE)).rejects.toThrow(
+      /No usable extraction template/,
     );
   });
 });

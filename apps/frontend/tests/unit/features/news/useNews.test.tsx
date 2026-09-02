@@ -26,6 +26,7 @@ describe('useNews hook', () => {
     vi.mocked(newsClient.fetchNewsStats).mockResolvedValue({
       totalItems: 0,
       totalSources: 0,
+      enabledSources: 0,
       activeSources: 0,
       coveragePercent: 0,
     });

@@ -38,6 +38,7 @@ async function fetchNewsBundle(params: {
     fetchNewsStats(coin).catch(() => ({
       totalItems: 0,
       totalSources: 0,
+      enabledSources: 0,
       activeSources: 0,
       coveragePercent: 0,
     })),
@@ -51,7 +52,7 @@ async function fetchNewsBundle(params: {
     sources: sourcesData,
     stats: statsData,
     intervalMinutes: intervalData?.intervalMinutes,
-    lastUpdated: now.toLocaleTimeString('vi-VN', { hour12: false }),
+    lastUpdated: now.toLocaleTimeString('en-US', { hour12: false }),
   };
 }
 
@@ -66,6 +67,7 @@ export function useNews(options: UseNewsOptions = {}) {
   const [stats, setStats] = useState<NewsStats>({
     totalItems: 0,
     totalSources: 0,
+    enabledSources: 0,
     activeSources: 0,
     coveragePercent: 0,
   });
@@ -122,7 +124,7 @@ export function useNews(options: UseNewsOptions = {}) {
       setTotal(res.total);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : 'Không thể tải thêm tin tức';
+        err instanceof Error ? err.message : 'Failed to load more news';
       setErrorMessage(msg);
     } finally {
       setIsLoadingMore(false);
@@ -147,7 +149,7 @@ export function useNews(options: UseNewsOptions = {}) {
       setLastUpdated(bundle.lastUpdated);
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : 'Không thể tải dữ liệu tin tức';
+        err instanceof Error ? err.message : 'Failed to load news data';
       setErrorMessage(msg);
     } finally {
       setIsLoading(false);
@@ -178,9 +180,7 @@ export function useNews(options: UseNewsOptions = {}) {
       } catch (err) {
         if (active) {
           const msg =
-            err instanceof Error
-              ? err.message
-              : 'Không thể tải dữ liệu tin tức';
+            err instanceof Error ? err.message : 'Failed to load news data';
           setErrorMessage(msg);
         }
       } finally {
@@ -218,7 +218,7 @@ export function useNews(options: UseNewsOptions = {}) {
   const handleTriggerCrawl = async () => {
     if (options.isAdmin === false) {
       setErrorMessage(
-        'Yêu cầu quyền ADMIN để kích hoạt crawl. Bạn hãy đăng xuất và đăng nhập lại bằng tài khoản ADMIN (admin@example.com / admin123).',
+        'ADMIN role is required to trigger a crawl. Please sign out and back in with an ADMIN account (admin@example.com / admin123).',
       );
       return;
     }
@@ -235,29 +235,29 @@ export function useNews(options: UseNewsOptions = {}) {
 
         if (failed.length > 0) {
           const failDetails = failed
-            .map((f) => `• ${f.sourceName}: ${f.error || 'Lỗi không xác định'}`)
+            .map((f) => `• ${f.sourceName}: ${f.error || 'Unknown error'}`)
             .join('\n');
           setCrawlNotice({
             type: 'warning',
-            message: `Crawl hoàn tất: ${succeeded.length}/${summary.sourcesProcessed} nguồn thành công, ${failed.length} nguồn thất bại.\nChi tiết lỗi:\n${failDetails}`,
+            message: `Crawl completed: ${succeeded.length}/${summary.sourcesProcessed} sources succeeded, ${failed.length} sources failed.\nError details:\n${failDetails}`,
           });
         } else {
           setCrawlNotice({
             type: 'success',
-            message: `Crawl hoàn tất thành công! Quét được ${summary.totalFound} tin tức mới từ tất cả ${summary.sourcesProcessed} nguồn.`,
+            message: `Crawl completed successfully! Found ${summary.totalFound} new articles across all ${summary.sourcesProcessed} sources.`,
           });
         }
       }
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : 'Kích hoạt crawl thất bại';
+        err instanceof Error ? err.message : 'Failed to trigger crawl';
       if (
         msg.includes('Forbidden') ||
         msg.includes('403') ||
         msg.includes('role')
       ) {
         setErrorMessage(
-          'Yêu cầu quyền ADMIN để kích hoạt crawl. Bạn hãy đăng xuất và đăng nhập lại bằng tài khoản ADMIN (admin@example.com / admin123).',
+          'ADMIN role is required to trigger a crawl. Please sign out and back in with an ADMIN account (admin@example.com / admin123).',
         );
       } else {
         setErrorMessage(msg);
@@ -270,7 +270,7 @@ export function useNews(options: UseNewsOptions = {}) {
   const handleIntervalChange = async (minutes: number) => {
     if (options.isAdmin === false) {
       setErrorMessage(
-        'Yêu cầu quyền ADMIN để đổi chu kỳ crawl. Bạn hãy đăng nhập với tài khoản ADMIN.',
+        'ADMIN role is required to change the crawl interval. Please sign in with an ADMIN account.',
       );
       return;
     }
@@ -280,14 +280,14 @@ export function useNews(options: UseNewsOptions = {}) {
       await updateCrawlInterval(minutes);
     } catch (err: unknown) {
       const msg =
-        err instanceof Error ? err.message : 'Cập nhật chu kỳ thất bại';
+        err instanceof Error ? err.message : 'Failed to update the interval';
       if (
         msg.includes('Forbidden') ||
         msg.includes('403') ||
         msg.includes('role')
       ) {
         setErrorMessage(
-          'Yêu cầu quyền ADMIN để đổi chu kỳ crawl. Bạn hãy đăng nhập với tài khoản ADMIN.',
+          'ADMIN role is required to change the crawl interval. Please sign in with an ADMIN account.',
         );
       }
     }

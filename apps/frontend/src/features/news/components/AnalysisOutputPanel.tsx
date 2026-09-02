@@ -16,7 +16,7 @@ export function AnalysisOutputPanel({
   lastUpdated,
 }: AnalysisOutputPanelProps) {
   const activeSourcesCount = stats.activeSources;
-  const totalSourcesCount = stats.totalSources;
+  const enabledSourcesCount = stats.enabledSources;
   const coveragePct = stats.coveragePercent;
   const aggregate = stats.analytics?.aggregate ?? {
     positive: 0,
@@ -40,18 +40,16 @@ export function AnalysisOutputPanel({
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 className="text-sm font-bold text-slate-900">Đầu ra phân tích</h3>
+        <h3 className="text-sm font-bold text-slate-900">Analysis output</h3>
         {lastUpdated && (
-          <span className="text-xs text-slate-400">
-            Cập nhật: {lastUpdated}
-          </span>
+          <span className="text-xs text-slate-400">Updated: {lastUpdated}</span>
         )}
       </div>
 
       {/* Sentiment Aggregate (24h) */}
       <div className="mt-4">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-700">
-          <span>Sentiment tổng hợp (24h)</span>
+          <span>Aggregate sentiment (24h)</span>
         </div>
 
         {/* Progress Bar */}
@@ -116,7 +114,7 @@ export function AnalysisOutputPanel({
       {/* Metrics */}
       <div className="mt-5 space-y-3 border-t border-slate-100 pt-4 text-xs">
         <div className="flex items-center justify-between">
-          <span className="text-slate-500">Sentiment score (TB)</span>
+          <span className="text-slate-500">Avg. sentiment score</span>
           <span className="font-bold text-emerald-600">
             {aggregate.score.toFixed(2)}
           </span>
@@ -124,14 +122,14 @@ export function AnalysisOutputPanel({
 
         <div className="flex items-center justify-between">
           <span className="text-slate-500">
-            Số lượng tin đã thu thập &amp; phân tích
+            Articles collected &amp; analyzed
           </span>
           <span className="font-bold text-slate-800">{totalAnalyzed}</span>
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-slate-500">Độ bao phủ nguồn</span>
+            <span className="text-slate-500">Source coverage</span>
             <span className="font-bold text-emerald-600">{coveragePct}%</span>
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
@@ -141,9 +139,9 @@ export function AnalysisOutputPanel({
             />
           </div>
           <p className="mt-1.5 text-[10px] text-slate-400">
-            Nguồn hoạt động:{' '}
+            Active sources:{' '}
             <span className="font-semibold text-slate-600">
-              {activeSourcesCount} / {totalSourcesCount}
+              {activeSourcesCount} / {enabledSourcesCount}
             </span>
           </p>
         </div>

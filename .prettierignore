@@ -12,3 +12,4 @@ imgs/README.md
 diff.txt
 *.txt
 prisma/migrations
+apps/backend/tests/fixtures/news/cryptoslate-news-snapshot.html

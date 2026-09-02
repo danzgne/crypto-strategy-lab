@@ -29,10 +29,15 @@ import {
 } from '@/api/features/strategies';
 import {
   PrismaNewsRepository,
+  PrismaExtractionTemplateRepository,
   NewsCrawler,
   NewsScheduler,
   NewsService,
   SentimentScoringService,
+  ExtractionTemplateService,
+  RssNewsProvider,
+  HtmlPasteNewsProvider,
+  WebsiteNewsProvider,
 } from '@/api/features/news';
 import {
   BacktestService,
@@ -114,6 +119,19 @@ async function startBackend(): Promise<void> {
   const unsubscribeFromNewsCollected = eventBus.subscribe('NewsCollected', () =>
     sentimentScoringService.schedulePass(),
   );
+
+  const extractionTemplateService = new ExtractionTemplateService({
+    templateRepository: new PrismaExtractionTemplateRepository(prisma),
+    sourceLookup: newsRepository,
+    settingsStore: newsRepository,
+    llmProvider: sentimentAndExtractionLlmProvider,
+    logger,
+  });
+  const unsubscribeFromExtractionValidated = eventBus.subscribe(
+    'ExtractionValidated',
+    (event) =>
+      extractionTemplateService.schedulePass(event.payload.newsSourceId),
+  );
   const strategyLiveService = new StrategyLiveService({
     eventBus,
     marketDataService,
@@ -145,10 +163,17 @@ async function startBackend(): Promise<void> {
   const authRepository = new PrismaAuthRepository(prisma);
   const authService = new PasswordAuthService(authRepository);
 
+  const htmlPasteProvider = new HtmlPasteNewsProvider();
   const newsCrawler = new NewsCrawler({
     newsRepository,
     eventPublisher: eventBus,
     logger,
+    htmlPasteProvider,
+    providers: [
+      new RssNewsProvider(),
+      htmlPasteProvider,
+      new WebsiteNewsProvider(extractionTemplateService),
+    ],
   });
   const newsScheduler = new NewsScheduler({
     crawler: newsCrawler,
@@ -231,6 +256,7 @@ async function startBackend(): Promise<void> {
     allowedOrigin: config.frontendOrigin,
     authService,
     backtestService,
+    extractionTemplateService,
     healthRepository,
     leaderboardService,
     logger,
@@ -280,6 +306,8 @@ async function startBackend(): Promise<void> {
     await strategyLiveService.close();
     unsubscribeFromNewsCollected();
     await sentimentScoringService.close();
+    unsubscribeFromExtractionValidated();
+    await extractionTemplateService.close();
     outboxDispatcher.stop();
     leaderboardService.stop();
     await backtestService.stop();

@@ -9,9 +9,16 @@ import {
   createAdminFeatureRouter,
   AdminController,
 } from '@/api/features/admin';
-import { createNewsFeatureRouter, NewsController } from '@/api/features/news';
+import {
+  createNewsFeatureRouter,
+  NewsController,
+  ExtractionTemplateController,
+} from '@/api/features/news';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
-import type { NewsServiceInterface } from '@/api/features/news';
+import type {
+  NewsServiceInterface,
+  ExtractionTemplateService,
+} from '@/api/features/news';
 import {
   createStrategiesFeatureRouter,
   StrategyGenerationController,
@@ -47,17 +54,28 @@ export function createV1Router(
   backtestService?: BacktestServiceInterface,
   leaderboardService?: LeaderboardServiceInterface,
   searchController?: SearchController,
+  extractionTemplateService?: ExtractionTemplateService,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
   router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
 
   if (newsService) {
+    const extractionTemplateController = extractionTemplateService
+      ? new ExtractionTemplateController(newsService, extractionTemplateService)
+      : undefined;
+
     const adminController = new AdminController(newsService);
-    router.use('/admin', createAdminFeatureRouter(adminController));
+    router.use(
+      '/admin',
+      createAdminFeatureRouter(adminController, extractionTemplateController),
+    );
 
     const newsController = new NewsController(newsService);
-    router.use('/news', createNewsFeatureRouter(newsController));
+    router.use(
+      '/news',
+      createNewsFeatureRouter(newsController, extractionTemplateController),
+    );
   }
 
   if (strategies) {

@@ -226,25 +226,25 @@ enum SearchRunStatus {
 }
 
 model SearchRun {
-  id                      String          @id @default(uuid()) @db.Uuid
-  ownerId                 String          @db.Uuid
-  owner                   User            @relation(fields: [ownerId], references: [id])
-  status                  SearchRunStatus @default(RUNNING)
-  algorithm               String          @default("random")
-  searchConfig            Json
-  stopReason              String?
-  acceptedCandidates      Int             @default(0)
-  bestScore               Decimal?        @db.Decimal(38, 18)
+  id                       String          @id @default(uuid()) @db.Uuid
+  ownerId                  String          @db.Uuid
+  owner                    User            @relation(fields: [ownerId], references: [id])
+  status                   SearchRunStatus @default(RUNNING)
+  algorithm                String          @default("random")
+  searchConfig             Json
+  stopReason               String?
+  acceptedCandidates       Int             @default(0)
+  bestScore                Decimal?        @db.Decimal(38, 18)
   consecutiveNoImprovement Int             @default(0)
-  consecutiveFailures     Int             @default(0)
-  inFlightJobs            Int             @default(0)
-  startedAt               DateTime        @default(now()) @db.Timestamptz(3)
-  stoppedAt               DateTime?       @db.Timestamptz(3)
-  createdAt               DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime        @updatedAt @db.Timestamptz(3)
+  consecutiveFailures      Int             @default(0)
+  inFlightJobs             Int             @default(0)
+  startedAt                DateTime        @default(now()) @db.Timestamptz(3)
+  stoppedAt                DateTime?       @db.Timestamptz(3)
+  createdAt                DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime        @updatedAt @db.Timestamptz(3)
 
-  experiments             Experiment[]
-  backtestJobs            BacktestJob[]
+  experiments  Experiment[]
+  backtestJobs BacktestJob[]
 
   @@index([ownerId, status])
   @@map("search_runs")
@@ -357,6 +357,13 @@ enum CrawlStatus {
   FAILURE
 }
 
+enum TemplateVersionStatus {
+  PROPOSED
+  ACTIVE
+  SUPERSEDED
+  REJECTED
+}
+
 enum SentimentLabel {
   POSITIVE
   NEUTRAL
@@ -373,16 +380,17 @@ enum NewsEventType {
 }
 
 model NewsSource {
-  id           String             @id @default(uuid()) @db.Uuid
-  name         String
-  url          String
-  providerType NewsProviderType
-  isActive     Boolean            @default(true)
-  config       Json?
-  newsItems    NewsItem[]
-  crawlLogs    NewsCrawlAttempt[]
-  createdAt    DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime           @updatedAt @db.Timestamptz(3)
+  id                         String                      @id @default(uuid()) @db.Uuid
+  name                       String
+  url                        String
+  providerType               NewsProviderType
+  isActive                   Boolean                     @default(true)
+  config                     Json?
+  newsItems                  NewsItem[]
+  crawlLogs                  NewsCrawlAttempt[]
+  extractionTemplateVersions ExtractionTemplateVersion[]
+  createdAt                  DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime                    @updatedAt @db.Timestamptz(3)
 
   @@map("news_sources")
 }
@@ -409,17 +417,46 @@ model NewsItem {
 }
 
 model NewsCrawlAttempt {
-  id             String      @id @default(uuid()) @db.Uuid
-  newsSourceId   String      @db.Uuid
-  newsSource     NewsSource  @relation(fields: [newsSourceId], references: [id], onDelete: Cascade)
-  status         CrawlStatus
-  itemsFound     Int         @default(0)
-  itemsPersisted Int         @default(0)
-  errorMessage   String?     @db.Text
-  crawledAt      DateTime    @default(now()) @db.Timestamptz(3)
+  id                 String                     @id @default(uuid()) @db.Uuid
+  newsSourceId       String                     @db.Uuid
+  newsSource         NewsSource                 @relation(fields: [newsSourceId], references: [id], onDelete: Cascade)
+  status             CrawlStatus
+  itemsFound         Int                        @default(0)
+  itemsPersisted     Int                        @default(0)
+  errorMessage       String?                    @db.Text
+  templateVersionId  String?                    @db.Uuid
+  templateVersion    ExtractionTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: SetNull)
+  emptyFieldRate     Decimal?                   @db.Decimal(5, 4)
+  malformedFieldRate Decimal?                   @db.Decimal(5, 4)
+  avgConfidence      Decimal?                   @db.Decimal(4, 3)
+  crawledAt          DateTime                   @default(now()) @db.Timestamptz(3)
 
   @@index([newsSourceId, crawledAt])
+  @@index([templateVersionId, crawledAt])
   @@map("news_crawl_attempts")
+}
+
+model ExtractionTemplateVersion {
+  id                          String                      @id @default(uuid()) @db.Uuid
+  newsSourceId                String                      @db.Uuid
+  newsSource                  NewsSource                  @relation(fields: [newsSourceId], references: [id], onDelete: Cascade)
+  version                     Int
+  status                      TemplateVersionStatus
+  template                    Json
+  confidence                  Decimal                     @db.Decimal(4, 3)
+  generatedBy                 String
+  basedOnVersionId            String?                     @db.Uuid
+  basedOnVersion              ExtractionTemplateVersion?  @relation("TemplateVersionBasedOn", fields: [basedOnVersionId], references: [id])
+  supersedes                  ExtractionTemplateVersion[] @relation("TemplateVersionBasedOn")
+  projectedEmptyFieldRate     Decimal?                    @db.Decimal(5, 4)
+  projectedMalformedFieldRate Decimal?                    @db.Decimal(5, 4)
+  activatedAt                 DateTime?                   @db.Timestamptz(3)
+  createdAt                   DateTime                    @default(now()) @db.Timestamptz(3)
+  crawlAttempts               NewsCrawlAttempt[]
+
+  @@unique([newsSourceId, version])
+  @@index([newsSourceId, status])
+  @@map("extraction_template_versions")
 }
 
 model SystemSetting {

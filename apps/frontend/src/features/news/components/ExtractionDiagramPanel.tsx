@@ -1,224 +1,219 @@
 'use client';
 
-import { CheckCircle2, ChevronRight } from 'lucide-react';
+import { CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import type {
+  NewsSource,
+  NewsProviderType,
+  ExtractionPanelData,
+  ExtractionTemplateVersion,
+  TemplateGenerateResult,
+  TemplateFieldName,
+} from '../types';
+import { WebsiteSourcePicker } from './WebsiteSourcePicker';
+
+interface ExtractionDiagramPanelProps {
+  isAdmin?: boolean;
+  selectedTab: NewsProviderType | 'ALL';
+  websiteSources: NewsSource[];
+  selectedSourceId: string | null;
+  onSelectSource: (id: string) => void;
+  panel: ExtractionPanelData | null;
+  isLoading: boolean;
+  candidate: TemplateGenerateResult | null;
+  actionState: 'idle' | 'generating' | 'saving' | 'activating' | 'rejecting';
+  onGenerate: () => void;
+  onSaveProposal: (
+    template: TemplateGenerateResult['template'],
+    generatedBy: string,
+  ) => void;
+}
+
+const FIELD_ORDER: TemplateFieldName[] = [
+  'title',
+  'summary',
+  'publishedAt',
+  'url',
+];
+
+function formatDate(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US', { hour12: false });
+}
+
+function versionLabel(version: ExtractionTemplateVersion): string {
+  return `v${version.version}`;
+}
 
 export function ExtractionDiagramPanel({
   isAdmin = false,
-}: {
-  isAdmin?: boolean;
-}) {
+  selectedTab,
+  websiteSources,
+  selectedSourceId,
+  onSelectSource,
+  panel,
+  isLoading,
+  candidate,
+  actionState,
+  onGenerate,
+  onSaveProposal,
+}: ExtractionDiagramPanelProps) {
+  const isNonWebsiteTab = selectedTab === 'RSS' || selectedTab === 'HTML';
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
         <h3 className="text-sm font-bold text-slate-900">
           LLM-assisted Extraction
         </h3>
-        <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-          <span>Template: v1.4.2</span>
-          <CheckCircle2 className="size-3.5" />
+        <div className="flex items-center gap-2">
+          <WebsiteSourcePicker
+            sources={websiteSources}
+            selectedSourceId={selectedSourceId}
+            onSelect={onSelectSource}
+          />
+          {panel?.activeVersion && (
+            <div className="flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+              <span>Template: {versionLabel(panel.activeVersion)}</span>
+              <CheckCircle2 className="size-3.5" />
+            </div>
+          )}
         </div>
       </div>
 
-      {/* 4-Step Diagram */}
-      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {/* Step 1 */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
-              1
-            </span>
-            <span className="text-xs font-bold text-slate-800">HTML thô</span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Thu thập nội dung HTML từ nguồn
-          </p>
-
-          <div className="mt-2.5 rounded-lg border border-slate-200 bg-slate-900 p-2 font-mono text-[10px] text-slate-300 leading-relaxed overflow-x-auto">
-            <span className="text-slate-500">&lt;html&gt;</span>
-            <br />
-            <span className="text-slate-500">&lt;head&gt;...&lt;/head&gt;</span>
-            <br />
-            <span className="text-slate-500">&lt;body&gt;</span>
-            <br />
-            &nbsp;&nbsp;
-            <span className="text-blue-400">
-              &lt;div class=&quot;article&quot;&gt;
-            </span>
-            <br />
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <span className="text-emerald-400">&lt;h1&gt;</span>BlackRock&apos;s
-            Bitcoin ETF...<span className="text-emerald-400">&lt;/h1&gt;</span>
-            <br />
-            &nbsp;&nbsp;&nbsp;&nbsp;
-            <span className="text-amber-400">&lt;p&gt;</span>Dòng tiền vào các
-            quỹ ETF...<span className="text-amber-400">&lt;/p&gt;</span>
-            <br />
-            &nbsp;&nbsp;<span className="text-blue-400">&lt;/div&gt;</span>
-            <br />
-            <span className="text-slate-500">&lt;/body&gt;</span>
-            <br />
-            <span className="text-slate-500">&lt;/html&gt;</span>
-          </div>
-        </div>
-
-        {/* Step 2 */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
-              2
-            </span>
+      {isNonWebsiteTab ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-xs text-slate-400">
+          Extraction Templates only apply to Website sources. Select the
+          &quot;Website&quot; tab to view them.
+        </p>
+      ) : websiteSources.length === 0 ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-xs text-slate-400">
+          No Website Sources configured yet.
+        </p>
+      ) : isLoading ? (
+        <p className="mt-4 text-center text-xs text-slate-400">Loading…</p>
+      ) : !panel?.activeVersion ? (
+        <p className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50/50 p-4 text-center text-xs text-slate-400">
+          This source has no Extraction Template yet. Version 1 is generated and
+          activated automatically on its first crawl.
+        </p>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
             <span className="text-xs font-bold text-slate-800">
-              LLM hiểu tag HTML
+              Item container
             </span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            LLM đọc &amp; hiểu cấu trúc, nhận diện vùng nội dung
-          </p>
-
-          <div className="mt-2.5 flex-1 rounded-lg border border-slate-200 bg-white p-2.5 text-[11px]">
-            <p className="font-semibold text-slate-700">Nhận diện vùng:</p>
-            <div className="mt-1.5 space-y-1 font-mono text-[10px] text-slate-600">
-              <div className="flex justify-between">
-                <span className="text-slate-500">title</span>
-                <span className="text-blue-600">→ &lt;h1&gt;</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">summary</span>
-                <span className="text-blue-600">
-                  → &lt;p class=&quot;...&quot;&gt;
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">source</span>
-                <span className="text-blue-600">
-                  → &lt;span class=&quot;...&quot;&gt;
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">time</span>
-                <span className="text-blue-600">→ &lt;time&gt;</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">asset</span>
-                <span className="text-blue-600">→ context</span>
-              </div>
+            <div className="mt-2 rounded-lg border border-slate-200 bg-slate-900 p-2 font-mono text-[11px] text-emerald-300 overflow-x-auto">
+              {panel.activeVersion.template.item}
+            </div>
+            <div className="mt-2.5 space-y-1 font-mono text-[10px] text-slate-600">
+              {FIELD_ORDER.map((field) => {
+                const locator = panel.activeVersion?.template.fields[field];
+                return (
+                  <div key={field} className="flex justify-between gap-2">
+                    <span className="text-slate-500">{field}</span>
+                    <span className="truncate text-blue-600">
+                      {locator?.selector}
+                      {locator?.attr ? ` [${locator.attr}]` : ''}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
             <div className="mt-3 border-t border-slate-100 pt-1.5 text-[11px] font-bold text-emerald-600">
-              Độ tin cậy: 0.92
+              Confidence: {panel.activeVersion.confidence.toFixed(2)}
+            </div>
+            <div className="text-[10px] text-slate-400">
+              Generated by {panel.activeVersion.generatedBy} ·{' '}
+              {formatDate(panel.activeVersion.activatedAt)}
             </div>
           </div>
-        </div>
 
-        {/* Step 3 */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
-              3
-            </span>
-            <span className="text-xs font-bold text-slate-800">
-              Sinh Extraction Template
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Tạo template trích xuất được đề xuất
-          </p>
-
-          <div className="mt-2.5 flex-1 rounded-lg border border-slate-200 bg-slate-900 p-2 font-mono text-[10px] text-slate-300 leading-relaxed overflow-x-auto">
-            <span className="text-slate-500">{'{'}</span>
-            <br />
-            &nbsp;&nbsp;<span className="text-cyan-400">&quot;title&quot;</span>
-            :{' '}
-            <span className="text-emerald-300">
-              &quot;h1.article-title&quot;
-            </span>
-            ,<br />
-            &nbsp;&nbsp;
-            <span className="text-cyan-400">&quot;summary&quot;</span>:{' '}
-            <span className="text-emerald-300">&quot;p.summary&quot;</span>,
-            <br />
-            &nbsp;&nbsp;
-            <span className="text-cyan-400">&quot;source&quot;</span>:{' '}
-            <span className="text-emerald-300">&quot;span.source&quot;</span>,
-            <br />
-            &nbsp;&nbsp;<span className="text-cyan-400">
-              &quot;time&quot;
-            </span>: <span className="text-emerald-300">&quot;time&quot;</span>,
-            <br />
-            &nbsp;&nbsp;<span className="text-cyan-400">&quot;asset&quot;</span>
-            :{' '}
-            <span className="text-emerald-300">
-              &quot;meta[content][\&quot;asset\&quot;]&quot;
-            </span>
-            <br />
-            <span className="text-slate-500">{'}'}</span>
-            <div className="mt-2 border-t border-slate-800 pt-1 text-[10px] text-emerald-400 font-sans font-semibold">
-              Fields: 5 | Score: 0.92
-            </div>
-          </div>
-        </div>
-
-        {/* Step 4 */}
-        <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-          <div className="flex items-center gap-2">
-            <span className="flex size-5 items-center justify-center rounded-full bg-blue-600 text-[11px] font-bold text-white">
-              4
-            </span>
-            <span className="text-xs font-bold text-slate-800">
-              Lưu version template
-            </span>
-          </div>
-          <p className="mt-1 text-[11px] text-slate-500">
-            Lưu lại và quản lý các phiên bản
-          </p>
-
-          <div className="mt-2.5 flex-1 rounded-lg border border-slate-200 bg-white p-2 text-[11px] flex flex-col justify-between">
-            <div>
-              <p className="text-[11px] font-semibold text-slate-500">
-                Các phiên bản:
-              </p>
-              <div className="mt-1.5 space-y-1.5">
-                <div className="flex items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-2 py-1 text-[10px] font-medium text-emerald-900">
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+            <span className="text-xs font-bold text-slate-800">Versions</span>
+            <div className="mt-2 space-y-1.5">
+              {panel.versionHistory.slice(0, 6).map((version) => (
+                <div
+                  key={version.id}
+                  className={`flex items-center justify-between rounded-lg border px-2 py-1 text-[10px] font-medium ${
+                    version.status === 'ACTIVE'
+                      ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
+                      : 'border-slate-100 bg-slate-50 text-slate-600'
+                  }`}
+                >
                   <div>
-                    <span className="font-bold">v1.4.2</span> (Hiện tại)
-                    <p className="text-[9px] text-emerald-700">
-                      10:32 · 18/05/2025
+                    <span className="font-bold">{versionLabel(version)}</span>{' '}
+                    <span className="text-[9px] uppercase">
+                      {version.status}
+                    </span>
+                    <p className="text-[9px] opacity-70">
+                      {formatDate(version.createdAt)}
                     </p>
                   </div>
-                  <ChevronRight className="size-3 text-emerald-600" />
                 </div>
-
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
-                  <span className="font-medium">v1.4.1</span>
-                  <p className="text-[9px] text-slate-400">
-                    09:10 · 17/05/2025
-                  </p>
-                </div>
-
-                <div className="rounded-lg border border-slate-100 bg-slate-50 px-2 py-1 text-[10px] text-slate-600">
-                  <span className="font-medium">v1.4.0</span>
-                  <p className="text-[9px] text-slate-400">
-                    16:22 · 16/05/2025
-                  </p>
-                </div>
-              </div>
+              ))}
+              {panel.versionHistory.length === 0 && (
+                <p className="text-[10px] text-slate-400">
+                  No version history yet.
+                </p>
+              )}
             </div>
-
-            {isAdmin ? (
-              <button
-                type="button"
-                className="mt-2 text-center text-[10px] font-semibold text-blue-600 hover:text-blue-700"
-              >
-                Xem tất cả
-              </button>
-            ) : (
-              <span className="mt-2 text-center text-[10px] font-medium text-slate-400">
-                Lịch sử phiên bản
-              </span>
-            )}
           </div>
+
+          {isAdmin && (
+            <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+              <span className="text-xs font-bold text-slate-800">
+                Generate a new version (trial)
+              </span>
+              <p className="mt-1 text-[10px] text-slate-500">
+                Use the LLM to generate a candidate template from the live page,
+                to review before saving it as a proposal.
+              </p>
+
+              {!candidate ? (
+                <button
+                  type="button"
+                  onClick={onGenerate}
+                  disabled={actionState === 'generating'}
+                  className="mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                >
+                  {actionState === 'generating' ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-3.5" />
+                  )}
+                  {actionState === 'generating'
+                    ? 'Generating…'
+                    : 'Generate candidate template'}
+                </button>
+              ) : (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2 text-[10px]">
+                  <p className="font-mono text-slate-700">
+                    {candidate.template.item}
+                  </p>
+                  <p className="mt-1 text-slate-500">
+                    Empty fields:{' '}
+                    {(candidate.metrics.emptyFieldRate * 100).toFixed(1)}% ·
+                    Malformed fields:{' '}
+                    {(candidate.metrics.malformedFieldRate * 100).toFixed(1)}%
+                  </p>
+                  <button
+                    type="button"
+                    disabled={actionState === 'saving' || !panel.activeVersion}
+                    onClick={() =>
+                      onSaveProposal(candidate.template, candidate.generatedBy)
+                    }
+                    className="mt-2 w-full rounded-lg border border-blue-200 bg-blue-50 py-1 text-[10px] font-semibold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                  >
+                    {actionState === 'saving'
+                      ? 'Saving…'
+                      : 'Save as proposal (PROPOSED)'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
-      </div>
+      )}
     </div>
   );
 }

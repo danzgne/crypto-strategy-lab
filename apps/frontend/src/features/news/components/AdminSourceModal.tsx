@@ -72,7 +72,7 @@ export function AdminSourceModal({
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : 'Không thể thêm nguồn tin tức',
+        err instanceof Error ? err.message : 'Failed to add news source',
       );
     } finally {
       setIsSubmitting(false);
@@ -90,7 +90,7 @@ export function AdminSourceModal({
       onRefresh();
     } catch (err) {
       setActionError(
-        err instanceof Error ? err.message : 'Không thể xóa nguồn tin tức',
+        err instanceof Error ? err.message : 'Failed to delete news source',
       );
     } finally {
       setDeletingId(null);
@@ -107,9 +107,7 @@ export function AdminSourceModal({
       onRefresh();
     } catch (err) {
       setActionError(
-        err instanceof Error
-          ? err.message
-          : 'Không thể cập nhật trạng thái nguồn',
+        err instanceof Error ? err.message : 'Failed to update source status',
       );
     } finally {
       setTogglingId(null);
@@ -123,10 +121,10 @@ export function AdminSourceModal({
         <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              Cấu hình nguồn tin tức
+              Configure news sources
             </h3>
             <p className="text-xs text-slate-500">
-              Quản lý các nguồn RSS Feed và Website trích xuất dữ liệu
+              Manage RSS Feed and Website extraction sources
             </p>
           </div>
           <button
@@ -153,7 +151,7 @@ export function AdminSourceModal({
             className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 space-y-3"
           >
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-              Thêm nguồn mới
+              Add new source
             </h4>
 
             {error && (
@@ -166,19 +164,19 @@ export function AdminSourceModal({
             {success && (
               <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-700 border border-emerald-200">
                 <Check className="size-4" />
-                <span>Đã thêm nguồn tin tức thành công!</span>
+                <span>News source added successfully!</span>
               </div>
             )}
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Tên nguồn
+                  Source name
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="VD: CoinDesk RSS"
+                  placeholder="e.g. CoinDesk RSS"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -187,7 +185,7 @@ export function AdminSourceModal({
 
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Loại nguồn
+                  Provider type
                 </label>
                 <select
                   value={providerType}
@@ -204,7 +202,7 @@ export function AdminSourceModal({
 
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                URL nguồn
+                Source URL
               </label>
               <input
                 type="url"
@@ -227,7 +225,7 @@ export function AdminSourceModal({
                 ) : (
                   <Plus className="size-3.5" />
                 )}
-                <span>Thêm nguồn</span>
+                <span>Add source</span>
               </button>
             </div>
           </form>
@@ -235,13 +233,13 @@ export function AdminSourceModal({
           {/* List of Configured Sources */}
           <div>
             <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">
-              Danh sách nguồn đang cấu hình ({sources.length})
+              Configured sources ({sources.length})
             </h4>
 
             <div className="divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white overflow-hidden">
               {sources.length === 0 ? (
                 <div className="p-4 text-center text-xs text-slate-400">
-                  Chưa có nguồn nào được cấu hình.
+                  No sources configured yet.
                 </div>
               ) : (
                 sources.map((src) => {
@@ -286,7 +284,7 @@ export function AdminSourceModal({
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : 'bg-slate-100 text-slate-500 border border-slate-200'
                             }`}
-                            title="Bấm để bật / tắt nguồn"
+                            title="Click to enable / disable this source"
                           >
                             {togglingId === src.id ? (
                               <Loader2 className="size-3 animate-spin inline" />
@@ -308,7 +306,7 @@ export function AdminSourceModal({
                               })
                             }
                             className="rounded-lg p-1.5 text-slate-400 hover:bg-rose-50 hover:text-rose-600 transition disabled:opacity-50"
-                            title="Xóa nguồn tin tức này"
+                            title="Delete this news source"
                           >
                             {deletingId === src.id ? (
                               <Loader2 className="size-3.5 animate-spin" />
@@ -323,46 +321,44 @@ export function AdminSourceModal({
                       <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px]">
                         <span className="text-slate-400 flex items-center gap-1 font-medium">
                           <Clock className="size-3" />
-                          Lần crawl gần nhất:
+                          Last crawl:
                         </span>
 
                         {lastAttempt ? (
                           lastAttempt.status === 'SUCCESS' ? (
                             <span className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded text-[10px] font-semibold">
                               <CheckCircle2 className="size-3 text-emerald-600" />
-                              Thành công ({lastAttempt.itemsFound} tin tìm thấy)
+                              Succeeded ({lastAttempt.itemsFound} items found)
                               <span className="text-emerald-600/70 font-normal">
                                 •{' '}
                                 {new Date(
                                   lastAttempt.crawledAt,
-                                ).toLocaleTimeString('vi-VN')}
+                                ).toLocaleTimeString('en-US')}
                               </span>
                             </span>
                           ) : (
                             <div className="inline-flex items-center gap-1 text-rose-700 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded text-[10px] font-medium max-w-full truncate">
                               <XCircle className="size-3 shrink-0 text-rose-600" />
-                              <span className="font-bold">Thất bại:</span>
+                              <span className="font-bold">Failed:</span>
                               <span
                                 className="truncate"
                                 title={
-                                  lastAttempt.errorMessage ||
-                                  'Lỗi không xác định'
+                                  lastAttempt.errorMessage || 'Unknown error'
                                 }
                               >
-                                {lastAttempt.errorMessage ||
-                                  'Lỗi không xác định'}
+                                {lastAttempt.errorMessage || 'Unknown error'}
                               </span>
                               <span className="text-rose-600/70 shrink-0">
                                 •{' '}
                                 {new Date(
                                   lastAttempt.crawledAt,
-                                ).toLocaleTimeString('vi-VN')}
+                                ).toLocaleTimeString('en-US')}
                               </span>
                             </div>
                           )
                         ) : (
                           <span className="text-slate-400 italic text-[10px]">
-                            Chưa có dữ liệu crawl
+                            No crawl data yet
                           </span>
                         )}
                       </div>
@@ -381,7 +377,7 @@ export function AdminSourceModal({
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-sm"
           >
-            Đóng
+            Close
           </button>
         </div>
 
@@ -395,20 +391,20 @@ export function AdminSourceModal({
                 </div>
                 <div>
                   <h4 className="text-sm font-bold text-slate-900">
-                    Xác nhận xóa nguồn
+                    Confirm source deletion
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Hành động này không thể hoàn tác
+                    This action cannot be undone
                   </p>
                 </div>
               </div>
 
               <p className="text-xs text-slate-600 leading-relaxed">
-                Bạn có chắc chắn muốn xóa nguồn tin{' '}
+                Are you sure you want to delete the news source{' '}
                 <span className="font-semibold text-slate-900">
                   &quot;{sourceToDelete.name}&quot;
                 </span>
-                ? Tất cả dữ liệu lịch sử crawl liên quan cũng sẽ bị xóa.
+                ? All related crawl history will also be deleted.
               </p>
 
               <div className="flex items-center justify-end gap-2 pt-2">
@@ -418,7 +414,7 @@ export function AdminSourceModal({
                   onClick={() => setSourceToDelete(null)}
                   className="rounded-xl border border-slate-200 bg-white px-3.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
                 >
-                  Hủy bỏ
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -431,7 +427,7 @@ export function AdminSourceModal({
                   ) : (
                     <Trash2 className="size-3.5" />
                   )}
-                  <span>Xác nhận xóa</span>
+                  <span>Confirm delete</span>
                 </button>
               </div>
             </div>

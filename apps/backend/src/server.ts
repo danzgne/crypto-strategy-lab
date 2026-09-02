@@ -4,7 +4,10 @@ import helmet from 'helmet';
 
 import type { HealthRepository } from '@/api/features/health';
 import type { PasswordAuthServiceInterface } from '@/api/features/auth';
-import type { NewsServiceInterface } from '@/api/features/news';
+import type {
+  NewsServiceInterface,
+  ExtractionTemplateService,
+} from '@/api/features/news';
 import type { BacktestServiceInterface } from '@/api/features/backtests';
 import type { LeaderboardServiceInterface } from '@/api/features/leaderboard';
 import type { SearchController } from '@/api/features/search';
@@ -29,6 +32,7 @@ interface AppDependencies {
   backtestService?: BacktestServiceInterface;
   leaderboardService?: LeaderboardServiceInterface;
   searchController?: SearchController;
+  extractionTemplateService?: ExtractionTemplateService;
 }
 
 export function createApp({
@@ -42,6 +46,7 @@ export function createApp({
   backtestService,
   leaderboardService,
   searchController,
+  extractionTemplateService,
 }: AppDependencies): Express {
   const app = express();
 
@@ -62,6 +67,7 @@ export function createApp({
       backtestService,
       leaderboardService,
       searchController,
+      extractionTemplateService,
     ),
   );
   app.use(notFoundHandler);

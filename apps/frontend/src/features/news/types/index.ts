@@ -8,6 +8,18 @@ import type {
   CrawlResult,
   CrawlSummary,
   CrawlStatus,
+  ExtractionTemplate,
+  TemplateFieldName,
+  TemplateFieldLocator,
+  TemplateVersionStatus,
+  ExtractionTemplateVersion,
+  ExtractionSettings,
+  ExtractionPanelData,
+  SourceHealth,
+  DriftVerdict,
+  DriftStatus,
+  TemplatePreviewResult,
+  TemplateGenerateResult,
 } from '@crypto-strategy-lab/shared';
 
 export type {
@@ -20,6 +32,18 @@ export type {
   CrawlResult,
   CrawlSummary,
   CrawlStatus,
+  ExtractionTemplate,
+  TemplateFieldName,
+  TemplateFieldLocator,
+  TemplateVersionStatus,
+  ExtractionTemplateVersion,
+  ExtractionSettings,
+  ExtractionPanelData,
+  SourceHealth,
+  DriftVerdict,
+  DriftStatus,
+  TemplatePreviewResult,
+  TemplateGenerateResult,
 };
 
 export interface NewsListResponse {

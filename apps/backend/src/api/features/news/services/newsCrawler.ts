@@ -3,26 +3,33 @@ import {
   type NewsSource,
   type NewsItem,
   type NewsProviderType,
+  type RawNewsItem,
 } from '@crypto-strategy-lab/shared';
 import type { DomainEventPublisher } from '@/api/features/marketData/application/interfaces/domainEventPublisher.interface';
 import type { AppLogger } from '@/utils/logger';
 import type { NewsRepository } from '../repositories/interfaces/newsRepository.interface';
-import type { NewsProvider } from './interfaces/newsProvider.interface';
+import {
+  hasExtractionMetrics,
+  type NewsProvider,
+} from './interfaces/newsProvider.interface';
 import type {
   NewsCrawlerInterface,
   CrawlResult,
   CrawlSummary,
 } from './interfaces/newsCrawler.interface';
 import type { IngestHtmlDto } from '../types/news.dto';
-import { RssNewsProvider } from './providers/rssProvider';
-import { HtmlPasteNewsProvider } from './providers/htmlPasteProvider';
-import { WebsiteNewsProvider } from './providers/websiteProvider';
+
+interface HtmlPasteParser {
+  parseIngestedHtml(dto: IngestHtmlDto): RawNewsItem;
+}
 
 interface NewsCrawlerDependencies {
   newsRepository: NewsRepository;
   eventPublisher: DomainEventPublisher;
   logger: AppLogger;
+  /** Providers to register, composed in index.ts alongside the rest of the app. */
   providers?: NewsProvider[];
+  htmlPasteProvider?: HtmlPasteParser;
 }
 
 export class NewsCrawler implements NewsCrawlerInterface {
@@ -30,22 +37,19 @@ export class NewsCrawler implements NewsCrawlerInterface {
   private readonly eventPublisher: DomainEventPublisher;
   private readonly logger: AppLogger;
   private readonly providers = new Map<NewsProviderType, NewsProvider>();
-  private readonly htmlPasteProvider: HtmlPasteNewsProvider;
+  private readonly htmlPasteProvider: HtmlPasteParser | undefined;
 
   public constructor({
     newsRepository,
     eventPublisher,
     logger,
     providers,
+    htmlPasteProvider,
   }: NewsCrawlerDependencies) {
     this.newsRepository = newsRepository;
     this.eventPublisher = eventPublisher;
     this.logger = logger;
-
-    this.htmlPasteProvider = new HtmlPasteNewsProvider();
-    this.registerProvider(new RssNewsProvider());
-    this.registerProvider(this.htmlPasteProvider);
-    this.registerProvider(new WebsiteNewsProvider());
+    this.htmlPasteProvider = htmlPasteProvider;
 
     if (providers) {
       for (const p of providers) {
@@ -89,7 +93,11 @@ export class NewsCrawler implements NewsCrawlerInterface {
         'Crawling news source',
       );
 
-      const rawItems = await provider.fetchNews(source);
+      const extractionMetrics = hasExtractionMetrics(provider);
+      const { items: rawItems, metrics } = extractionMetrics
+        ? await provider.fetchNewsWithMetrics(source)
+        : { items: await provider.fetchNews(source), metrics: undefined };
+
       const { persistedItems } = await this.newsRepository.persistRawNewsItems(
         rawItems,
         source.id,
@@ -109,7 +117,19 @@ export class NewsCrawler implements NewsCrawlerInterface {
         status: 'SUCCESS',
         itemsFound: rawItems.length,
         itemsPersisted: persistedItems.length,
+        templateVersionId: metrics?.templateVersionId,
+        emptyFieldRate: metrics?.emptyFieldRate,
+        malformedFieldRate: metrics?.malformedFieldRate,
+        avgConfidence: metrics?.avgConfidence,
       });
+
+      if (metrics) {
+        const validatedEvent = createDomainEvent('ExtractionValidated', {
+          newsSourceId: source.id,
+          templateVersionId: metrics.templateVersionId,
+        });
+        await this.eventPublisher.publish(validatedEvent);
+      }
 
       this.logger.info(
         {
@@ -219,6 +239,10 @@ export class NewsCrawler implements NewsCrawlerInterface {
   }
 
   public async ingestHtml(dto: IngestHtmlDto): Promise<NewsItem> {
+    if (!this.htmlPasteProvider) {
+      throw new Error('HTML paste provider is not configured for this crawler');
+    }
+
     this.logger.info(
       { title: dto.title, source: dto.source },
       'Ingesting raw HTML article',
