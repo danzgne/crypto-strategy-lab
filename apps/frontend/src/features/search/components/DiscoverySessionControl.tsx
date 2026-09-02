@@ -80,9 +80,15 @@ export function DiscoverySessionControl({
       return discovery.session.searchSpace.enabledStrategies.map((s) => s.id);
     }
     const init = getInitialConfig();
-    return Array.isArray(init.strategies) && init.strategies.length > 0
-      ? init.strategies
-      : ['ma', 'rsi', 'bb', 'sr'];
+    if (Array.isArray(init.strategies) && init.strategies.length > 0) {
+      const mapped = init.strategies
+        .map((id) =>
+          id === 'bollinger' ? 'bb' : id === 'support-resistance' ? 'sr' : id,
+        )
+        .filter((id, index, arr) => arr.indexOf(id) === index);
+      if (mapped.length > 0) return mapped;
+    }
+    return ['ma', 'rsi', 'bb', 'sr'];
   });
 
   const [permittedModes, setPermittedModes] = useState<
@@ -234,7 +240,12 @@ export function DiscoverySessionControl({
     if (selectedStrategies.length === 0 || permittedModes.length === 0) return;
     setSubmitting(true);
     try {
-      const enabledStrategies = selectedStrategies.map((id) => ({ id }));
+      const canonicalizedStrategies = selectedStrategies
+        .map((id) =>
+          id === 'bollinger' ? 'bb' : id === 'support-resistance' ? 'sr' : id,
+        )
+        .filter((id, index, arr) => arr.indexOf(id) === index);
+      const enabledStrategies = canonicalizedStrategies.map((id) => ({ id }));
       const interval = TIMEFRAME_INTERVAL_MS[selectedTimeframe] ?? 3_600_000;
       const now = Date.now();
       const endTime = Math.floor(now / interval) * interval;
@@ -245,7 +256,7 @@ export function DiscoverySessionControl({
         maxCandidates,
         modes: permittedModes,
         pair: selectedPair,
-        strategies: selectedStrategies,
+        strategies: canonicalizedStrategies,
         timeBudgetMinutes,
         timeframe: selectedTimeframe,
       });

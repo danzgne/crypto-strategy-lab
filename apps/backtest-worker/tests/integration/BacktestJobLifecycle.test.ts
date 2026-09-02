@@ -95,6 +95,7 @@ describe('backtest job lifecycle integration', () => {
         where: { id: { in: snapshotIds } },
       });
     }
+    await prisma.leaderboard.deleteMany({ where: { ownerId } });
     await prisma.strategyVersion.delete({ where: { id: strategyVersionId } });
     await prisma.strategyDefinition.delete({
       where: { id: strategyDefinitionId },

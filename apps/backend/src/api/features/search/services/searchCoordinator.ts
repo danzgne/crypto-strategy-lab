@@ -3,6 +3,7 @@ import type {
   CandidateStrategy,
   DomainEventEnvelope,
   DomainEventName,
+  EnabledStrategyDescriptor,
   EvaluatingCandidateSummary,
   SearchRunStatus,
   SearchSpace,
@@ -19,6 +20,7 @@ import {
 } from '@crypto-strategy-lab/shared';
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
+import { StrategyRegistry } from '@crypto-strategy-lab/strategy-engine';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
 import type { BacktestHistoryProvider } from '../../backtests';
@@ -207,9 +209,21 @@ export class SearchCoordinator {
       alignedStartTime = alignedEndTime - 30 * 24 * 60 * 60 * 1000;
       alignedStartTime = Math.floor(alignedStartTime / interval) * interval;
     }
+    const seenCanonicalIds = new Set<string>();
+    const deduplicatedEnabledStrategies = (
+      options.searchSpace.enabledStrategies ?? []
+    ).reduce<EnabledStrategyDescriptor[]>((acc, descriptor) => {
+      const canonicalId = StrategyRegistry.canonicalId(descriptor.id);
+      if (!seenCanonicalIds.has(canonicalId)) {
+        seenCanonicalIds.add(canonicalId);
+        acc.push({ ...descriptor, id: canonicalId });
+      }
+      return acc;
+    }, []);
 
     const alignedSearchSpace: SearchSpace = {
       ...options.searchSpace,
+      enabledStrategies: deduplicatedEnabledStrategies,
       endTime: alignedEndTime,
       startTime: alignedStartTime,
     };

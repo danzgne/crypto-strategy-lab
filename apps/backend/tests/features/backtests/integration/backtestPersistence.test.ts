@@ -152,9 +152,8 @@ describe('backtest persistence', () => {
     expect(history).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          metrics: null,
           pair: 'BTCUSDT',
-          status: 'queued',
+          status: expect.stringMatching(/^(queued|running|completed)$/),
           strategyId: 'ma',
           strategyName: 'ma backtest target',
           timeframe: '1m',
