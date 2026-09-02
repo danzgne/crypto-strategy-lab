@@ -20,6 +20,27 @@ import type { UseDiscoverySessionResult } from '../hooks/useDiscoverySession';
 
 const AVAILABLE_PAIRS: Pair[] = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
 const AVAILABLE_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
+const DISCOVERY_CONFIG_STORAGE_KEY =
+  'crypto-strategy-lab:discovery-form-config';
+
+interface StoredDiscoveryConfig {
+  pair?: Pair;
+  timeframe?: Timeframe;
+  strategies?: string[];
+  modes?: ('majority' | 'weighted')[];
+  maxCandidates?: number;
+  timeBudgetMinutes?: number;
+}
+
+function getInitialConfig(): StoredDiscoveryConfig {
+  if (typeof window === 'undefined') return {};
+  try {
+    const stored = localStorage.getItem(DISCOVERY_CONFIG_STORAGE_KEY);
+    return stored ? (JSON.parse(stored) as StoredDiscoveryConfig) : {};
+  } catch {
+    return {};
+  }
+}
 
 interface DiscoverySessionControlProps {
   catalog: StrategyCatalog;
@@ -30,34 +51,183 @@ export function DiscoverySessionControl({
   catalog,
   discovery,
 }: DiscoverySessionControlProps) {
-  const [selectedPair, setSelectedPair] = useState<Pair>('BTCUSDT');
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>('1h');
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>([
-    'ma',
-    'rsi',
-    'bb',
-    'sr',
-  ]);
+  const [prevSessionId, setPrevSessionId] = useState<string | null>(
+    discovery.session?.sessionId ?? null,
+  );
+
+  const [selectedPair, setSelectedPair] = useState<Pair>(() => {
+    if (discovery.session?.searchSpace.pair) {
+      return discovery.session.searchSpace.pair;
+    }
+    const init = getInitialConfig();
+    return init.pair && AVAILABLE_PAIRS.includes(init.pair)
+      ? init.pair
+      : 'BTCUSDT';
+  });
+
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>(() => {
+    if (discovery.session?.searchSpace.timeframe) {
+      return discovery.session.searchSpace.timeframe;
+    }
+    const init = getInitialConfig();
+    return init.timeframe && AVAILABLE_TIMEFRAMES.includes(init.timeframe)
+      ? init.timeframe
+      : '1h';
+  });
+
+  const [selectedStrategies, setSelectedStrategies] = useState<string[]>(() => {
+    if (discovery.session?.searchSpace.enabledStrategies?.length) {
+      return discovery.session.searchSpace.enabledStrategies.map((s) => s.id);
+    }
+    const init = getInitialConfig();
+    return Array.isArray(init.strategies) && init.strategies.length > 0
+      ? init.strategies
+      : ['ma', 'rsi', 'bb', 'sr'];
+  });
+
   const [permittedModes, setPermittedModes] = useState<
     ('majority' | 'weighted')[]
-  >(['majority', 'weighted']);
-  const [maxCandidates, setMaxCandidates] = useState<number>(100);
-  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState<number>(15);
+  >(() => {
+    if (discovery.session?.searchSpace.permittedCombinationModes?.length) {
+      return [...discovery.session.searchSpace.permittedCombinationModes];
+    }
+    const init = getInitialConfig();
+    return Array.isArray(init.modes) && init.modes.length > 0
+      ? init.modes
+      : ['majority', 'weighted'];
+  });
+
+  const [maxCandidates, setMaxCandidates] = useState<number>(() => {
+    if (discovery.session?.stopPolicy.maxCandidates) {
+      return discovery.session.stopPolicy.maxCandidates;
+    }
+    const init = getInitialConfig();
+    return typeof init.maxCandidates === 'number' && init.maxCandidates > 0
+      ? init.maxCandidates
+      : 100;
+  });
+
+  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState<number>(() => {
+    if (discovery.session?.stopPolicy.timeBudgetMs) {
+      return Math.max(
+        1,
+        Math.round(discovery.session.stopPolicy.timeBudgetMs / 60000),
+      );
+    }
+    const init = getInitialConfig();
+    return typeof init.timeBudgetMinutes === 'number' &&
+      init.timeBudgetMinutes > 0
+      ? init.timeBudgetMinutes
+      : 15;
+  });
+
   const [submitting, setSubmitting] = useState(false);
 
   const isSessionActive = discovery.session?.status === 'ACTIVE';
   const isSessionPaused = discovery.session?.status === 'PAUSED';
 
+  const saveToStorage = (updates: Partial<StoredDiscoveryConfig>) => {
+    if (typeof window === 'undefined') return;
+    try {
+      const current: StoredDiscoveryConfig = {
+        maxCandidates,
+        modes: permittedModes,
+        pair: selectedPair,
+        strategies: selectedStrategies,
+        timeBudgetMinutes,
+        timeframe: selectedTimeframe,
+        ...updates,
+      };
+      localStorage.setItem(
+        DISCOVERY_CONFIG_STORAGE_KEY,
+        JSON.stringify(current),
+      );
+    } catch {
+      // ignore storage quota or access errors
+    }
+  };
+
+  // Sync state during render when a different session is loaded
+  if (discovery.session && discovery.session.sessionId !== prevSessionId) {
+    setPrevSessionId(discovery.session.sessionId);
+    const { searchSpace, stopPolicy } = discovery.session;
+    if (searchSpace.pair && AVAILABLE_PAIRS.includes(searchSpace.pair)) {
+      setSelectedPair(searchSpace.pair);
+    }
+    if (
+      searchSpace.timeframe &&
+      AVAILABLE_TIMEFRAMES.includes(searchSpace.timeframe)
+    ) {
+      setSelectedTimeframe(searchSpace.timeframe);
+    }
+    if (
+      searchSpace.enabledStrategies &&
+      searchSpace.enabledStrategies.length > 0
+    ) {
+      setSelectedStrategies(searchSpace.enabledStrategies.map((s) => s.id));
+    }
+    if (
+      searchSpace.permittedCombinationModes &&
+      searchSpace.permittedCombinationModes.length > 0
+    ) {
+      setPermittedModes([...searchSpace.permittedCombinationModes]);
+    }
+    if (
+      typeof stopPolicy.maxCandidates === 'number' &&
+      stopPolicy.maxCandidates > 0
+    ) {
+      setMaxCandidates(stopPolicy.maxCandidates);
+    }
+    if (
+      typeof stopPolicy.timeBudgetMs === 'number' &&
+      stopPolicy.timeBudgetMs > 0
+    ) {
+      setTimeBudgetMinutes(
+        Math.max(1, Math.round(stopPolicy.timeBudgetMs / 60000)),
+      );
+    }
+  } else if (!discovery.session && prevSessionId !== null) {
+    setPrevSessionId(null);
+  }
+
+  const handlePairChange = (pair: Pair) => {
+    setSelectedPair(pair);
+    saveToStorage({ pair });
+  };
+
+  const handleTimeframeChange = (timeframe: Timeframe) => {
+    setSelectedTimeframe(timeframe);
+    saveToStorage({ timeframe });
+  };
+
   const toggleStrategy = (id: string) => {
-    setSelectedStrategies((prev) =>
-      prev.includes(id) ? prev.filter((s) => s !== id) : [...prev, id],
-    );
+    setSelectedStrategies((prev) => {
+      const next = prev.includes(id)
+        ? prev.filter((s) => s !== id)
+        : [...prev, id];
+      saveToStorage({ strategies: next });
+      return next;
+    });
   };
 
   const toggleMode = (mode: 'majority' | 'weighted') => {
-    setPermittedModes((prev) =>
-      prev.includes(mode) ? prev.filter((m) => m !== mode) : [...prev, mode],
-    );
+    setPermittedModes((prev) => {
+      const next = prev.includes(mode)
+        ? prev.filter((m) => m !== mode)
+        : [...prev, mode];
+      saveToStorage({ modes: next });
+      return next;
+    });
+  };
+
+  const handleMaxCandidatesChange = (val: number) => {
+    setMaxCandidates(val);
+    saveToStorage({ maxCandidates: val });
+  };
+
+  const handleTimeBudgetChange = (val: number) => {
+    setTimeBudgetMinutes(val);
+    saveToStorage({ timeBudgetMinutes: val });
   };
 
   const handleStart = async () => {
@@ -70,6 +240,15 @@ export function DiscoverySessionControl({
       const endTime = Math.floor(now / interval) * interval;
       const startTime = endTime - 30 * 24 * 60 * 60 * 1000;
       const alignedStartTime = Math.floor(startTime / interval) * interval;
+
+      saveToStorage({
+        maxCandidates,
+        modes: permittedModes,
+        pair: selectedPair,
+        strategies: selectedStrategies,
+        timeBudgetMinutes,
+        timeframe: selectedTimeframe,
+      });
 
       await discovery.startSession({
         algorithm: 'random',
@@ -164,13 +343,17 @@ export function DiscoverySessionControl({
       {/* Search Space Settings */}
       <div className="mt-5 grid gap-4 sm:grid-cols-2">
         <div>
-          <label className="text-xs font-semibold text-slate-700">
+          <label
+            htmlFor="discovery-pair-select"
+            className="text-xs font-semibold text-slate-700"
+          >
             Market Pair
           </label>
           <select
+            id="discovery-pair-select"
             disabled={isSessionActive || isSessionPaused}
             value={selectedPair}
-            onChange={(e) => setSelectedPair(e.target.value as Pair)}
+            onChange={(e) => handlePairChange(e.target.value as Pair)}
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
           >
             {AVAILABLE_PAIRS.map((pair) => (
@@ -182,13 +365,17 @@ export function DiscoverySessionControl({
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-slate-700">
+          <label
+            htmlFor="discovery-timeframe-select"
+            className="text-xs font-semibold text-slate-700"
+          >
             Timeframe
           </label>
           <select
+            id="discovery-timeframe-select"
             disabled={isSessionActive || isSessionPaused}
             value={selectedTimeframe}
-            onChange={(e) => setSelectedTimeframe(e.target.value as Timeframe)}
+            onChange={(e) => handleTimeframeChange(e.target.value as Timeframe)}
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
           >
             {AVAILABLE_TIMEFRAMES.map((tf) => (
@@ -263,30 +450,38 @@ export function DiscoverySessionControl({
       {/* Stop Policy Controls */}
       <div className="mt-4 grid grid-cols-2 gap-3 border-t border-slate-100 pt-3">
         <div>
-          <label className="text-[11px] font-medium text-slate-500">
+          <label
+            htmlFor="discovery-max-candidates"
+            className="text-[11px] font-medium text-slate-500"
+          >
             Max Candidates / Run
           </label>
           <input
+            id="discovery-max-candidates"
             type="number"
             min={10}
             max={500}
             disabled={isSessionActive || isSessionPaused}
             value={maxCandidates}
-            onChange={(e) => setMaxCandidates(Number(e.target.value))}
+            onChange={(e) => handleMaxCandidatesChange(Number(e.target.value))}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
           />
         </div>
         <div>
-          <label className="text-[11px] font-medium text-slate-500">
+          <label
+            htmlFor="discovery-time-budget"
+            className="text-[11px] font-medium text-slate-500"
+          >
             Time Budget (min)
           </label>
           <input
+            id="discovery-time-budget"
             type="number"
             min={1}
             max={60}
             disabled={isSessionActive || isSessionPaused}
             value={timeBudgetMinutes}
-            onChange={(e) => setTimeBudgetMinutes(Number(e.target.value))}
+            onChange={(e) => handleTimeBudgetChange(Number(e.target.value))}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
           />
         </div>

@@ -118,6 +118,87 @@ describe('Discovery UI Components', () => {
       fireEvent.click(screen.getByRole('button', { name: /Stop Session/i }));
       expect(mockDiscovery.stopSession).toHaveBeenCalled();
     });
+
+    it('populates form fields from active discovery session', () => {
+      const mockDiscovery = createMockDiscovery({
+        session: {
+          algorithm: 'random',
+          bestScore: 2.5,
+          searchSpace: {
+            enabledStrategies: [{ id: 'ma' }, { id: 'rsi' }],
+            endTime: 1700000000000,
+            pair: 'ETHUSDT',
+            permittedCombinationModes: ['weighted'],
+            startTime: 1690000000000,
+            timeframe: '15m',
+          },
+          sessionId: 's-active-1',
+          startedAt: Date.now(),
+          status: 'ACTIVE',
+          stopPolicy: {
+            maxCandidates: 150,
+            timeBudgetMs: 30 * 60 * 1000,
+          },
+          totalAcceptedCandidates: 45,
+          totalRunsCompleted: 1,
+          userId: 'u-1',
+        },
+      });
+
+      render(
+        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+      );
+
+      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      const timeframeSelect = screen.getByRole('combobox', {
+        name: /Timeframe/i,
+      });
+      const maxCandidatesInput = screen.getByLabelText(
+        /Max Candidates \/ Run/i,
+      );
+      const timeBudgetInput = screen.getByLabelText(/Time Budget \(min\)/i);
+
+      expect(pairSelect).toHaveValue('ETHUSDT');
+      expect(timeframeSelect).toHaveValue('15m');
+      expect(maxCandidatesInput).toHaveValue(150);
+      expect(timeBudgetInput).toHaveValue(30);
+    });
+
+    it('restores draft settings from localStorage when no active session exists', () => {
+      const storedConfig = {
+        maxCandidates: 80,
+        modes: ['majority'],
+        pair: 'SOLUSDT',
+        strategies: ['bb', 'sr'],
+        timeBudgetMinutes: 45,
+        timeframe: '4h',
+      };
+      localStorage.setItem(
+        'crypto-strategy-lab:discovery-form-config',
+        JSON.stringify(storedConfig),
+      );
+
+      const mockDiscovery = createMockDiscovery({ session: null });
+      render(
+        <DiscoverySessionControl catalog={catalog} discovery={mockDiscovery} />,
+      );
+
+      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      const timeframeSelect = screen.getByRole('combobox', {
+        name: /Timeframe/i,
+      });
+      const maxCandidatesInput = screen.getByLabelText(
+        /Max Candidates \/ Run/i,
+      );
+      const timeBudgetInput = screen.getByLabelText(/Time Budget \(min\)/i);
+
+      expect(pairSelect).toHaveValue('SOLUSDT');
+      expect(timeframeSelect).toHaveValue('4h');
+      expect(maxCandidatesInput).toHaveValue(80);
+      expect(timeBudgetInput).toHaveValue(45);
+
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config');
+    });
   });
 
   describe('DiscoveryProgressCard', () => {
@@ -176,6 +257,62 @@ describe('Discovery UI Components', () => {
       expect(screen.getByText('run-hist')).toBeInTheDocument();
       expect(screen.getByText('CANDIDATE_CAP')).toBeInTheDocument();
       expect(screen.getByText('2.1500')).toBeInTheDocument();
+    });
+
+    it('paginates runs list when more than 10 items exist', () => {
+      const historyItems = Array.from({ length: 15 }, (_, i) => ({
+        acceptedCandidates: 30,
+        algorithm: 'random' as const,
+        bestScore: 0.5 + i * 0.01,
+        id: `run-${String(i + 1).padStart(2, '0')}-test`,
+        ownerId: 'u-1',
+        startedAt: new Date(Date.now() - i * 60000).toISOString(),
+        status: 'COMPLETED' as const,
+        stopReason: 'NO_IMPROVEMENT' as const,
+        stoppedAt: new Date().toISOString(),
+      }));
+
+      const mockDiscovery = createMockDiscovery({ history: historyItems });
+      render(<DiscoveryRunHistoryTable discovery={mockDiscovery} />);
+
+      // Shows total count and pagination indicator
+      expect(screen.getByText('Search Runs History (15)')).toBeInTheDocument();
+      expect(screen.getByTestId('history-pagination-info')).toHaveTextContent(
+        'Showing 1 to 10 of 15 runs',
+      );
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+
+      // First page shows item 1 (run-01-t) but not item 15 (run-15-t)
+      expect(screen.getByText('run-01-t')).toBeInTheDocument();
+      expect(screen.queryByText('run-15-t')).not.toBeInTheDocument();
+
+      const prevBtn = screen.getByRole('button', {
+        name: /Previous history page/i,
+      });
+      const nextBtn = screen.getByRole('button', {
+        name: /Next history page/i,
+      });
+
+      expect(prevBtn).toBeDisabled();
+      expect(nextBtn).toBeEnabled();
+
+      // Click Next to navigate to Page 2
+      fireEvent.click(nextBtn);
+
+      expect(screen.getByTestId('history-pagination-info')).toHaveTextContent(
+        'Showing 11 to 15 of 15 runs',
+      );
+      expect(screen.getByText('Page 2 of 2')).toBeInTheDocument();
+      expect(screen.getByText('run-15-t')).toBeInTheDocument();
+      expect(screen.queryByText('run-01-t')).not.toBeInTheDocument();
+
+      expect(prevBtn).toBeEnabled();
+      expect(nextBtn).toBeDisabled();
+
+      // Click Previous to go back to Page 1
+      fireEvent.click(prevBtn);
+      expect(screen.getByText('Page 1 of 2')).toBeInTheDocument();
+      expect(screen.getByText('run-01-t')).toBeInTheDocument();
     });
   });
 });

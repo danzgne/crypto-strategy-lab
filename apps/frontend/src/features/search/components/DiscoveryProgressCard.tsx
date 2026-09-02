@@ -98,7 +98,9 @@ export function DiscoveryProgressCard({
           <p className="mt-1 text-lg font-bold text-slate-900">
             {currentAccepted}{' '}
             <span className="text-xs font-normal text-slate-500">
-              / {maxCandidates}
+              {sessionStatus === 'ACTIVE' || totalRuns <= 1
+                ? `/ ${maxCandidates}`
+                : `total (${totalRuns} runs)`}
             </span>
           </p>
         </div>
@@ -142,15 +144,23 @@ export function DiscoveryProgressCard({
       {/* Progress Bar */}
       <div className="mt-5">
         <div className="flex justify-between text-xs font-medium text-slate-600">
-          <span>Run Candidate Target</span>
           <span>
-            {progressPercent}% ({currentAccepted} / {maxCandidates})
+            {sessionStatus !== 'ACTIVE' && totalRuns > 1
+              ? 'Discovery Session Summary'
+              : 'Run Candidate Target'}
+          </span>
+          <span>
+            {sessionStatus !== 'ACTIVE' && totalRuns > 1
+              ? `${currentAccepted} candidates evaluated across ${totalRuns} runs`
+              : `${progressPercent}% (${currentAccepted} / ${maxCandidates})`}
           </span>
         </div>
         <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-slate-100">
           <div
             className="h-full bg-indigo-600 transition-all duration-300"
-            style={{ width: `${progressPercent}%` }}
+            style={{
+              width: `${sessionStatus !== 'ACTIVE' && totalRuns > 1 ? 100 : progressPercent}%`,
+            }}
           />
         </div>
       </div>
