@@ -11,31 +11,33 @@ const { historyRefresh } = vi.hoisted(() => ({
   historyRefresh: vi.fn(),
 }));
 
-vi.mock(
-  '../../../../src/features/market-data/hooks/useStrategyCatalog',
-  () => ({
-    useStrategyCatalog: () => ({
-      strategyIds: ['ma'],
-      strategies: [
-        {
-          id: 'ma',
-          paramsSchema: { properties: {}, type: 'object' },
-          requiresParams: false,
-        },
-      ],
-    }),
-  }),
-);
-
-vi.mock('../../../../src/features/strategies', () => ({
-  useSavedStrategies: () => ({
-    error: null,
-    loading: false,
-    save: vi.fn(),
-    saving: false,
-    strategies: [],
-  }),
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
 }));
+
+vi.mock('../../../../src/features/strategies', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../../src/features/strategies')
+  >('../../../../src/features/strategies');
+  return {
+    ...actual,
+    useStrategyLibrary: () => ({
+      builtins: [
+        { strategyId: 'ma', paramsSchema: { properties: {}, type: 'object' } },
+      ],
+      entries: [],
+      total: 0,
+      loading: false,
+      loadingMore: false,
+      error: null,
+      hasMore: false,
+      showArchived: false,
+      setShowArchived: vi.fn(),
+      loadMore: vi.fn(),
+      refresh: vi.fn(),
+    }),
+  };
+});
 
 vi.mock('../../../../src/features/backtests/hooks/useBacktestHistory', () => ({
   useBacktestHistory: () => ({

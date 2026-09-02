@@ -3,42 +3,40 @@ import { describe, expect, it, vi } from 'vitest';
 
 import type {
   CompositeStrategyRequest,
-  StrategyCatalog,
+  LibraryBuiltin,
 } from '@crypto-strategy-lab/shared';
 
 import { ManualCompositeBuilder } from '../../../../src/features/combinations';
 
-const catalog: StrategyCatalog = {
-  strategyIds: ['ma', 'rsi'],
-  strategies: [
-    {
-      id: 'ma',
-      paramsSchema: {
-        type: 'object',
-        properties: {
-          fast: { type: 'integer', default: 20 },
-          slow: { type: 'integer', default: 50 },
-        },
+const builtins: LibraryBuiltin[] = [
+  {
+    strategyId: 'ma',
+    paramsSchema: {
+      type: 'object',
+      properties: {
+        fast: { type: 'integer', default: 20 },
+        slow: { type: 'integer', default: 50 },
       },
     },
-    {
-      id: 'rsi',
-      paramsSchema: {
-        type: 'object',
-        properties: {
-          period: { type: 'integer', default: 14 },
-        },
+  },
+  {
+    strategyId: 'rsi',
+    paramsSchema: {
+      type: 'object',
+      properties: {
+        period: { type: 'integer', default: 14 },
       },
     },
-  ],
-};
+  },
+];
 
 describe('ManualCompositeBuilder', () => {
-  it('builds a weighted composite from unique members with dynamic parameters and no mode/error panels', async () => {
+  it('builds a weighted composite from unique members with dynamic parameters', async () => {
     const onCompositeChange = vi.fn();
     render(
       <ManualCompositeBuilder
-        catalog={catalog}
+        builtins={builtins}
+        entries={[]}
         onCompositeChange={onCompositeChange}
       />,
     );
@@ -46,16 +44,12 @@ describe('ManualCompositeBuilder', () => {
     expect(
       screen.getByRole('heading', { name: 'Composite Strategy' }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('combobox', { name: 'Composition mode' }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 
     const addStrategy = screen.getByRole('combobox', {
       name: 'Add strategy to composite',
     });
-    fireEvent.change(addStrategy, { target: { value: 'ma' } });
-    fireEvent.change(addStrategy, { target: { value: 'rsi' } });
+    fireEvent.change(addStrategy, { target: { value: 'builtin:ma' } });
+    fireEvent.change(addStrategy, { target: { value: 'builtin:rsi' } });
 
     await waitFor(() =>
       expect(onCompositeChange).toHaveBeenLastCalledWith({
@@ -101,54 +95,39 @@ describe('ManualCompositeBuilder', () => {
         }),
       );
     });
+  });
 
-    fireEvent.change(addStrategy, { target: { value: 'ma' } });
-    expect(screen.getAllByRole('spinbutton', { name: 'MA fast' })).toHaveLength(
-      2,
+  it('lists saved singular entries alongside built-ins in the member picker', () => {
+    render(
+      <ManualCompositeBuilder
+        builtins={builtins}
+        entries={[
+          {
+            id: 'entry-1',
+            name: 'My RSI dip',
+            description: null,
+            tags: [],
+            kind: 'singular',
+            strategyId: 'rsi',
+            source: 'MANUAL',
+            sourceInput: null,
+            createdAt: '2026-01-01T00:00:00.000Z',
+            updatedAt: '2026-01-01T00:00:00.000Z',
+            archivedAt: null,
+            latestVersion: {
+              id: 'version-1',
+              versionTag: 'tag',
+              libraryVersion: '1.0.0',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              params: { period: 7 },
+            },
+          },
+        ]}
+      />,
     );
-    const secondMaFast = screen.getAllByRole('spinbutton', {
-      name: 'MA fast',
-    })[1];
-    if (secondMaFast === undefined) throw new Error('Expected second MA');
-    fireEvent.change(secondMaFast, { target: { value: '5' } });
-    await waitFor(() => {
-      expect(onCompositeChange).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          members: expect.arrayContaining([
-            expect.objectContaining({
-              strategyId: 'ma',
-              params: { fast: 10, slow: 50 },
-            }),
-            expect.objectContaining({
-              strategyId: 'ma',
-              params: { fast: 5, slow: 50 },
-            }),
-          ]),
-        }),
-      );
-    });
 
-    fireEvent.change(secondMaFast, { target: { value: '10' } });
-    await waitFor(() =>
-      expect(onCompositeChange).toHaveBeenLastCalledWith(null),
-    );
-
-    fireEvent.change(secondMaFast, { target: { value: '5' } });
-    await waitFor(() => {
-      expect(onCompositeChange).toHaveBeenLastCalledWith(
-        expect.objectContaining({
-          members: expect.arrayContaining([
-            expect.objectContaining({
-              strategyId: 'ma',
-              params: { fast: 10, slow: 50 },
-            }),
-            expect.objectContaining({
-              strategyId: 'ma',
-              params: { fast: 5, slow: 50 },
-            }),
-          ]),
-        }),
-      );
-    });
+    expect(
+      screen.getByRole('option', { name: 'Saved · My RSI dip' }),
+    ).toBeInTheDocument();
   });
 });

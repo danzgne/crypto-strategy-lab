@@ -6,7 +6,6 @@ import type {
   StrategySignalSnapshot,
   StrategySignalUpdate,
   StrategySubscribeRequest,
-  StrategyUnsubscribeRequest,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
 import { useEffect, useRef, useState } from 'react';
@@ -28,7 +27,8 @@ export interface UseStrategySignalOptions {
   chartId: string;
   pair: string;
   timeframe: Timeframe;
-  strategyId: string;
+  strategyId: string | null;
+  strategyVersionId?: string;
   enabled: boolean;
   limit?: number;
   params?: unknown;
@@ -47,6 +47,7 @@ export function useStrategySignal({
   pair,
   timeframe,
   strategyId,
+  strategyVersionId,
   enabled,
   limit = 500,
   params,
@@ -61,6 +62,7 @@ export function useStrategySignal({
     ...(params === undefined ? {} : { params }),
     ...(composite === undefined ? {} : { composite }),
     strategyId,
+    ...(strategyVersionId === undefined ? {} : { strategyVersionId }),
     timeframe,
   });
   const [state, setState] = useState<StrategySignalState & { key: string }>(
@@ -73,30 +75,29 @@ export function useStrategySignal({
 
     const socket = socketFactoryRef.current();
     let active = true;
-    const request: StrategySubscribeRequest =
-      composite === undefined
-        ? {
-            chartId,
-            pair,
-            timeframe,
-            strategyId,
-            limit,
-            ...(params === undefined ? {} : { params }),
-          }
-        : {
-            chartId,
-            pair,
-            timeframe,
-            strategyId: 'composite',
-            limit,
-            composite,
-          };
-    const unsubscribeRequest: StrategyUnsubscribeRequest = {
-      chartId,
-      pair,
-      timeframe,
-      strategyId,
-    };
+    const request: StrategySubscribeRequest | null =
+      strategyVersionId !== undefined
+        ? { chartId, pair, timeframe, strategyVersionId, limit }
+        : composite !== undefined
+          ? {
+              chartId,
+              pair,
+              timeframe,
+              strategyId: 'composite',
+              limit,
+              composite,
+            }
+          : strategyId === null
+            ? null
+            : {
+                chartId,
+                pair,
+                timeframe,
+                strategyId,
+                limit,
+                ...(params === undefined ? {} : { params }),
+              };
+    if (request === null) return;
 
     const subscribe = (): void => {
       if (!active) return;
@@ -120,7 +121,6 @@ export function useStrategySignal({
       if (
         !active ||
         snapshot.chartId !== chartId ||
-        snapshot.strategyId !== strategyId ||
         snapshot.pair !== pair ||
         snapshot.timeframe !== timeframe
       ) {
@@ -142,7 +142,6 @@ export function useStrategySignal({
         !active ||
         error.phase !== 'evaluation' ||
         error.chartId !== chartId ||
-        error.strategyId !== strategyId ||
         error.pair !== pair ||
         error.timeframe !== timeframe
       ) {
@@ -173,7 +172,7 @@ export function useStrategySignal({
       socket.off('strategy:signal', handleSignal);
       socket.off('strategy:error', handleError);
       if (socket.connected) {
-        socket.emit('strategy:unsubscribe', unsubscribeRequest);
+        socket.emit('strategy:unsubscribe', { chartId });
       }
     };
   }, [
@@ -184,6 +183,7 @@ export function useStrategySignal({
     pair,
     params,
     strategyId,
+    strategyVersionId,
     subscriptionKey,
     timeframe,
   ]);
@@ -204,6 +204,7 @@ function createSubscriptionKey({
   params,
   composite,
   strategyId,
+  strategyVersionId,
   timeframe,
 }: Pick<
   UseStrategySignalOptions,
@@ -214,9 +215,10 @@ function createSubscriptionKey({
   | 'pair'
   | 'params'
   | 'strategyId'
+  | 'strategyVersionId'
   | 'timeframe'
 >): string {
-  return `${chartId}:${pair}:${timeframe}:${strategyId}:${enabled}:${limit}:${JSON.stringify(params ?? null)}:${JSON.stringify(composite ?? null)}`;
+  return `${chartId}:${pair}:${timeframe}:${strategyId}:${strategyVersionId ?? ''}:${enabled}:${limit}:${JSON.stringify(params ?? null)}:${JSON.stringify(composite ?? null)}`;
 }
 
 function upsertSignalHistory(

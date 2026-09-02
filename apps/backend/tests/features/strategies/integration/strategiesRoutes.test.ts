@@ -250,6 +250,7 @@ describe('Strategies API Integration Tests', () => {
         name: 'RSI_LONG',
         source: 'USER_PROMPT',
         sourceInput: 'Long when RSI under 30',
+        strategyId: 'rule',
         params: validWireResponse(),
       });
 
@@ -265,6 +266,7 @@ describe('Strategies API Integration Tests', () => {
           tags: ['rsi'],
           source: 'USER_PROMPT',
           sourceInput: 'Long when RSI under 30',
+          strategyId: 'rule',
           params: {
             indicators: [{ name: 'RSI', period: 14 }],
             conditions: {
@@ -278,8 +280,10 @@ describe('Strategies API Integration Tests', () => {
       expect(res.status).toBe(201);
       expect(res.body.data.name).toBe('RSI_LONG');
       expect(res.body.data.source).toBe('USER_PROMPT');
-      expect(res.body.data.version.libraryVersion).toBe('1.0.0');
-      expect(res.body.data.version.versionTag).toMatch(/^[0-9a-f]{64}$/);
+      expect(res.body.data.kind).toBe('singular');
+      expect(res.body.data.strategyId).toBe('rule');
+      expect(res.body.data.latestVersion.libraryVersion).toBe('1.0.0');
+      expect(res.body.data.latestVersion.versionTag).toMatch(/^[0-9a-f]{64}$/);
 
       const stored = await prisma.strategyDefinition.findUnique({
         where: { id: res.body.data.id },
@@ -287,10 +291,11 @@ describe('Strategies API Integration Tests', () => {
       });
       expect(stored?.source).toBe('USER_PROMPT');
       expect(stored?.sourceInput).toBe('Long when RSI under 30');
+      expect(stored?.recordKind).toBe('LIBRARY_ENTRY');
       expect(stored?.versions).toHaveLength(1);
     });
 
-    it('returns GENERATION_INVALID for params the RuleStrategy constructor rejects', async () => {
+    it('returns 422 for params the RuleStrategy constructor rejects', async () => {
       const res = await request(app)
         .post('/api/v1/strategies')
         .set('Cookie', userCookie)
@@ -298,15 +303,68 @@ describe('Strategies API Integration Tests', () => {
           name: 'BROKEN',
           source: 'USER_PROMPT',
           sourceInput: 'anything',
+          strategyId: 'rule',
           params: { indicators: [], conditions: { long: [], short: [] } },
         });
 
       expect(res.status).toBe(422);
-      expect(res.body.error.code).toBe('GENERATION_INVALID');
+      expect(res.body.error.code).toBe('INVALID_STRATEGY');
+    });
+
+    it('rejects a MANUAL entry that also carries sourceInput text', async () => {
+      const res = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Forked MA', source: 'MANUAL', strategyId: 'ma' });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.sourceInput).toBeNull();
+    });
+
+    it('persists a composite entry with its inline member snapshot', async () => {
+      const res = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'Momentum pair',
+          source: 'MANUAL',
+          strategyId: 'composite',
+          composite: {
+            mode: 'weighted',
+            threshold: 0.3,
+            members: [
+              { strategyId: 'ma', params: { fast: 10 }, weight: 2 },
+              { strategyId: 'rsi', params: { period: 14 }, weight: 1 },
+            ],
+          },
+        });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.kind).toBe('composite');
+      expect(res.body.data.strategyId).toBe('composite');
+      expect(res.body.data.latestVersion.composite.members).toHaveLength(2);
     });
   });
 
   describe('GET /api/v1/strategies', () => {
+    it('serves built-in strategies without required params, alongside owner entries', async () => {
+      const res = await request(app)
+        .get('/api/v1/strategies')
+        .set('Cookie', userCookie);
+
+      expect(res.status).toBe(200);
+      expect(
+        res.body.data.builtins.some(
+          (builtin: { strategyId: string }) => builtin.strategyId === 'ma',
+        ),
+      ).toBe(true);
+      expect(
+        res.body.data.builtins.some(
+          (builtin: { strategyId: string }) => builtin.strategyId === 'rule',
+        ),
+      ).toBe(false);
+    });
+
     it('lists only the current owner entries, newest first', async () => {
       await request(app)
         .post('/api/v1/strategies')
@@ -315,6 +373,7 @@ describe('Strategies API Integration Tests', () => {
           name: 'OTHER_USER_STRATEGY',
           source: 'WEB_IMPORT',
           sourceInput: 'https://example.com/strategy',
+          strategyId: 'rule',
           params: {
             indicators: [{ name: 'RSI', period: 14 }],
             conditions: {
@@ -331,15 +390,249 @@ describe('Strategies API Integration Tests', () => {
 
       expect(res.status).toBe(200);
       expect(
-        res.body.data.some(
+        res.body.data.entries.some(
           (entry: { name: string }) => entry.name === 'OTHER_USER_STRATEGY',
         ),
       ).toBe(false);
       expect(
-        res.body.data.some(
+        res.body.data.entries.some(
           (entry: { name: string }) => entry.name === 'RSI_LONG',
         ),
       ).toBe(true);
+    });
+
+    it('excludes archived entries unless archived=true is requested', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Archive me', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+      await request(app)
+        .patch(`/api/v1/strategies/${entryId}/archive`)
+        .set('Cookie', userCookie)
+        .send({ archived: true });
+
+      const hidden = await request(app)
+        .get('/api/v1/strategies')
+        .set('Cookie', userCookie);
+      expect(
+        hidden.body.data.entries.some(
+          (entry: { id: string }) => entry.id === entryId,
+        ),
+      ).toBe(false);
+
+      const shown = await request(app)
+        .get('/api/v1/strategies?archived=true')
+        .set('Cookie', userCookie);
+      expect(
+        shown.body.data.entries.some(
+          (entry: { id: string }) => entry.id === entryId,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe('GET /api/v1/strategies/:id', () => {
+    it('returns the full version history for the owner', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'MA drilldown', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .get(`/api/v1/strategies/${entryId}`)
+        .set('Cookie', userCookie);
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.versions).toHaveLength(1);
+    });
+
+    it('returns 404, not the entry, for another owner', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Owner-only', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .get(`/api/v1/strategies/${entryId}`)
+        .set('Cookie', otherUserCookie);
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('PATCH /api/v1/strategies/:id', () => {
+    it('updates entry metadata for the owner', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Rename me', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .patch(`/api/v1/strategies/${entryId}`)
+        .set('Cookie', userCookie)
+        .send({ name: 'Renamed', tags: ['trend'] });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.name).toBe('Renamed');
+      expect(res.body.data.tags).toEqual(['trend']);
+    });
+
+    it('returns 404 for another owner instead of leaking or editing the entry', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Not yours', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .patch(`/api/v1/strategies/${entryId}`)
+        .set('Cookie', otherUserCookie)
+        .send({ name: 'Hijacked' });
+
+      expect(res.status).toBe(404);
+      const stillOriginal = await prisma.strategyDefinition.findUnique({
+        where: { id: entryId },
+      });
+      expect(stillOriginal?.name).toBe('Not yours');
+    });
+  });
+
+  describe('POST /api/v1/strategies/:id/versions', () => {
+    it('appends an immutable Strategy Version for the owner', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'MA edit',
+          source: 'MANUAL',
+          strategyId: 'ma',
+          params: { fast: 20, slow: 50 },
+        });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .post(`/api/v1/strategies/${entryId}/versions`)
+        .set('Cookie', userCookie)
+        .send({ libraryVersion: '1.1.0', params: { fast: 5, slow: 50 } });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.versions).toHaveLength(2);
+      expect(res.body.data.latestVersion.libraryVersion).toBe('1.1.0');
+    });
+
+    it('creates a new version instead of erroring when only the Library Version changes', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'MA label-only change',
+          source: 'MANUAL',
+          strategyId: 'ma',
+          params: { fast: 20, slow: 50 },
+        });
+      const entryId = created.body.data.id;
+      const firstVersionId = created.body.data.latestVersion.id;
+
+      const res = await request(app)
+        .post(`/api/v1/strategies/${entryId}/versions`)
+        .set('Cookie', userCookie)
+        .send({ libraryVersion: '1.0.1', params: { fast: 20, slow: 50 } });
+
+      expect(res.status).toBe(201);
+      expect(res.body.data.versions).toHaveLength(2);
+      expect(res.body.data.latestVersion.libraryVersion).toBe('1.0.1');
+      expect(res.body.data.latestVersion.id).not.toBe(firstVersionId);
+    });
+
+    it('rejects a Library Version already used inside the entry', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'MA dup',
+          source: 'MANUAL',
+          strategyId: 'ma',
+          libraryVersion: '1.0.0',
+        });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .post(`/api/v1/strategies/${entryId}/versions`)
+        .set('Cookie', userCookie)
+        .send({ libraryVersion: '1.0.0', params: { fast: 5, slow: 50 } });
+
+      expect(res.status).toBe(409);
+      expect(res.body.error.code).toBe('DUPLICATE_LIBRARY_VERSION');
+    });
+
+    it('returns 404 for another owner instead of appending to the entry', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'Owned version history',
+          source: 'MANUAL',
+          strategyId: 'ma',
+        });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .post(`/api/v1/strategies/${entryId}/versions`)
+        .set('Cookie', otherUserCookie)
+        .send({ libraryVersion: '1.1.0', params: { fast: 5 } });
+
+      expect(res.status).toBe(404);
+    });
+  });
+
+  describe('PATCH /api/v1/strategies/:id/archive', () => {
+    it('archives, and un-archives, an owned entry', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({ name: 'Archive toggle', source: 'MANUAL', strategyId: 'ma' });
+      const entryId = created.body.data.id;
+
+      const archived = await request(app)
+        .patch(`/api/v1/strategies/${entryId}/archive`)
+        .set('Cookie', userCookie)
+        .send({ archived: true });
+      expect(archived.status).toBe(200);
+      expect(archived.body.data.archivedAt).not.toBeNull();
+
+      const restored = await request(app)
+        .patch(`/api/v1/strategies/${entryId}/archive`)
+        .set('Cookie', userCookie)
+        .send({ archived: false });
+      expect(restored.status).toBe(200);
+      expect(restored.body.data.archivedAt).toBeNull();
+    });
+
+    it('returns 404 for another owner instead of archiving the entry', async () => {
+      const created = await request(app)
+        .post('/api/v1/strategies')
+        .set('Cookie', userCookie)
+        .send({
+          name: 'Not archivable by others',
+          source: 'MANUAL',
+          strategyId: 'ma',
+        });
+      const entryId = created.body.data.id;
+
+      const res = await request(app)
+        .patch(`/api/v1/strategies/${entryId}/archive`)
+        .set('Cookie', otherUserCookie)
+        .send({ archived: true });
+
+      expect(res.status).toBe(404);
+      const stillLive = await prisma.strategyDefinition.findUnique({
+        where: { id: entryId },
+      });
+      expect(stillLive?.archivedAt).toBeNull();
     });
   });
 });

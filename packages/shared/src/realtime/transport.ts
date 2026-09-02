@@ -1,6 +1,6 @@
 import type { Candle, MarketKey } from '../marketData/candle';
 import type { Tick } from '../marketData/tick';
-import type { Signal, StrategyParamsSchema } from '../strategy/types';
+import type { Signal } from '../strategy/types';
 import type { LeaderboardSnapshot } from '../leaderboard/types';
 import type { DiscoveryProgressPayload } from '../search/types';
 
@@ -78,26 +78,34 @@ export interface MarketTickUpdate {
 interface StrategySubscribeRequestBase extends MarketKey {
   chartId: string;
   limit?: number;
-  params?: unknown;
 }
 
 export interface SingleStrategySubscribeRequest extends StrategySubscribeRequestBase {
   strategyId: string;
   params?: unknown;
   composite?: never;
+  strategyVersionId?: never;
 }
 
 export interface CompositeStrategySubscribeRequest extends StrategySubscribeRequestBase {
   strategyId: 'composite';
   composite: CompositeStrategyRequest;
+  strategyVersionId?: never;
+}
+
+export interface SavedStrategySubscribeRequest extends StrategySubscribeRequestBase {
+  strategyVersionId: string;
+  strategyId?: never;
+  composite?: never;
 }
 
 export type StrategySubscribeRequest =
-  SingleStrategySubscribeRequest | CompositeStrategySubscribeRequest;
+  | SingleStrategySubscribeRequest
+  | CompositeStrategySubscribeRequest
+  | SavedStrategySubscribeRequest;
 
-export interface StrategyUnsubscribeRequest extends MarketKey {
+export interface StrategyUnsubscribeRequest {
   chartId: string;
-  strategyId: string;
 }
 
 export interface CompositeStrategyMemberRequest {
@@ -112,17 +120,6 @@ export interface CompositeStrategyRequest {
   threshold?: number;
   stopLoss?: number;
   takeProfit?: number;
-}
-
-export interface StrategyCatalogEntry {
-  id: string;
-  paramsSchema: StrategyParamsSchema;
-  requiresParams?: boolean;
-}
-
-export interface StrategyCatalog {
-  strategies: StrategyCatalogEntry[];
-  strategyIds?: string[];
 }
 
 export type StrategyErrorPhase = 'validation' | 'evaluation';
@@ -154,7 +151,6 @@ export interface ServerToClientEvents {
   'market:status': (status: MarketSubscriptionStatus) => void;
   'market:ticks:snapshot': (snapshot: MarketTicksSnapshot) => void;
   'market:tick': (update: MarketTickUpdate) => void;
-  'strategy:catalog': (catalog: StrategyCatalog) => void;
   'strategy:snapshot': (snapshot: StrategySignalSnapshot) => void;
   'strategy:signal': (update: StrategySignalUpdate) => void;
   'strategy:error': (error: StrategyErrorEvent) => void;
@@ -172,7 +168,6 @@ export interface ClientToServerEvents {
   'market:unsubscribe': (request: MarketUnsubscribeRequest) => void;
   'market:ticks:subscribe': (request: MarketTicksSubscribeRequest) => void;
   'market:ticks:unsubscribe': (request: MarketTicksUnsubscribeRequest) => void;
-  'strategy:catalog:request': () => void;
   'strategy:subscribe': (request: StrategySubscribeRequest) => void;
   'strategy:unsubscribe': (request: StrategyUnsubscribeRequest) => void;
 }

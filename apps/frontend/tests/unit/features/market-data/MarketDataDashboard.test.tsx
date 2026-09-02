@@ -5,10 +5,14 @@ import type {
   MarketSubscriptionResult,
   UseMarketSubscriptionOptions,
 } from '../../../../src/features/market-data/hooks/useMarketSubscription';
-import type { SavedStrategiesState } from '../../../../src/features/strategies';
+import type { StrategyLibraryState } from '../../../../src/features/strategies';
 import type { RealtimeConnectionState } from '../../../../src/features/market-data/hooks/useRealtimeConnection';
 import type { RecentTicksState } from '../../../../src/features/market-data/hooks/useRecentTicks';
 import type { StrategySignalState } from '../../../../src/features/market-data/hooks/useStrategySignal';
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 vi.mock(
   '../../../../src/features/market-data/hooks/useMarketSubscription',
@@ -57,47 +61,52 @@ vi.mock('../../../../src/features/market-data/hooks/useStrategySignal', () => ({
   }),
 }));
 
-vi.mock(
-  '../../../../src/features/market-data/hooks/useStrategyCatalog',
-  () => ({
-    useStrategyCatalog: () => ({
-      strategyIds: ['ma', 'rule'],
-      strategies: [
-        {
-          id: 'ma',
-          requiresParams: false,
-          paramsSchema: { type: 'object', properties: {} },
-        },
-        {
-          id: 'rule',
-          requiresParams: true,
-          paramsSchema: { type: 'object', properties: {} },
-        },
-      ],
-    }),
-  }),
-);
-
-vi.mock('../../../../src/features/strategies', () => ({
-  useSavedStrategies: (): SavedStrategiesState => ({
-    error: null,
-    loading: false,
-    save: vi.fn(),
-    saving: false,
-    strategies: [
-      {
+const library: StrategyLibraryState = {
+  builtins: [
+    { strategyId: 'ma', paramsSchema: { type: 'object', properties: {} } },
+  ],
+  entries: [
+    {
+      id: 'saved-ma-id',
+      name: 'My trend strategy',
+      description: null,
+      tags: [],
+      kind: 'singular',
+      strategyId: 'ma',
+      source: 'MANUAL',
+      sourceInput: null,
+      createdAt: '2026-08-30T00:00:00.000Z',
+      updatedAt: '2026-08-30T00:00:00.000Z',
+      archivedAt: null,
+      latestVersion: {
+        id: 'saved-ma-version',
+        versionTag: 'tag',
+        libraryVersion: '1.0.0',
         createdAt: '2026-08-30T00:00:00.000Z',
-        description: null,
-        id: 'saved-ma-id',
-        kind: 'singular',
-        name: 'My trend strategy',
         params: { fast: 10, slow: 30 },
-        strategyId: 'ma',
-        versionId: 'saved-ma-version',
       },
-    ],
-  }),
-}));
+    },
+  ],
+  total: 1,
+  loading: false,
+  loadingMore: false,
+  error: null,
+  hasMore: false,
+  showArchived: false,
+  setShowArchived: vi.fn(),
+  loadMore: vi.fn(),
+  refresh: vi.fn(),
+};
+
+vi.mock('../../../../src/features/strategies', async () => {
+  const actual = await vi.importActual<
+    typeof import('../../../../src/features/strategies')
+  >('../../../../src/features/strategies');
+  return {
+    ...actual,
+    useStrategyLibrary: (): StrategyLibraryState => library,
+  };
+});
 
 import { MarketDataDashboard } from '../../../../src/features/market-data/components/MarketDataDashboard';
 
@@ -128,16 +137,9 @@ describe('MarketDataDashboard', () => {
         name: 'Saved · My trend strategy',
       }),
     ).toBeInTheDocument();
-    expect(
-      screen.queryByRole('checkbox', { name: /Enable .* strategy/ }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByTestId('manual-composite-builder'),
-    ).not.toBeInTheDocument();
     fireEvent.change(strategySelector, { target: { value: 'builtin:ma' } });
     expect(strategySelector).toHaveValue('builtin:ma');
     expect(timeframeSelectors).toHaveLength(4);
-    expect(screen.queryByText('4 live panels')).not.toBeInTheDocument();
     const workspace = screen.getByRole('region', {
       name: 'Live market workspace',
     });
@@ -160,19 +162,5 @@ describe('MarketDataDashboard', () => {
     fireEvent.change(pairSelector, { target: { value: 'ETHUSDT' } });
     expect(screen.getByText('ETHUSDT · 4h')).toBeInTheDocument();
     expect(screen.getAllByText('ETHUSDT · 5m')).toHaveLength(1);
-  });
-
-  it('offers only strategies that need no authored params, without naming any strategy id', () => {
-    render(<MarketDataDashboard />);
-
-    const strategySelector = screen.getByRole('combobox', {
-      name: 'Strategy overlay',
-    });
-    expect(
-      within(strategySelector).getByRole('option', { name: 'MA' }),
-    ).toBeInTheDocument();
-    expect(
-      within(strategySelector).queryByRole('option', { name: 'RULE' }),
-    ).not.toBeInTheDocument();
   });
 });

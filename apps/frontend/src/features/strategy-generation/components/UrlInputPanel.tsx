@@ -23,7 +23,7 @@ export function UrlInputPanel({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-slate-900">Nhập URL chiến lược</h3>
+      <h3 className="text-sm font-bold text-slate-900">Enter a strategy URL</h3>
       <input
         type="url"
         value={urlText}
@@ -33,7 +33,7 @@ export function UrlInputPanel({
         className="mt-3 w-full rounded-xl border border-slate-200 p-3 text-sm text-slate-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none disabled:bg-slate-50"
       />
       <p className="mt-2 text-xs text-slate-400">
-        Hỗ trợ: TradingView, Blogger, Medium, GitHub Gist, Docs...
+        Supports: TradingView, Blogger, Medium, GitHub Gist, Docs…
       </p>
       <button
         type="button"
@@ -52,7 +52,7 @@ export function UrlInputPanel({
         ) : (
           <Globe className="size-4" />
         )}
-        {armed ? 'Nhấn lại để xác nhận' : 'Trích xuất từ website'}
+        {armed ? 'Click again to confirm' : 'Extract from website'}
       </button>
     </div>
   );

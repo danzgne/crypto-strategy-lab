@@ -2,24 +2,17 @@
 
 import type {
   BacktestSubmissionRequest,
-  SavedStrategy,
-  StrategyCatalogEntry,
+  LibraryBuiltin,
 } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
 import { ArrowRight, BarChart3, ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import type { FormEvent, ReactNode } from 'react';
-import { useMemo, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
-import {
-  catalogEntries,
-  createDefaultParameterValues,
-  resolveParameters,
-} from '../../combinations/strategyForm';
-import { StrategyParameterFields } from '../../combinations/components/StrategyParameterFields';
-import { useStrategyCatalog } from '../../market-data/hooks/useStrategyCatalog';
 import { SUPPORTED_PAIR_OPTIONS } from '../../market-data/constants';
-import { useSavedStrategies } from '../../strategies';
+import { DefaultParamsEditor, useStrategyLibrary } from '../../strategies';
 import { backtestClient, type BacktestClient } from '../api/backtestClient';
 import { BacktestHistoryList } from './BacktestHistoryList';
 import { useBacktestHistory } from '../hooks/useBacktestHistory';
@@ -31,14 +24,15 @@ export interface BacktestDashboardProperties {
 export function BacktestDashboard({
   client = backtestClient,
 }: BacktestDashboardProperties) {
-  const catalog = useStrategyCatalog();
-  const saved = useSavedStrategies();
+  const library = useStrategyLibrary();
   const history = useBacktestHistory({ client });
-  const entries = useMemo(() => catalogEntries(catalog), [catalog]);
   const clientRef = useRef(client);
+  const searchParameters = useSearchParams();
   const [selectedStrategyId, setSelectedStrategyId] = useState('');
-  const [selectedVersionId, setSelectedVersionId] = useState<string>();
-  const [parameters, setParameters] = useState<Record<string, string>>({});
+  const [selectedVersionId, setSelectedVersionId] = useState<
+    string | undefined
+  >(() => searchParameters.get('strategyVersionId') ?? undefined);
+  const [parameters, setParameters] = useState<Record<string, unknown>>({});
   const [pair, setPair] = useState('BTCUSDT');
   const [timeframe, setTimeframe] =
     useState<BacktestSubmissionRequest['timeframe']>('5m');
@@ -54,46 +48,32 @@ export function BacktestDashboard({
   const [error, setError] = useState<string | null>(null);
 
   const effectiveStrategyId =
-    selectedStrategyId === '' ? (entries[0]?.id ?? '') : selectedStrategyId;
+    selectedStrategyId === ''
+      ? (library.builtins[0]?.strategyId ?? '')
+      : selectedStrategyId;
+  const selectedBuiltin =
+    selectedVersionId === undefined
+      ? (library.builtins.find(
+          (builtin) => builtin.strategyId === effectiveStrategyId,
+        ) ?? library.builtins[0])
+      : undefined;
   const selectedEntry =
     selectedVersionId === undefined
-      ? (entries.find((entry) => entry.id === effectiveStrategyId) ??
-        entries[0])
-      : undefined;
-  const selectedSavedStrategy = useMemo(
-    () =>
-      selectedVersionId === undefined
-        ? undefined
-        : saved.strategies.find(
-            (strategy) => strategy.versionId === selectedVersionId,
-          ),
-    [saved.strategies, selectedVersionId],
-  );
+      ? undefined
+      : library.entries.find(
+          (entry) => entry.latestVersion.id === selectedVersionId,
+        );
   const selectedTargetValue =
     selectedVersionId === undefined
       ? effectiveStrategyId.length === 0
         ? ''
         : `strategy:${effectiveStrategyId}`
       : `version:${selectedVersionId}`;
-  const formParameters = useMemo(
-    () =>
-      selectedEntry === undefined
-        ? parameters
-        : {
-            ...createDefaultParameterValues(selectedEntry),
-            ...parameters,
-          },
-    [parameters, selectedEntry],
-  );
-  const resolvedParameters = useMemo(
-    () => resolveParameters(formParameters, selectedEntry),
-    [formParameters, selectedEntry],
-  );
 
-  const selectStrategy = (entry: StrategyCatalogEntry): void => {
+  const selectStrategy = (builtin: LibraryBuiltin): void => {
     setSelectedVersionId(undefined);
-    setSelectedStrategyId(entry.id);
-    setParameters(createDefaultParameterValues(entry));
+    setSelectedStrategyId(builtin.strategyId);
+    setParameters({});
   };
 
   const selectTarget = (value: string): void => {
@@ -104,16 +84,13 @@ export function BacktestDashboard({
       return;
     }
     const strategyId = value.slice('strategy:'.length);
-    const entry = entries.find(({ id }) => id === strategyId);
-    if (entry !== undefined) selectStrategy(entry);
+    const builtin = library.builtins.find((b) => b.strategyId === strategyId);
+    if (builtin !== undefined) selectStrategy(builtin);
   };
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (
-      selectedSavedStrategy === undefined &&
-      (selectedEntry === undefined || resolvedParameters === null)
-    ) {
+    if (selectedVersionId === undefined && selectedBuiltin === undefined) {
       setError('Choose a strategy and check the parameters.');
       return;
     }
@@ -123,12 +100,9 @@ export function BacktestDashboard({
     setSubmittedExperimentId(null);
     try {
       const target =
-        selectedSavedStrategy === undefined
-          ? {
-              params: resolvedParameters ?? {},
-              strategyId: selectedEntry!.id,
-            }
-          : { strategyVersionId: selectedSavedStrategy.versionId };
+        selectedVersionId === undefined
+          ? { params: parameters, strategyId: selectedBuiltin!.strategyId }
+          : { strategyVersionId: selectedVersionId };
       const request: BacktestSubmissionRequest = {
         endTime: dateAtUtc(endDate),
         initialInvestment,
@@ -236,32 +210,38 @@ export function BacktestDashboard({
           <Field label="Strategy" htmlFor="backtest-strategy">
             <select
               className={inputClass}
-              disabled={entries.length === 0 && saved.strategies.length === 0}
+              disabled={
+                library.builtins.length === 0 && library.entries.length === 0
+              }
               id="backtest-strategy"
               onChange={(event) => selectTarget(event.target.value)}
               value={selectedTargetValue}
             >
-              {entries.length === 0 && saved.strategies.length === 0 ? (
+              {library.builtins.length === 0 && library.entries.length === 0 ? (
                 <option value="">Loading strategies…</option>
               ) : (
                 <>
-                  {entries.length > 0 && (
-                    <optgroup label="Inline strategies">
-                      {entries.map((entry) => (
-                        <option key={entry.id} value={`strategy:${entry.id}`}>
-                          {formatStrategyType(entry.id)}
+                  {library.builtins.length > 0 && (
+                    <optgroup label="Built-in strategies">
+                      {library.builtins.map((builtin) => (
+                        <option
+                          key={builtin.strategyId}
+                          value={`strategy:${builtin.strategyId}`}
+                        >
+                          {formatStrategyType(builtin.strategyId)}
                         </option>
                       ))}
                     </optgroup>
                   )}
-                  {saved.strategies.length > 0 && (
+                  {library.entries.length > 0 && (
                     <optgroup label="Saved Strategy Versions">
-                      {saved.strategies.map((strategy) => (
+                      {library.entries.map((entry) => (
                         <option
-                          key={strategy.versionId}
-                          value={`version:${strategy.versionId}`}
+                          key={entry.latestVersion.id}
+                          value={`version:${entry.latestVersion.id}`}
                         >
-                          {strategy.name} · {savedStrategyType(strategy)}
+                          {entry.name} ·{' '}
+                          {savedStrategyType(entry.kind, entry.strategyId)}
                         </option>
                       ))}
                     </optgroup>
@@ -334,26 +314,31 @@ export function BacktestDashboard({
           </Field>
         </div>
 
-        {selectedSavedStrategy !== undefined ? (
+        {selectedVersionId !== undefined ? (
           <div className="mt-6 rounded-xl border border-emerald-100 bg-emerald-50/60 p-4 text-sm text-emerald-800">
-            Using saved immutable {savedStrategyType(selectedSavedStrategy)}{' '}
-            <span className="font-semibold">{selectedSavedStrategy.name}</span>{' '}
-            (version {selectedSavedStrategy.versionId.slice(0, 8)}).
+            Using saved immutable{' '}
+            {selectedEntry !== undefined
+              ? savedStrategyType(selectedEntry.kind, selectedEntry.strategyId)
+              : 'strategy'}
+            {selectedEntry !== undefined && (
+              <>
+                {' '}
+                <span className="font-semibold">{selectedEntry.name}</span>
+              </>
+            )}{' '}
+            (version {selectedVersionId.slice(0, 8)}).
           </div>
-        ) : selectedEntry !== undefined ? (
+        ) : selectedBuiltin !== undefined ? (
           <div className="mt-6 border-t border-slate-100 pt-5">
             <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-400">
-              {formatStrategyType(selectedEntry.id)} parameters
+              {formatStrategyType(selectedBuiltin.strategyId)} parameters
             </p>
             <div className="mt-3 grid gap-4 sm:grid-cols-3">
-              <StrategyParameterFields
-                definitions={selectedEntry.paramsSchema.properties}
+              <DefaultParamsEditor
                 idPrefix="backtest-parameter"
-                labelPrefix={formatStrategyType(selectedEntry.id)}
-                onChange={(name, value) =>
-                  setParameters((current) => ({ ...current, [name]: value }))
-                }
-                values={formParameters}
+                onChange={setParameters}
+                params={parameters}
+                paramsSchema={selectedBuiltin.paramsSchema}
               />
             </div>
           </div>
@@ -369,8 +354,7 @@ export function BacktestDashboard({
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={
               submitting ||
-              (selectedSavedStrategy === undefined &&
-                (selectedEntry === undefined || resolvedParameters === null))
+              (selectedVersionId === undefined && selectedBuiltin === undefined)
             }
             type="submit"
           >
@@ -455,10 +439,13 @@ function InfoTile({ title, text }: { title: string; text: string }) {
   );
 }
 
-function savedStrategyType(strategy: SavedStrategy): string {
-  return strategy.kind === 'composite'
+function savedStrategyType(
+  kind: 'singular' | 'composite',
+  strategyId: string,
+): string {
+  return kind === 'composite'
     ? 'Composite Strategy'
-    : formatStrategyType(strategy.strategyId);
+    : formatStrategyType(strategyId);
 }
 
 function dateAtUtc(value: string): number {

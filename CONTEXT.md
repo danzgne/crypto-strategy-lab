@@ -64,19 +64,33 @@ something a RuleStrategy does internally.
 
 **Provenance**:
 Where a Strategy Library entry's parameters originated: `USER_PROMPT` for the natural-language pipeline,
-`WEB_IMPORT` for a link. Immutable, so editing a generated strategy never rewrites where it came from, and
-descriptive only: it is entry metadata, never part of `params` and never part of the Strategy Version. The
-original prompt text or URL is kept alongside it as the entry's source input.
-_Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source).
+`WEB_IMPORT` for a link, `MANUAL` for an entry authored without an LLM (a forked or tuned built-in, a hand-built
+Composite Strategy). Immutable, so editing a generated strategy never rewrites where it came from, and descriptive
+only: it is entry metadata, never part of `params` and never part of the Strategy Version. The entry's **source
+input**, the original prompt text or URL, is present exactly when Provenance is `USER_PROMPT` or `WEB_IMPORT`, and
+absent for `MANUAL` (see ADR-0022).
+_Avoid_: Source (ambiguous with a News Provider's source and with a Market Data source), Record Kind (a different
+property; see below).
+
+**Record Kind**:
+Why a Strategy definition record exists at all: `LIBRARY_ENTRY` for one a User curated, `BACKTEST_TARGET` for one
+minted only so an ad-hoc backtest has a Strategy Version to reference. Only `LIBRARY_ENTRY` records appear in the
+Strategy Library, so this never reaches a client payload.
+_Avoid_: Provenance (that is where an entry's *parameters* came from; Record Kind is why the *record* exists),
+Origin (rejected: too close to Provenance to be told apart in reading), and the entry's own singular-or-composite
+kind, which is a different distinction on a record whose Record Kind is always `LIBRARY_ENTRY`.
 
 **Strategy Editor**:
 The UI surface for viewing and changing a Strategy's parameters, whether or not they are saved yet. Reached by
 drilling into a Strategy Library entry, and also by editing a just-generated, unsaved `params` value in the
 generation flow (see ADR-0015): both consume the same registered editor for a Strategy's id, so there is exactly
 one editor per grammar regardless of when in its lifecycle a `params` value is being edited. A schema-driven form
-rendered from `paramsSchema` is the default; a Strategy may register a custom editor for its id, which is how
-RuleStrategy's grammar gets an editor without making `paramsSchema` recursive (see ADR-0013). Built-in Strategies
-are read-only in place but can be forked into a User's own entry.
+rendered from `paramsSchema` is the default; a Strategy may register a custom editor for its id in the
+**StrategyEditorRegistry**, which is how RuleStrategy's grammar gets an editor without making `paramsSchema`
+recursive (see ADR-0013). Built-in Strategies are read-only in place but can be forked into a User's own entry.
+Before an entry exists, the editor sits beside a **raw parameter layer**, a text view of the same unsaved `params`
+value that the editor writes structurally; a saved entry's parameters are edited only through the editor, and its
+raw view is display-and-copy (see ADR-0023).
 
 **Applicability**:
 A RuleStrategy's declared `timeframe` and permitted Pairs. Enforced server-side before execution, by the
@@ -91,7 +105,10 @@ strict majority of all member actions; otherwise it emits HOLD. Weighted mode ma
 scales by member strength and weight, and emits BUY above the threshold, SELL below its negative, and HOLD otherwise.
 Changing a member Strategy Version, mode, weight, or threshold produces a different Composite Strategy; member order
 alone does not. Its display name includes the member types and parameter summaries (for example,
-`MA[fast=20,slow=50] + RSI[period=14] · weighted`), while its machine identity is the canonical definition.
+`MA[fast=20,slow=50] + RSI[period=14] · weighted`), while its machine identity is the canonical definition. When
+saved as a Strategy Library entry it stores its members as copied parameter snapshots rather than references, so
+"member versions" means the version identity computed from those copies, not a foreign key to a stored Strategy
+Version (see ADR-0022).
 _Avoid_: Combination (reserve for the Combination Engine, the component that builds Composite Strategies).
 
 **Combination Engine**:
@@ -138,18 +155,22 @@ _Avoid_: Library Version (the human-authored label; see below).
 
 **Strategy Library**:
 A User's browsable collection of their own authored Strategy entries, shown alongside the read-only built-in
-Strategies. An **entry** names one Strategy id and carries a name, description, tags, and a Provenance, none of
-which are part of `params`; it holds one or more Strategy Versions, one per parameter snapshot. Tuning a
-built-in's parameters produces an entry just as authoring a RuleStrategy does, and editing an entry appends a
-Strategy Version rather than replacing one. Provenance and the source input live on the entry, never on a
-version, which is what makes it structurally impossible for a later edit to rewrite where an entry's parameters
-came from (see ADR-0014).
+Strategies. An **entry** is either *singular*, naming one Strategy id, or *composite*, naming a Composite
+Strategy; either way it carries a name, description, tags, and a Provenance, none of which are part of `params`,
+and it holds one or more Strategy Versions, one per parameter snapshot. Tuning a built-in's parameters produces an
+entry just as authoring a RuleStrategy does, and editing an entry appends a Strategy Version rather than replacing
+one. Provenance and the source input live on the entry, never on a version, which is what makes it structurally
+impossible for a later edit to rewrite where an entry's parameters came from (see ADR-0014). Built-in Strategies
+appear in the Library as read-only rows with no entry record behind them, so they carry no name, tags, Provenance,
+or Library Version until forked. An entry may be **archived**, which hides it from the default listing; it is
+never deleted, because Experiments reference its Strategy Versions (see ADR-0022).
 
 **Library Version**:
 The human-authored semantic-version label on one Strategy Version inside a Strategy Library entry (for example
 `1.0.0`). It labels the parameter snapshot rather than the entry, so one entry's successive versions read
-`1.0.0`, `1.1.0`, and so on. Purely descriptive: editing parameters always mints a new Strategy Version whether
-or not anyone bumps the Library Version, and Experiments reference the Strategy Version, never this.
+`1.0.0`, `1.1.0`, and so on. Authored by the person editing, and unique within its entry, so a label always names
+one parameter set. Purely descriptive: editing parameters always mints a new Strategy Version whether or not
+anyone bumps the Library Version, and Experiments reference the Strategy Version, never this.
 
 **Authored Parameters**:
 A `params` value as a person or the generation pipeline wrote it, with optional fields left out. **Resolved

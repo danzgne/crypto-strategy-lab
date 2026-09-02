@@ -15,6 +15,7 @@ import type { MarketTickService } from '@/api/features/marketData/application/se
 import { registerMarketTickGateway } from '@/api/features/marketData/realtime/marketTickGateway';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 import type { StrategyLiveService } from '@/api/features/strategies/services/strategyLiveService';
+import type { StrategyLibraryService } from '@/api/features/strategies/services/strategyLibraryService';
 import { registerStrategyGateway } from '@/api/features/strategies/realtime/strategyGateway';
 import {
   registerLeaderboardGateway,
@@ -31,6 +32,7 @@ interface SocketServerOptions {
   marketDataSource?: string;
   marketTickService?: MarketTickService;
   strategyLiveService?: StrategyLiveService;
+  strategyLibraryService?: StrategyLibraryService;
   leaderboardEventBus?: LeaderboardRealtimeEventBus;
   onDiscoveryGatewayRegistered?: (
     emitter: (progress: DiscoveryProgressPayload) => void,
@@ -47,6 +49,7 @@ export function createSocketServer(
     marketDataSource,
     marketTickService,
     strategyLiveService,
+    strategyLibraryService,
     leaderboardEventBus,
     onDiscoveryGatewayRegistered,
   }: SocketServerOptions,
@@ -111,6 +114,7 @@ export function createSocketServer(
     socketServer,
     logger ?? createAppLogger({ service: 'backend-test', enabled: false }),
     strategyLiveService,
+    strategyLibraryService,
   );
   if (leaderboardEventBus !== undefined) {
     registerLeaderboardGateway(

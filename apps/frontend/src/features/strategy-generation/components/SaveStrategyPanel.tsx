@@ -56,7 +56,7 @@ export function SaveStrategyPanel({
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <h3 className="text-sm font-bold text-slate-900">
-        Lưu vào Strategy Library
+        Save to Strategy Library
       </h3>
 
       <fieldset
@@ -101,7 +101,7 @@ export function SaveStrategyPanel({
                 <button
                   type="button"
                   onClick={() => removeTag(tag)}
-                  aria-label={`Xóa tag ${tag}`}
+                  aria-label={`Remove tag ${tag}`}
                 >
                   <X className="size-3" />
                 </button>
@@ -118,7 +118,7 @@ export function SaveStrategyPanel({
                 }
               }}
               onBlur={addTag}
-              placeholder="Thêm tag..."
+              placeholder="Add a tag…"
               className="min-w-20 flex-1 border-none px-1 py-0.5 text-xs text-slate-700 focus:outline-none"
             />
           </div>
@@ -129,7 +129,7 @@ export function SaveStrategyPanel({
             {source ?? '—'}
           </span>
           <p className="mt-1 text-[10px] text-slate-400">
-            Tự động xác định theo nguồn nhập, không thể chỉnh sửa.
+            Set automatically from the input source; not editable.
           </p>
         </Field>
       </fieldset>
@@ -142,7 +142,7 @@ export function SaveStrategyPanel({
 
       {!disabled && !paramsAreValid && (
         <p className="mt-3 text-xs text-amber-600">
-          Sửa lỗi trong định nghĩa JSON trước khi lưu.
+          Fix the errors in the JSON definition before saving.
         </p>
       )}
 
@@ -159,7 +159,7 @@ export function SaveStrategyPanel({
         ) : (
           <Save className="size-4" />
         )}
-        Lưu Strategy
+        Save Strategy
       </button>
     </div>
   );

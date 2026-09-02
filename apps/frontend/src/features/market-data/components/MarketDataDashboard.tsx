@@ -1,32 +1,19 @@
 'use client';
 
 import { RadioTower } from 'lucide-react';
-import type {
-  CompositeStrategyRequest,
-  SavedStrategy,
-} from '@crypto-strategy-lab/shared';
-import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
+import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import type { FinancialChartRenderer } from '../../../shared/charting';
 import { SUPPORTED_PAIR_OPTIONS } from '../constants';
-import { useSavedStrategies } from '../../strategies';
-import { useStrategyCatalog } from '../hooks/useStrategyCatalog';
+import { runnableEntries, useStrategyLibrary } from '../../strategies';
 import { useRecentTicks } from '../hooks/useRecentTicks';
 import { MarketPanel, type ChartTimeframe } from './MarketPanel';
 import { RecentTicksCard } from './RecentTicksCard';
 import { RealtimeConnectionPanel } from './RealtimeConnectionPanel';
 
 const INITIAL_PANEL_TIMEFRAMES: ChartTimeframe[] = ['1m', '5m', '15m', '1h'];
-
-interface StrategyOverlayOption {
-  value: string;
-  label: string;
-  strategyId: string;
-  params?: unknown;
-  composite?: CompositeStrategyRequest;
-}
 
 export interface MarketDataDashboardProperties {
   chartRenderer?: FinancialChartRenderer;
@@ -40,35 +27,43 @@ export function MarketDataDashboard({
     INITIAL_PANEL_TIMEFRAMES,
   );
   const [overlayKey, setOverlayKey] = useState('');
-  const strategyCatalog = useStrategyCatalog();
-  const savedStrategies = useSavedStrategies();
-  const recentTicks = useRecentTicks({ pair, limit: 5 });
-  const runnableStrategyIds = useMemo(
-    () =>
-      strategyCatalog.strategies
-        .filter((entry) => {
-          const requiresParams =
-            entry.requiresParams ??
-            (entry.paramsSchema.required?.length ?? 0) > 0;
-          return !requiresParams;
-        })
-        .map(({ id }) => id),
-    [strategyCatalog.strategies],
+  const [processedVersionId, setProcessedVersionId] = useState<string | null>(
+    null,
   );
+  const library = useStrategyLibrary();
+  const recentTicks = useRecentTicks({ pair, limit: 5 });
+  const searchParameters = useSearchParams();
+  const requestedVersionId = searchParameters.get('strategyVersionId');
+
   const strategyOverlayOptions = useMemo(
-    () => [
-      ...runnableStrategyIds.map<StrategyOverlayOption>((strategyId) => ({
-        label: formatStrategyType(strategyId),
-        strategyId,
-        value: `builtin:${strategyId}`,
-      })),
-      ...savedStrategies.strategies.map(toOverlayOption),
-    ],
-    [runnableStrategyIds, savedStrategies.strategies],
+    () => runnableEntries(library.builtins, library.entries),
+    [library.builtins, library.entries],
   );
   const selectedOverlay = strategyOverlayOptions.find(
     ({ value }) => value === overlayKey,
   );
+
+  if (
+    requestedVersionId !== null &&
+    requestedVersionId !== processedVersionId
+  ) {
+    const option = strategyOverlayOptions.find(
+      (candidate) => candidate.strategyVersionId === requestedVersionId,
+    );
+    if (option !== undefined) {
+      setProcessedVersionId(requestedVersionId);
+      setOverlayKey(option.value);
+
+      const declaredTimeframe = declaredRuleTimeframe(option.params);
+      if (declaredTimeframe !== undefined) {
+        setPanelTimeframes((current) =>
+          current.includes(declaredTimeframe as ChartTimeframe)
+            ? current
+            : [declaredTimeframe as ChartTimeframe, ...current.slice(1)],
+        );
+      }
+    }
+  }
 
   const changeTimeframe = (
     panelIndex: number,
@@ -177,10 +172,18 @@ export function MarketDataDashboard({
                 }
                 panelNumber={index + 1}
                 pair={pair}
-                composite={selectedOverlay?.composite ?? null}
-                {...(selectedOverlay?.params === undefined
+                composite={
+                  selectedOverlay?.strategyVersionId === undefined
+                    ? (selectedOverlay?.composite ?? null)
+                    : null
+                }
+                {...(selectedOverlay?.strategyVersionId === undefined &&
+                selectedOverlay?.params !== undefined
+                  ? { params: selectedOverlay.params }
+                  : {})}
+                {...(selectedOverlay?.strategyVersionId === undefined
                   ? {}
-                  : { params: selectedOverlay.params })}
+                  : { strategyVersionId: selectedOverlay.strategyVersionId })}
                 strategyId={selectedOverlay?.strategyId ?? null}
                 timeframe={timeframe}
               />
@@ -212,20 +215,8 @@ export function MarketDataDashboard({
   );
 }
 
-function toOverlayOption(strategy: SavedStrategy): StrategyOverlayOption {
-  if (strategy.kind === 'composite') {
-    return {
-      composite: strategy.composite,
-      label: `Saved · ${strategy.name}`,
-      strategyId: 'composite',
-      value: `saved:${strategy.id}`,
-    };
-  }
-
-  return {
-    label: `Saved · ${strategy.name}`,
-    params: strategy.params,
-    strategyId: strategy.strategyId,
-    value: `saved:${strategy.id}`,
-  };
+function declaredRuleTimeframe(params: unknown): string | undefined {
+  if (typeof params !== 'object' || params === null) return undefined;
+  const timeframe = (params as { timeframe?: unknown }).timeframe;
+  return typeof timeframe === 'string' ? timeframe : undefined;
 }

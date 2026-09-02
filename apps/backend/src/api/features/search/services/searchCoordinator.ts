@@ -662,9 +662,9 @@ export class SearchCoordinator {
 
     const definition = await transaction.strategyDefinition.create({
       data: {
-        isPrivate: true,
         name: `${strategyId} search candidate`,
         ownerId,
+        recordKind: 'SEARCH_CANDIDATE',
         source: 'USER_PROMPT',
         sourceInput: `Generated search candidate (${candidate.provenance.algorithm})`,
         tags: ['search-generated'],

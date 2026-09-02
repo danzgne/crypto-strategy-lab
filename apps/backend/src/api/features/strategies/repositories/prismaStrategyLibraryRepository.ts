@@ -1,23 +1,20 @@
-import type {
-  CompositeStrategyRequest,
-  RuleStrategyParams,
-  SavedStrategy,
-  SavedStrategyParams,
-} from '@crypto-strategy-lab/shared';
-import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
-import {
-  canonicalStrategyVersionId,
-  canonicalizeValue,
-} from '@crypto-strategy-lab/shared/strategy';
+import { isStrategyProvenance } from '@crypto-strategy-lab/shared';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 import type { AppPrismaClient } from '@/database/prismaClient';
 
 import type {
-  CreateStrategyLibraryEntryInput,
-  PersistedStrategyRequest,
-  StrategyLibraryEntry,
+  AddLibraryVersionInput,
+  AddLibraryVersionResult,
+  CreateLibraryEntryInput,
+  LibraryEntryDetailRow,
+  LibraryEntryRow,
+  LibraryVersionForOwner,
+  LibraryVersionRow,
+  ListLibraryEntriesOptions,
+  ListLibraryEntriesResult,
   StrategyLibraryRepository,
+  UpdateLibraryEntryMetadataInput,
 } from './interfaces/strategyLibraryRepository.interface';
 
 interface StrategyDefinitionRow {
@@ -27,8 +24,9 @@ interface StrategyDefinitionRow {
   description: string | null;
   type: string;
   source: string;
-  sourceInput: string;
+  sourceInput: string | null;
   tags: string[];
+  archivedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
   versions: Array<{
@@ -43,9 +41,9 @@ interface StrategyDefinitionRow {
 export class PrismaStrategyLibraryRepository implements StrategyLibraryRepository {
   public constructor(private readonly prisma: AppPrismaClient) {}
 
-  public async createWithFirstVersion(
-    input: CreateStrategyLibraryEntryInput,
-  ): Promise<StrategyLibraryEntry> {
+  public async create(
+    input: CreateLibraryEntryInput,
+  ): Promise<LibraryEntryDetailRow> {
     const created = await this.prisma.strategyDefinition.create({
       data: {
         ownerId: input.ownerId,
@@ -53,112 +51,157 @@ export class PrismaStrategyLibraryRepository implements StrategyLibraryRepositor
         description: input.description ?? null,
         type: input.type,
         source: input.source,
-        sourceInput: input.sourceInput,
+        sourceInput: input.sourceInput ?? null,
         tags: [...input.tags],
+        recordKind: 'LIBRARY_ENTRY',
         versions: {
           create: {
             ownerId: input.ownerId,
-            params: input.params as object,
+            params: toInputJson(input.params),
             versionTag: input.versionTag,
             libraryVersion: input.libraryVersion,
+            canonicalIdentity: input.canonicalIdentity,
           },
         },
       },
-      include: { versions: true },
+      include: { versions: { orderBy: { createdAt: 'asc' } } },
     });
 
-    return mapEntry(created);
+    return mapDetail(created);
   }
 
-  public async listRecentByOwner(
+  public async listEntries(
     ownerId: string,
-    limit: number,
-  ): Promise<StrategyLibraryEntry[]> {
-    const rows = await this.prisma.strategyDefinition.findMany({
-      where: { ownerId },
-      orderBy: { createdAt: 'desc' },
-      take: limit,
-      include: {
-        versions: { orderBy: { createdAt: 'desc' }, take: 1 },
-      },
-    });
-
-    return rows.filter(hasVersion).map(mapEntry);
-  }
-
-  public async listByOwner(ownerId: string): Promise<SavedStrategy[]> {
-    const versions = await this.prisma.strategyVersion.findMany({
-      include: { strategyDefinition: true },
-      orderBy: { createdAt: 'desc' },
-      where: { ownerId, strategyDefinition: { isPrivate: false } },
-    });
-
-    return versions.map((version) =>
-      toSavedStrategy({
-        createdAt: version.createdAt,
-        definition: version.strategyDefinition,
-        params: version.params,
-        versionId: version.id,
+    options: ListLibraryEntriesOptions,
+  ): Promise<ListLibraryEntriesResult> {
+    const where = {
+      ownerId,
+      recordKind: 'LIBRARY_ENTRY' as const,
+      ...(options.includeArchived ? {} : { archivedAt: null }),
+    };
+    const [rows, total] = await Promise.all([
+      this.prisma.strategyDefinition.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: options.limit,
+        skip: options.offset,
+        include: {
+          versions: { orderBy: { createdAt: 'desc' }, take: 1 },
+        },
       }),
-    );
+      this.prisma.strategyDefinition.count({ where }),
+    ]);
+
+    return { entries: rows.filter(hasVersion).map(mapEntry), total };
   }
 
-  public async create(
+  public async getEntry(
     ownerId: string,
-    request: PersistedStrategyRequest,
-  ): Promise<SavedStrategy> {
-    const params = 'composite' in request ? request.composite : request.params;
-    const versionTag =
-      request.versionTag ??
-      computeStrategyVersionTag(request.strategyId, params);
-    const canonicalIdentity = canonicalIdentityForRequest(request);
-    const record = await this.prisma.$transaction(async (transaction) => {
-      const existing = await transaction.strategyVersion.findUnique({
-        include: { strategyDefinition: true },
+    entryId: string,
+  ): Promise<LibraryEntryDetailRow | null> {
+    const row = await this.prisma.strategyDefinition.findFirst({
+      where: { id: entryId, ownerId, recordKind: 'LIBRARY_ENTRY' },
+      include: { versions: { orderBy: { createdAt: 'asc' } } },
+    });
+    if (row === null || !hasVersion(row)) return null;
+    return mapDetail(row);
+  }
+
+  public async addVersion(
+    ownerId: string,
+    entryId: string,
+    input: AddLibraryVersionInput,
+  ): Promise<AddLibraryVersionResult | null> {
+    return this.prisma.$transaction(async (transaction) => {
+      const definition = await transaction.strategyDefinition.findFirst({
+        where: { id: entryId, ownerId, recordKind: 'LIBRARY_ENTRY' },
+      });
+      if (definition === null) return null;
+
+      const duplicateLabel = await transaction.strategyVersion.findFirst({
         where: {
-          ownerId_canonicalIdentity: { canonicalIdentity, ownerId },
+          strategyDefinitionId: entryId,
+          libraryVersion: input.libraryVersion,
         },
       });
-      const version =
-        existing?.strategyDefinition.isPrivate === false
-          ? existing
-          : await (async () => {
-              const definition = await transaction.strategyDefinition.create({
-                data: {
-                  description: request.description ?? null,
-                  isPrivate: false,
-                  name: request.name,
-                  ownerId,
-                  source: request.source ?? 'USER_PROMPT',
-                  sourceInput: request.sourceInput ?? request.name,
-                  tags: [...(request.tags ?? [])],
-                  type: request.strategyId,
-                },
-              });
-              return transaction.strategyVersion.create({
-                data: {
-                  canonicalIdentity,
-                  libraryVersion: request.libraryVersion ?? '1.0.0',
-                  ownerId,
-                  params: toInputJson(params),
-                  strategyDefinitionId: definition.id,
-                  versionTag,
-                },
-              });
-            })();
-      const definition = await transaction.strategyDefinition.findUniqueOrThrow(
-        { where: { id: version.strategyDefinitionId } },
-      );
+      if (duplicateLabel !== null) {
+        return { outcome: 'DUPLICATE_LIBRARY_VERSION' };
+      }
 
-      return {
-        createdAt: version.createdAt,
-        definition,
-        params: version.params,
-        versionId: version.id,
-      };
+      // canonicalIdentity is left null here: a Library Version the owner explicitly
+      // named is always a new, permanent history entry, never a stand-in for an
+      // earlier one with matching params. (BACKTEST_TARGET/SEARCH_CANDIDATE rows,
+      // which do dedupe on identity, live under their own StrategyDefinition and are
+      // unaffected.)
+      await transaction.strategyVersion.create({
+        data: {
+          ownerId,
+          strategyDefinitionId: entryId,
+          params: toInputJson(input.params),
+          versionTag: input.versionTag,
+          libraryVersion: input.libraryVersion,
+        },
+      });
+
+      const reloaded = await transaction.strategyDefinition.findUniqueOrThrow({
+        where: { id: entryId },
+        include: { versions: { orderBy: { createdAt: 'asc' } } },
+      });
+      return { outcome: 'CREATED', entry: mapDetail(reloaded) };
     });
+  }
 
-    return toSavedStrategy(record);
+  public async updateMetadata(
+    ownerId: string,
+    entryId: string,
+    input: UpdateLibraryEntryMetadataInput,
+  ): Promise<LibraryEntryDetailRow | null> {
+    const updated = await this.prisma.strategyDefinition.updateMany({
+      where: { id: entryId, ownerId, recordKind: 'LIBRARY_ENTRY' },
+      data: {
+        ...(input.name === undefined ? {} : { name: input.name }),
+        ...(input.description === undefined
+          ? {}
+          : { description: input.description }),
+        ...(input.tags === undefined ? {} : { tags: [...input.tags] }),
+      },
+    });
+    if (updated.count === 0) return null;
+    return this.getEntry(ownerId, entryId);
+  }
+
+  public async setArchived(
+    ownerId: string,
+    entryId: string,
+    archived: boolean,
+  ): Promise<LibraryEntryDetailRow | null> {
+    const updated = await this.prisma.strategyDefinition.updateMany({
+      where: { id: entryId, ownerId, recordKind: 'LIBRARY_ENTRY' },
+      data: { archivedAt: archived ? new Date() : null },
+    });
+    if (updated.count === 0) return null;
+    return this.getEntry(ownerId, entryId);
+  }
+
+  public async findVersionForOwner(
+    ownerId: string,
+    versionId: string,
+  ): Promise<LibraryVersionForOwner | null> {
+    const version = await this.prisma.strategyVersion.findFirst({
+      where: {
+        id: versionId,
+        ownerId,
+        strategyDefinition: { recordKind: 'LIBRARY_ENTRY' },
+      },
+      include: { strategyDefinition: true },
+    });
+    if (version === null) return null;
+    return {
+      id: version.id,
+      entryId: version.strategyDefinitionId,
+      strategyId: version.strategyDefinition.type,
+      params: version.params,
+    };
   }
 }
 
@@ -166,105 +209,63 @@ function hasVersion(row: StrategyDefinitionRow): boolean {
   return row.versions.length > 0;
 }
 
-function mapEntry(row: StrategyDefinitionRow): StrategyLibraryEntry {
+function mapVersion(version: {
+  id: string;
+  params: unknown;
+  versionTag: string;
+  libraryVersion: string;
+  createdAt: Date;
+}): LibraryVersionRow {
+  return {
+    id: version.id,
+    params: version.params,
+    versionTag: version.versionTag,
+    libraryVersion: version.libraryVersion,
+    createdAt: version.createdAt,
+  };
+}
+
+function mapEntry(row: StrategyDefinitionRow): LibraryEntryRow {
   const latest = row.versions[0];
   if (latest === undefined) {
     throw new Error(
       `Strategy definition ${row.id} has no versions; this should be unreachable`,
     );
   }
-
   return {
     id: row.id,
     ownerId: row.ownerId,
     name: row.name,
     description: row.description,
     type: row.type,
-    source: row.source,
+    source: assertProvenance(row.source),
     sourceInput: row.sourceInput,
     tags: row.tags,
+    archivedAt: row.archivedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-    latestVersion: {
-      id: latest.id,
-      params: latest.params as RuleStrategyParams,
-      versionTag: latest.versionTag,
-      libraryVersion: latest.libraryVersion,
-      createdAt: latest.createdAt,
-    },
+    latestVersion: mapVersion(latest),
   };
 }
 
-function canonicalIdentityForRequest(
-  request: PersistedStrategyRequest,
-): string {
-  if (!('composite' in request)) {
-    return canonicalStrategyVersionId(request.strategyId, request.params);
+function mapDetail(row: StrategyDefinitionRow): LibraryEntryDetailRow {
+  const versions = row.versions.map(mapVersion);
+  const latestVersion = versions.at(-1);
+  if (latestVersion === undefined) {
+    throw new Error(
+      `Strategy definition ${row.id} has no versions; this should be unreachable`,
+    );
   }
+  return { ...mapEntry(row), versions, latestVersion };
+}
 
-  const members = request.composite.members
-    .map((member) => ({
-      versionId: canonicalStrategyVersionId(
-        member.strategyId,
-        member.params ?? {},
-      ),
-      weight: member.weight ?? 1,
-    }))
-    .sort((left, right) => left.versionId.localeCompare(right.versionId));
-  return canonicalizeValue({
-    members,
-    mode: request.composite.mode,
-    stopLoss: request.composite.stopLoss,
-    takeProfit: request.composite.takeProfit,
-    threshold: request.composite.threshold ?? 0.3,
-  });
+function assertProvenance(source: string) {
+  if (!isStrategyProvenance(source)) {
+    throw new Error(`Strategy library entry has an unknown source "${source}"`);
+  }
+  return source;
 }
 
 function toInputJson(value: unknown): Prisma.InputJsonValue {
   return value as Prisma.InputJsonValue;
-}
-
-function toSavedStrategy({
-  createdAt,
-  definition,
-  params,
-  versionId,
-}: {
-  createdAt: Date;
-  definition: {
-    id: string;
-    name: string;
-    description: string | null;
-    type: string;
-  };
-  params: unknown;
-  versionId: string;
-}): SavedStrategy {
-  const base = {
-    createdAt: createdAt.toISOString(),
-    description: definition.description,
-    id: definition.id,
-    name: definition.name,
-    versionId,
-  };
-
-  if (definition.type === 'composite') {
-    return {
-      ...base,
-      composite: params as CompositeStrategyRequest,
-      kind: 'composite',
-      strategyId: 'composite',
-    };
-  }
-
-  return {
-    ...base,
-    kind: 'singular',
-    params: isRecord(params) ? params : {},
-    strategyId: definition.type,
-  } satisfies SavedStrategy;
-}
-
-function isRecord(value: unknown): value is SavedStrategyParams {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

@@ -27,7 +27,9 @@ export function PromptInputPanel({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 className="text-sm font-bold text-slate-900">Nhập mô tả strategy</h3>
+      <h3 className="text-sm font-bold text-slate-900">
+        Describe your strategy
+      </h3>
       <textarea
         value={promptText}
         onChange={(event) =>
@@ -36,7 +38,7 @@ export function PromptInputPanel({
         maxLength={MAX_PROMPT_LENGTH}
         rows={7}
         disabled={isAnalyzing}
-        placeholder="Khi RSI dưới 30 và giá nằm dưới Bollinger Lower Band thì LONG. Stop loss 2%, take profit 4%."
+        placeholder="Long when RSI is below 30 and price is below the Bollinger Lower Band. Stop loss 2%, take profit 4%."
         className="mt-3 w-full resize-none rounded-xl border border-slate-200 p-3 text-sm text-slate-700 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 focus:outline-none disabled:bg-slate-50"
       />
       <div className="mt-1 text-right text-xs text-slate-400">
@@ -60,7 +62,7 @@ export function PromptInputPanel({
           ) : (
             <Sparkles className="size-4" />
           )}
-          {armed ? 'Nhấn lại để xác nhận' : 'Phân tích bằng LLM'}
+          {armed ? 'Click again to confirm' : 'Analyze with LLM'}
         </button>
         <button
           type="button"
@@ -69,7 +71,7 @@ export function PromptInputPanel({
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <Trash2 className="size-4" />
-          Xóa
+          Clear
         </button>
       </div>
     </div>

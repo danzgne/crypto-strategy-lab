@@ -27,6 +27,7 @@ interface MarketPanelProperties {
   panelNumber: number;
   onTimeframeChange: (timeframe: ChartTimeframe) => void;
   strategyId: string | null;
+  strategyVersionId?: string;
   strategyParams?: unknown;
   params?: unknown;
   composite?: CompositeStrategyRequest | null;
@@ -40,6 +41,7 @@ export function MarketPanel({
   onTimeframeChange,
   params,
   strategyId,
+  strategyVersionId,
   strategyParams,
   composite = null,
 }: MarketPanelProperties) {
@@ -54,11 +56,15 @@ export function MarketPanel({
   const strategy = useStrategySignal({
     chartId,
     ...(composite === null ? {} : { composite }),
-    enabled: composite !== null || strategyId !== null,
+    ...(strategyVersionId === undefined ? {} : { strategyVersionId }),
+    enabled:
+      composite !== null ||
+      strategyId !== null ||
+      strategyVersionId !== undefined,
     limit: MAX_CANDLE_LIMIT,
     pair,
     ...(effectiveParams === undefined ? {} : { params: effectiveParams }),
-    strategyId: composite === null ? (strategyId ?? '') : 'composite',
+    strategyId: composite === null ? strategyId : 'composite',
     timeframe,
   });
   const phase = PHASE_COPY[market.phase];

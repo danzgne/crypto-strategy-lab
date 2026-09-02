@@ -75,17 +75,30 @@ model Session {
   @@map("sessions")
 }
 
+enum Provenance {
+  USER_PROMPT
+  WEB_IMPORT
+  MANUAL
+}
+
+enum RecordKind {
+  LIBRARY_ENTRY
+  BACKTEST_TARGET
+  SEARCH_CANDIDATE
+}
+
 model StrategyDefinition {
-  id          String   @id @default(uuid()) @db.Uuid
-  ownerId     String   @db.Uuid
-  owner       User     @relation(fields: [ownerId], references: [id])
+  id          String     @id @default(uuid()) @db.Uuid
+  ownerId     String     @db.Uuid
+  owner       User       @relation(fields: [ownerId], references: [id])
   name        String
   description String?
   type        String
-  source      String
-  sourceInput String   @db.Text
-  tags        String[] @default([])
-  isPrivate   Boolean  @default(false)
+  source      Provenance
+  sourceInput String?    @db.Text
+  tags        String[]   @default([])
+  recordKind  RecordKind @default(LIBRARY_ENTRY)
+  archivedAt  DateTime?  @db.Timestamptz(3)
 
   versions  StrategyVersion[]
   createdAt DateTime          @default(now()) @db.Timestamptz(3)
@@ -109,7 +122,7 @@ model StrategyVersion {
   createdAt   DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime     @updatedAt @db.Timestamptz(3)
 
-  @@unique([ownerId, canonicalIdentity])
+  @@unique([ownerId, strategyDefinitionId, canonicalIdentity])
   @@map("strategy_versions")
 }
 
