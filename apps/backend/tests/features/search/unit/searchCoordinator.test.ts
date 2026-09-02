@@ -3,7 +3,6 @@ import type {
   CandidateStrategy,
   DomainEventEnvelope,
   DomainEventName,
-  SearchSpace,
   StrategyGenerator,
 } from '@crypto-strategy-lab/shared';
 import { createDomainEvent } from '@crypto-strategy-lab/shared';
@@ -14,6 +13,8 @@ import type {
   SearchEventBus,
 } from '@/api/features/search/services/searchCoordinator';
 import { SearchCoordinator } from '@/api/features/search/services/searchCoordinator';
+
+import { defaultSearchSpace } from '../../../helpers/searchFixtures';
 
 class FakeEventBus implements SearchEventBus {
   private handlers = new Map<
@@ -136,15 +137,6 @@ describe('SearchCoordinator', () => {
   let searchRunsDb: Map<string, Record<string, unknown>>;
   let experimentsDb: Map<string, Record<string, unknown>>;
 
-  const defaultSearchSpace: SearchSpace = {
-    enabledStrategies: [{ id: 'ma' }],
-    endTime: 1700000000000,
-    pair: 'BTCUSDT',
-    permittedCombinationModes: ['majority'],
-    startTime: 1690000000000,
-    timeframe: '1h',
-  };
-
   beforeEach(() => {
     fakeEventBus = new FakeEventBus();
     enqueuedJobs = [];
@@ -247,7 +239,7 @@ describe('SearchCoordinator', () => {
     // Give generation loop time to complete
     await new Promise((r) => setTimeout(r, 50));
 
-    const state = coordinator.getRunState(runId);
+    const state = coordinator.getRun(runId);
     expect(state?.acceptedCandidates).toBe(5);
     expect(state?.status).toBe('STOPPING');
     expect(state?.stopReason).toBe('CANDIDATE_CAP');
@@ -285,7 +277,7 @@ describe('SearchCoordinator', () => {
 
     await new Promise((r) => setTimeout(r, 50));
 
-    const state = coordinator.getRunState(runId);
+    const state = coordinator.getRun(runId);
     expect(state?.acceptedCandidates).toBe(3);
     expect(state?.consecutiveFailures).toBe(0);
     expect(enqueuedJobs.length).toBe(3);
@@ -337,7 +329,7 @@ describe('SearchCoordinator', () => {
       winRate: '0.6',
     });
 
-    let state = coordinator.getRunState(runId);
+    let state = coordinator.getRun(runId);
     expect(state?.bestScore).toBe(1.5);
     expect(state?.consecutiveNoImprovement).toBe(0);
 
@@ -361,7 +353,7 @@ describe('SearchCoordinator', () => {
       winRate: '0.5',
     });
 
-    state = coordinator.getRunState(runId);
+    state = coordinator.getRun(runId);
     expect(state?.consecutiveNoImprovement).toBe(1);
 
     // Third evaluation with worse score -> no improvement = 2 >= maxNoImprovement -> STOPPING
@@ -384,7 +376,7 @@ describe('SearchCoordinator', () => {
       winRate: '0.4',
     });
 
-    state = coordinator.getRunState(runId);
+    state = coordinator.getRun(runId);
     expect(state?.status).toBe('STOPPING');
     expect(state?.stopReason).toBe('NO_IMPROVEMENT');
   });
@@ -435,7 +427,7 @@ describe('SearchCoordinator', () => {
       winRate: '0.5',
     });
 
-    let state = coordinator.getRunState(runId);
+    let state = coordinator.getRun(runId);
     expect(state?.inFlightJobs).toBe(1);
     expect(state?.status).toBe('STOPPING');
 
@@ -459,7 +451,7 @@ describe('SearchCoordinator', () => {
       winRate: '0.6',
     });
 
-    state = coordinator.getRunState(runId);
+    state = coordinator.getRun(runId);
     expect(state?.inFlightJobs).toBe(0);
     expect(state?.status).toBe('COMPLETED');
     expect(state?.stopReason).toBe('CANDIDATE_CAP');
@@ -490,7 +482,7 @@ describe('SearchCoordinator', () => {
 
     await new Promise((r) => setTimeout(r, 60));
 
-    const state = coordinator.getRunState(runId);
+    const state = coordinator.getRun(runId);
     expect(state?.status).toBe('STOPPING');
     expect(state?.stopReason).toBe('TIME_BUDGET');
   });
@@ -528,14 +520,14 @@ describe('SearchCoordinator', () => {
     await coordinator.handleBacktestCompleted(
       enqueuedJobs[0]?.experimentId ?? '',
     );
-    let state = coordinator.getRunState(runId);
+    let state = coordinator.getRun(runId);
     expect(state?.consecutiveFailures).toBe(1);
 
     // Second backtest completes with failure -> triggers stop and drains to FAILED
     await coordinator.handleBacktestCompleted(
       enqueuedJobs[1]?.experimentId ?? '',
     );
-    state = coordinator.getRunState(runId);
+    state = coordinator.getRun(runId);
     expect(state?.consecutiveFailures).toBe(2);
     expect(state?.stopReason).toBe('CONSECUTIVE_FAILURES');
     expect(state?.status).toBe('FAILED');
@@ -579,7 +571,7 @@ describe('SearchCoordinator', () => {
 
     await new Promise((r) => setTimeout(r, 60));
 
-    const state = coordinator.getRunState(runId);
+    const state = coordinator.getRun(runId);
     // Should have discarded conflicting candidates without queuing jobs or recording failures
     expect(enqueuedJobs.length).toBe(0);
     expect(state?.consecutiveFailures).toBe(0);
@@ -610,12 +602,14 @@ describe('SearchCoordinator', () => {
     fakePrisma.experiment.findMany = vi.fn(async () => [
       {
         backtestJob: { status: 'COMPLETED' },
+        datasetSnapshotId: 'snapshot-existing',
         fingerprint: 'fp-1',
         id: 'exp-1',
         score: '1.2',
       },
       {
         backtestJob: { status: 'PENDING' },
+        datasetSnapshotId: 'snapshot-existing',
         fingerprint: 'fp-2',
         id: 'exp-2',
         score: null,
@@ -633,12 +627,13 @@ describe('SearchCoordinator', () => {
 
     await coordinator.start();
 
-    const state = coordinator.getRunState('run-existing');
+    const state = coordinator.getRun('run-existing');
     expect(state).toBeDefined();
     expect(state?.seenFingerprints.has('fp-1')).toBe(true);
     expect(state?.seenFingerprints.has('fp-2')).toBe(true);
     expect(state?.inFlightJobs).toBe(1);
     expect(state?.bestScore).toBe(1.2);
+    expect(state?.datasetSnapshotId).toBe('snapshot-existing');
   });
 
   it('prepares dataset snapshot via historyProvider and attaches datasetSnapshotId to candidate experiments', async () => {

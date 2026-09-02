@@ -21,11 +21,14 @@ import {
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import { StrategyRegistry } from '@crypto-strategy-lab/strategy-engine';
-import { Prisma } from '../../../../../../../generated/prisma/client';
-import type { AppPrismaClient } from '../../../../database/prismaClient';
+import {
+  Prisma,
+  type AppPrismaClient,
+} from '../../../../database/prismaClient';
 import type { BacktestHistoryProvider } from '../../backtests';
 import { fingerprintDataset } from '../../backtests';
 import type { DomainEventPublisher } from '../../marketData/application/interfaces/domainEventPublisher.interface';
+import type { AppLogger } from '../../../../utils/logger';
 import { RandomGenerator } from '../generators/randomGenerator';
 import { MathRandomSource } from '../generators/randomSource';
 
@@ -77,14 +80,7 @@ export interface SearchCoordinatorDependencies {
   historyProvider?: BacktestHistoryProvider | undefined;
   onProgress?: ((event: SearchCoordinatorProgressEvent) => void) | undefined;
   enqueueJob?: ((input: EnqueueJobInput) => Promise<string>) | undefined;
-  logger?:
-    | {
-        info(obj: Record<string, unknown>, msg?: string): void;
-        warn(obj: Record<string, unknown>, msg?: string): void;
-        error(obj: Record<string, unknown>, msg?: string): void;
-        debug(obj: Record<string, unknown>, msg?: string): void;
-      }
-    | undefined;
+  logger?: AppLogger | undefined;
 }
 
 interface ActiveRunState {
@@ -354,10 +350,6 @@ export class SearchCoordinator {
   }
 
   public getRun(searchRunId: string): ActiveRunState | undefined {
-    return this.activeRuns.get(searchRunId);
-  }
-
-  public getRunState(searchRunId: string): ActiveRunState | undefined {
     return this.activeRuns.get(searchRunId);
   }
 
@@ -906,6 +898,7 @@ export class SearchCoordinator {
       const experiments = await this.prisma.experiment.findMany({
         select: {
           backtestJob: { select: { status: true } },
+          datasetSnapshotId: true,
           fingerprint: true,
           id: true,
           score: true,
@@ -916,8 +909,12 @@ export class SearchCoordinator {
       const seenFingerprints = new Set<string>();
       const activeExperimentIds = new Set<string>();
       let inFlight = 0;
+      let restoredDatasetSnapshotId: string | null | undefined = undefined;
 
       for (const exp of experiments) {
+        if (exp.datasetSnapshotId && !restoredDatasetSnapshotId) {
+          restoredDatasetSnapshotId = exp.datasetSnapshotId;
+        }
         if (exp.fingerprint) {
           seenFingerprints.add(exp.fingerprint);
         }
@@ -943,6 +940,7 @@ export class SearchCoordinator {
         bestScore: record.bestScore ? Number(record.bestScore) : null,
         consecutiveFailures: record.consecutiveFailures,
         consecutiveNoImprovement: record.consecutiveNoImprovement,
+        datasetSnapshotId: restoredDatasetSnapshotId,
         drainResolvers: [],
         experimentCandidateMap: new Map(),
         generator,

@@ -5,7 +5,7 @@ import { SearchController } from '@/api/features/search/controllers/searchContro
 import { createSearchFeatureRouter } from '@/api/features/search/routes/v1/search.routes';
 import type { SearchScheduler } from '@/api/features/search/services/searchScheduler';
 import type { TradeRetentionService } from '@/api/features/search/services/tradeRetentionService';
-import type { SearchSpace } from '@crypto-strategy-lab/shared';
+import { defaultSearchSpace } from '../../../helpers/searchFixtures';
 
 describe('search routes integration', () => {
   let app: express.Express;
@@ -19,15 +19,6 @@ describe('search routes integration', () => {
   };
   let fakeTradeRetention: {
     setExperimentPinned: ReturnType<typeof vi.fn>;
-  };
-
-  const defaultSearchSpace: SearchSpace = {
-    enabledStrategies: [{ id: 'ma' }],
-    endTime: 1700000000000,
-    pair: 'BTCUSDT',
-    permittedCombinationModes: ['majority'],
-    startTime: 1690000000000,
-    timeframe: '1h',
   };
 
   beforeEach(() => {

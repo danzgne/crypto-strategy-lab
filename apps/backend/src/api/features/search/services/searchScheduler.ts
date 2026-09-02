@@ -12,10 +12,12 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { DEFAULT_STOP_POLICY } from '@crypto-strategy-lab/shared';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
+import type { AppLogger } from '../../../../utils/logger';
 import type {
   SearchCoordinator,
   SearchCoordinatorProgressEvent,
 } from './searchCoordinator';
+import type { TradeRetentionService } from './tradeRetentionService';
 
 export interface StartSessionOptions {
   userId: string;
@@ -33,20 +35,14 @@ export interface ReSeedHookInput {
 export interface SearchSchedulerDependencies {
   prisma: AppPrismaClient;
   coordinator: SearchCoordinator;
+  tradeRetentionService?: TradeRetentionService | undefined;
   perUserMaxInFlight?: number | undefined;
   interRunDelayMs?: number | undefined;
   onProgress?:
     ((progress: DiscoveryProgressPayload) => void | Promise<void>) | undefined;
   onRunComplete?:
     ((input: ReSeedHookInput) => void | Promise<void>) | undefined;
-  logger?:
-    | {
-        info(obj: Record<string, unknown>, msg?: string): void;
-        warn(obj: Record<string, unknown>, msg?: string): void;
-        error(obj: Record<string, unknown>, msg?: string): void;
-        debug(obj: Record<string, unknown>, msg?: string): void;
-      }
-    | undefined;
+  logger?: AppLogger | undefined;
 }
 
 interface ActiveUserSession {
@@ -70,13 +66,14 @@ interface ActiveUserSession {
 export class SearchScheduler {
   private readonly prisma: AppPrismaClient;
   private readonly coordinator: SearchCoordinator;
+  private readonly tradeRetentionService?: TradeRetentionService | undefined;
   private readonly perUserMaxInFlight: number;
   private readonly interRunDelayMs: number;
   private readonly onProgress?:
     ((progress: DiscoveryProgressPayload) => void | Promise<void>) | undefined;
   private readonly reSeedHook?:
     ((input: ReSeedHookInput) => void | Promise<void>) | undefined;
-  private readonly logger?: SearchSchedulerDependencies['logger'] | undefined;
+  private readonly logger?: AppLogger | undefined;
 
   private readonly activeSessions = new Map<string, ActiveUserSession>();
   private isRunning = false;
@@ -84,6 +81,7 @@ export class SearchScheduler {
   public constructor(deps: SearchSchedulerDependencies) {
     this.prisma = deps.prisma;
     this.coordinator = deps.coordinator;
+    this.tradeRetentionService = deps.tradeRetentionService;
     this.perUserMaxInFlight = deps.perUserMaxInFlight ?? 5;
     this.interRunDelayMs = deps.interRunDelayMs ?? 500;
     this.onProgress = deps.onProgress;
@@ -276,6 +274,14 @@ export class SearchScheduler {
             });
           } catch (err) {
             this.logger?.warn({ err }, 'Re-seeding hook threw error');
+          }
+        }
+
+        if (this.tradeRetentionService) {
+          try {
+            await this.tradeRetentionService.pruneTrades();
+          } catch (err) {
+            this.logger?.warn({ err }, 'Error during trade retention pruning');
           }
         }
 

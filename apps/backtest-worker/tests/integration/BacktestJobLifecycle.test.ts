@@ -7,6 +7,7 @@ import {
 } from '../../src/database/prismaClient';
 import { PostgresJobQueue } from '../../src/queue/PostgresJobQueue';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
+import { getTestDatabaseUrl } from '../helpers/testDatabaseUrl';
 import type { PersistedBacktestOutcome } from '../../src/worker/types';
 
 describe('backtest job lifecycle integration', () => {
@@ -18,10 +19,7 @@ describe('backtest job lifecycle integration', () => {
   const snapshotIds: string[] = [];
 
   beforeAll(async () => {
-    const databaseUrl =
-      process.env.DATABASE_URL ||
-      'postgresql://crypto_lab:crypto_lab@localhost:5434/crypto_strategy_lab?schema=public';
-    prisma = createPrismaClient(databaseUrl);
+    prisma = createPrismaClient(getTestDatabaseUrl());
     await prisma.$connect();
     await prisma.backtestJob.deleteMany({
       where: { status: { in: ['PENDING', 'CLAIMED'] } },

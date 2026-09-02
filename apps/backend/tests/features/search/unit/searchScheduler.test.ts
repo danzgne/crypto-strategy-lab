@@ -1,7 +1,6 @@
 import type {
   DiscoveryProgressPayload,
   SearchRunStatus,
-  SearchSpace,
   StopReason,
 } from '@crypto-strategy-lab/shared';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -11,6 +10,8 @@ import {
   type ReSeedHookInput,
   SearchScheduler,
 } from '@/api/features/search/services/searchScheduler';
+
+import { defaultSearchSpace } from '../../../helpers/searchFixtures';
 
 describe('SearchScheduler', () => {
   let fakePrisma: {
@@ -26,15 +27,6 @@ describe('SearchScheduler', () => {
   };
   let progressUpdates: DiscoveryProgressPayload[];
   let reSeedInvocations: ReSeedHookInput[];
-
-  const defaultSearchSpace: SearchSpace = {
-    enabledStrategies: [{ id: 'ma' }],
-    endTime: 1700000000000,
-    pair: 'BTCUSDT',
-    permittedCombinationModes: ['majority'],
-    startTime: 1690000000000,
-    timeframe: '1h',
-  };
 
   beforeEach(() => {
     progressUpdates = [];
@@ -287,5 +279,46 @@ describe('SearchScheduler', () => {
     expect(lastUpdate?.bestScore).toBe(2.34);
     expect(lastUpdate?.inFlightJobs).toBe(3);
     expect(lastUpdate?.runStatus).toBe('RUNNING');
+  });
+
+  it('triggers trade retention pruning when a run completes', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-prune-1');
+    fakeCoordinator.waitForRunCompletion.mockImplementation(async () => {
+      await scheduler.stopSession('user-prune');
+      return {
+        acceptedCandidates: 10,
+        bestScore: 1.5,
+        id: 'run-prune-1',
+        ownerId: 'user-prune',
+        startedAt: 1000,
+        status: 'COMPLETED' as SearchRunStatus,
+        stopReason: 'CANDIDATE_CAP' as StopReason,
+      };
+    });
+
+    const mockTradeRetention = {
+      pruneTrades: vi.fn(async () => ({
+        eligibleExperimentsCount: 2,
+        prunedTradesCount: 10,
+      })),
+    };
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      interRunDelayMs: 5,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+      tradeRetentionService: mockTradeRetention as never,
+    });
+
+    await scheduler.start();
+
+    await scheduler.startSession({
+      searchSpace: defaultSearchSpace,
+      userId: 'user-prune',
+    });
+
+    await new Promise((r) => setTimeout(r, 60));
+
+    expect(mockTradeRetention.pruneTrades).toHaveBeenCalled();
   });
 });

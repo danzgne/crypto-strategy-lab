@@ -3,6 +3,16 @@ import type { SearchScheduler } from '../services/searchScheduler';
 import type { TradeRetentionService } from '../services/tradeRetentionService';
 import type { StartDiscoverySessionInput } from '@crypto-strategy-lab/shared';
 
+function toErrorMessage(err: unknown): string {
+  if (err instanceof Error) {
+    return err.message;
+  }
+  if (typeof err === 'string') {
+    return err;
+  }
+  return 'Unknown error occurred';
+}
+
 export class SearchController {
   public constructor(
     private readonly scheduler: SearchScheduler,
@@ -32,7 +42,7 @@ export class SearchController {
 
       res.status(201).json({ session });
     } catch (err) {
-      res.status(400).json({ error: (err as Error).message });
+      res.status(400).json({ error: toErrorMessage(err) });
     }
   };
 

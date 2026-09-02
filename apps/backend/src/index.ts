@@ -172,6 +172,7 @@ async function startBackend(): Promise<void> {
     },
     perUserMaxInFlight: 5,
     prisma,
+    tradeRetentionService,
   });
   searchSchedulerRef.current = searchScheduler;
 

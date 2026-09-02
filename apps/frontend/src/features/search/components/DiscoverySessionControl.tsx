@@ -51,10 +51,6 @@ export function DiscoverySessionControl({
   catalog,
   discovery,
 }: DiscoverySessionControlProps) {
-  const [prevSessionId, setPrevSessionId] = useState<string | null>(
-    discovery.session?.sessionId ?? null,
-  );
-
   const [selectedPair, setSelectedPair] = useState<Pair>(() => {
     if (discovery.session?.searchSpace.pair) {
       return discovery.session.searchSpace.pair;
@@ -131,6 +127,44 @@ export function DiscoverySessionControl({
 
   const isSessionActive = discovery.session?.status === 'ACTIVE';
   const isSessionPaused = discovery.session?.status === 'PAUSED';
+  const isSessionRunning = isSessionActive || isSessionPaused;
+
+  const currentPair =
+    isSessionRunning && discovery.session?.searchSpace.pair
+      ? discovery.session.searchSpace.pair
+      : selectedPair;
+
+  const currentTimeframe =
+    isSessionRunning && discovery.session?.searchSpace.timeframe
+      ? discovery.session.searchSpace.timeframe
+      : selectedTimeframe;
+
+  const currentStrategies =
+    isSessionRunning &&
+    discovery.session?.searchSpace.enabledStrategies &&
+    discovery.session.searchSpace.enabledStrategies.length > 0
+      ? discovery.session.searchSpace.enabledStrategies.map((s) => s.id)
+      : selectedStrategies;
+
+  const currentModes =
+    isSessionRunning &&
+    discovery.session?.searchSpace.permittedCombinationModes &&
+    discovery.session.searchSpace.permittedCombinationModes.length > 0
+      ? discovery.session.searchSpace.permittedCombinationModes
+      : permittedModes;
+
+  const currentMaxCandidates =
+    isSessionRunning && discovery.session?.stopPolicy.maxCandidates
+      ? discovery.session.stopPolicy.maxCandidates
+      : maxCandidates;
+
+  const currentTimeBudgetMinutes =
+    isSessionRunning && discovery.session?.stopPolicy.timeBudgetMs
+      ? Math.max(
+          1,
+          Math.round(discovery.session.stopPolicy.timeBudgetMs / 60000),
+        )
+      : timeBudgetMinutes;
 
   const saveToStorage = (updates: Partial<StoredDiscoveryConfig>) => {
     if (typeof window === 'undefined') return;
@@ -152,49 +186,6 @@ export function DiscoverySessionControl({
       // ignore storage quota or access errors
     }
   };
-
-  // Sync state during render when a different session is loaded
-  if (discovery.session && discovery.session.sessionId !== prevSessionId) {
-    setPrevSessionId(discovery.session.sessionId);
-    const { searchSpace, stopPolicy } = discovery.session;
-    if (searchSpace.pair && AVAILABLE_PAIRS.includes(searchSpace.pair)) {
-      setSelectedPair(searchSpace.pair);
-    }
-    if (
-      searchSpace.timeframe &&
-      AVAILABLE_TIMEFRAMES.includes(searchSpace.timeframe)
-    ) {
-      setSelectedTimeframe(searchSpace.timeframe);
-    }
-    if (
-      searchSpace.enabledStrategies &&
-      searchSpace.enabledStrategies.length > 0
-    ) {
-      setSelectedStrategies(searchSpace.enabledStrategies.map((s) => s.id));
-    }
-    if (
-      searchSpace.permittedCombinationModes &&
-      searchSpace.permittedCombinationModes.length > 0
-    ) {
-      setPermittedModes([...searchSpace.permittedCombinationModes]);
-    }
-    if (
-      typeof stopPolicy.maxCandidates === 'number' &&
-      stopPolicy.maxCandidates > 0
-    ) {
-      setMaxCandidates(stopPolicy.maxCandidates);
-    }
-    if (
-      typeof stopPolicy.timeBudgetMs === 'number' &&
-      stopPolicy.timeBudgetMs > 0
-    ) {
-      setTimeBudgetMinutes(
-        Math.max(1, Math.round(stopPolicy.timeBudgetMs / 60000)),
-      );
-    }
-  } else if (!discovery.session && prevSessionId !== null) {
-    setPrevSessionId(null);
-  }
 
   const handlePairChange = (pair: Pair) => {
     setSelectedPair(pair);
@@ -363,7 +354,7 @@ export function DiscoverySessionControl({
           <select
             id="discovery-pair-select"
             disabled={isSessionActive || isSessionPaused}
-            value={selectedPair}
+            value={currentPair}
             onChange={(e) => handlePairChange(e.target.value as Pair)}
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
           >
@@ -385,7 +376,7 @@ export function DiscoverySessionControl({
           <select
             id="discovery-timeframe-select"
             disabled={isSessionActive || isSessionPaused}
-            value={selectedTimeframe}
+            value={currentTimeframe}
             onChange={(e) => handleTimeframeChange(e.target.value as Timeframe)}
             className="mt-1.5 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 shadow-sm focus:border-indigo-500 focus:outline-none disabled:bg-slate-50"
           >
@@ -401,11 +392,11 @@ export function DiscoverySessionControl({
       {/* Standalone Strategies Pool */}
       <div className="mt-4">
         <label className="text-xs font-semibold text-slate-700">
-          Strategy Candidates Pool ({selectedStrategies.length} selected)
+          Strategy Candidates Pool ({currentStrategies.length} selected)
         </label>
         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {catalog.strategies.map((strat) => {
-            const isSelected = selectedStrategies.includes(strat.id);
+            const isSelected = currentStrategies.includes(strat.id);
             return (
               <button
                 key={strat.id}
@@ -440,7 +431,7 @@ export function DiscoverySessionControl({
           <input
             type="checkbox"
             disabled={isSessionActive || isSessionPaused}
-            checked={permittedModes.includes('majority')}
+            checked={currentModes.includes('majority')}
             onChange={() => toggleMode('majority')}
             className="rounded border-slate-300 text-indigo-600"
           />
@@ -450,7 +441,7 @@ export function DiscoverySessionControl({
           <input
             type="checkbox"
             disabled={isSessionActive || isSessionPaused}
-            checked={permittedModes.includes('weighted')}
+            checked={currentModes.includes('weighted')}
             onChange={() => toggleMode('weighted')}
             className="rounded border-slate-300 text-indigo-600"
           />
@@ -473,7 +464,7 @@ export function DiscoverySessionControl({
             min={10}
             max={500}
             disabled={isSessionActive || isSessionPaused}
-            value={maxCandidates}
+            value={currentMaxCandidates}
             onChange={(e) => handleMaxCandidatesChange(Number(e.target.value))}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
           />
@@ -491,7 +482,7 @@ export function DiscoverySessionControl({
             min={1}
             max={60}
             disabled={isSessionActive || isSessionPaused}
-            value={timeBudgetMinutes}
+            value={currentTimeBudgetMinutes}
             onChange={(e) => handleTimeBudgetChange(Number(e.target.value))}
             className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none"
           />

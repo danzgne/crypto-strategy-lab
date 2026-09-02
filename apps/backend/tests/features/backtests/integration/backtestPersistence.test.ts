@@ -12,6 +12,7 @@ import {
   PrismaBacktestRepository,
   type BacktestHistoryProvider,
 } from '@/api/features/backtests';
+import { getTestDatabaseUrl } from '../../../helpers/testDatabaseUrl';
 
 describe('backtest persistence', () => {
   let prisma: AppPrismaClient;
@@ -22,10 +23,7 @@ describe('backtest persistence', () => {
   const strategyVersionIds: string[] = [];
 
   beforeAll(async () => {
-    const databaseUrl =
-      process.env.DATABASE_URL ||
-      'postgresql://crypto_lab:crypto_lab@localhost:5434/crypto_strategy_lab?schema=public';
-    prisma = createPrismaClient(databaseUrl);
+    prisma = createPrismaClient(getTestDatabaseUrl());
     await prisma.$connect();
     const user = await prisma.user.create({
       data: {
