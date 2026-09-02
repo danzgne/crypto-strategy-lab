@@ -102,16 +102,45 @@ function successfulValues() {
 }
 
 describe('SentimentScoringService', () => {
+  it('uses a top-level object for the LLM batch response schema', async () => {
+    const repository = new FakeSentimentRepository();
+    let receivedInput: LlmJsonGenerateInput<unknown> | undefined;
+    const provider: LlmJsonProvider = {
+      name: 'fake',
+      generate: vi.fn(async (input: LlmJsonGenerateInput<unknown>) => {
+        receivedInput = input;
+        return { outcome: 'ALL_PROVIDERS_UNAVAILABLE' as const };
+      }) as LlmJsonProvider['generate'],
+    };
+    const service = new SentimentScoringService({
+      repository,
+      llmProvider: provider,
+      eventPublisher: { publish: vi.fn() },
+      batchSize: 2,
+      logger: createAppLogger({ service: 'test', enabled: false }),
+    });
+
+    await service.scoreUnscoredItems();
+
+    if (receivedInput === undefined) {
+      throw new Error('Sentiment provider was not called');
+    }
+    expect(receivedInput.schema.safeParse({ items: [] }).success).toBe(true);
+    expect(receivedInput.schema.safeParse([]).success).toBe(false);
+  });
+
   it('scores a bounded batch, normalizes coins, persists atomically, and emits one event per item', async () => {
     const repository = new FakeSentimentRepository();
     const publishedEvents: AnyDomainEvent[] = [];
     const provider = providerReturning({
       outcome: 'SUCCESS',
       generatedBy: 'fake',
-      value: [
-        { ...successfulValues()[0], relatedCoins: ['btc', 'BTCUSDT'] },
-        { ...successfulValues()[1], relatedCoins: ['eth'] },
-      ],
+      value: {
+        items: [
+          { ...successfulValues()[0], relatedCoins: ['btc', 'BTCUSDT'] },
+          { ...successfulValues()[1], relatedCoins: ['eth'] },
+        ],
+      },
     });
     const service = new SentimentScoringService({
       repository,
@@ -189,15 +218,17 @@ describe('SentimentScoringService', () => {
       llmProvider: providerReturning({
         outcome: 'SUCCESS',
         generatedBy: 'fake',
-        value: [
-          {
-            id: 'one',
-            label: 'POSITIVE',
-            score: 0.8,
-            eventType: 'ETF_FUND_FLOW',
-            relatedCoins: ['BTC'],
-          },
-        ],
+        value: {
+          items: [
+            {
+              id: 'one',
+              label: 'POSITIVE',
+              score: 0.8,
+              eventType: 'ETF_FUND_FLOW',
+              relatedCoins: ['BTC'],
+            },
+          ],
+        },
       }),
       eventPublisher: { publish: vi.fn() },
       batchSize: 2,
@@ -220,7 +251,7 @@ describe('SentimentScoringService', () => {
       {
         outcome: 'SUCCESS',
         generatedBy: 'secondary',
-        value: successfulValues(),
+        value: { items: successfulValues() },
       },
       'secondary',
     );
@@ -258,7 +289,7 @@ describe('SentimentScoringService', () => {
     const secondary = providerReturning({
       outcome: 'SUCCESS',
       generatedBy: 'secondary',
-      value: successfulValues(),
+      value: { items: successfulValues() },
     });
     const service = new SentimentScoringService({
       repository,

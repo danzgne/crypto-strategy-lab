@@ -348,7 +348,7 @@ export class PrismaNewsRepository implements NewsRepository {
         sentimentScore: null,
         eventType: null,
       },
-      orderBy: { publishedAt: 'asc' },
+      orderBy: { publishedAt: 'desc' },
       take: Math.max(1, Math.floor(limit)),
     });
     return items.map(mapNewsItem);

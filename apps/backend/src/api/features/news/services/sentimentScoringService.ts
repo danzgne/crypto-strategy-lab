@@ -39,15 +39,17 @@ export interface SentimentScoringResult {
   failedBatches: number;
 }
 
-const sentimentResponseSchema = z.array(
-  z.object({
-    id: z.string().min(1),
-    label: z.enum(SENTIMENT_LABELS),
-    score: z.number().min(-1).max(1),
-    eventType: z.enum(NEWS_EVENT_TYPES),
-    relatedCoins: z.array(z.string()),
-  }),
-);
+const sentimentResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.string().min(1),
+      label: z.enum(SENTIMENT_LABELS),
+      score: z.number().min(-1).max(1),
+      eventType: z.enum(NEWS_EVENT_TYPES),
+      relatedCoins: z.array(z.string()),
+    }),
+  ),
+});
 
 type SentimentResponse = z.infer<typeof sentimentResponseSchema>;
 
@@ -186,21 +188,22 @@ export class SentimentScoringService {
     }
 
     const expectedIds = new Set(items.map((item) => item.id));
-    const responseIds = new Set(result.value.map((item) => item.id));
+    const responseItems = result.value.items;
+    const responseIds = new Set(responseItems.map((item) => item.id));
     if (
-      result.value.length !== items.length ||
-      responseIds.size !== result.value.length ||
+      responseItems.length !== items.length ||
+      responseIds.size !== responseItems.length ||
       responseIds.size !== expectedIds.size ||
-      result.value.some((item) => !expectedIds.has(item.id))
+      responseItems.some((item) => !expectedIds.has(item.id))
     ) {
       this.logger.warn(
-        { itemCount: items.length, responseCount: result.value.length },
+        { itemCount: items.length, responseCount: responseItems.length },
         'Sentiment scoring batch returned mismatched items',
       );
       return null;
     }
 
-    return result.value.map((item) => ({
+    return responseItems.map((item) => ({
       newsItemId: item.id,
       sentiment: {
         label: item.label,
@@ -233,7 +236,7 @@ function normalizeRelatedCoins(coins: readonly string[]): string[] {
 
 function buildPrompt(items: readonly NewsItem[]): string {
   return [
-    'Analyze each crypto news item and return exactly one JSON result per item.',
+    'Analyze each crypto news item and return an object with an items array containing exactly one JSON result per item.',
     'Use POSITIVE, NEUTRAL, or NEGATIVE; score sentiment direction from -1 to 1.',
     'Use one event type: ETF_FUND_FLOW, PROTOCOL_UPGRADE, REGULATION, PARTNERSHIP, MARKET_TREND, or OTHER.',
     'Return relatedCoins as uppercase base assets without quote suffixes.',
