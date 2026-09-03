@@ -263,15 +263,20 @@ export class PrismaJobRepository implements JobRepository {
     );
 
     return {
+      buildRevision: record.experiment.buildRevision,
       candles,
       endTime,
+      evaluatorVersion: record.experiment.evaluatorVersion,
       experimentId: record.experiment.id,
       initialInvestment,
       jobId: record.id,
       pair,
+      simulationRulesVersion: record.experiment.simulationRulesVersion,
       slippage,
       startTime,
       strategyId: record.experiment.strategyVersion.strategyDefinition.type,
+      strategyImplementationVersion:
+        record.experiment.strategyImplementationVersion,
       strategyParams: record.experiment.strategyVersion.params,
       strategyVersionId: record.experiment.strategyVersionId,
       timeframe,
@@ -348,7 +353,6 @@ export class PrismaJobRepository implements JobRepository {
 
       await transaction.experiment.update({
         data: {
-          evaluatorVersion: 'default-v1',
           losses: outcome.metrics.losses,
           maxDrawdown: outcome.metrics.maxDrawdown,
           maxDrawdownAmount: outcome.metrics.maxDrawdownAmount,

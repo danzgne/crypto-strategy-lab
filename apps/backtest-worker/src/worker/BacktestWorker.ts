@@ -1,25 +1,30 @@
 import type { CompositeStrategyRequest } from '@crypto-strategy-lab/shared';
-import { classifyError } from '@crypto-strategy-lab/shared';
+import {
+  classifyError,
+  resolveBuildRevision,
+} from '@crypto-strategy-lab/shared';
 import '@crypto-strategy-lab/strategy-engine/strategies';
 import {
   assertStrategyApplicable,
   assertStrategyBacktestable,
   CombinationEngine,
+  resolveStrategyImplementationVersion,
   StrategyRegistry,
   type Strategy,
 } from '@crypto-strategy-lab/strategy-engine';
 
 import {
-  HistoricalBacktester,
+  BacktesterRegistry,
   type Backtester,
   type BacktestSimulation,
 } from '../backtesting';
-import { DefaultEvaluator, type Evaluator } from '../evaluation';
+import { EvaluatorRegistry } from '../evaluation';
 import {
   InvalidConfigError,
   InvalidDatasetSnapshotError,
   JobLeaseLostError,
   UnsupportedExecutionInputError,
+  UnsupportedVersionError,
 } from '../errors';
 import type { AppLogger } from '../utils/logger';
 import type { BacktestJobQueue } from '../queue/PostgresJobQueue';
@@ -29,6 +34,8 @@ export interface BacktestWorkerOptions {
   pollIntervalMs?: number;
   maxPollIntervalMs?: number;
   leaseRenewIntervalMs?: number;
+  /** This worker's own build revision. Defaults to `resolveBuildRevision()`. */
+  buildRevision?: string;
 }
 
 const DEFAULT_POLL_INTERVAL_MS = 1_000;
@@ -44,14 +51,14 @@ export class BacktestWorker {
 
   private readonly leaseRenewIntervalMs: number;
 
+  private readonly buildRevision: string;
+
   private loopPromise: Promise<void> | null = null;
 
   public constructor(
     private readonly workerId: string,
     private readonly queue: BacktestJobQueue,
     private readonly logger: AppLogger,
-    private readonly backtester: Backtester = new HistoricalBacktester(),
-    private readonly evaluator: Evaluator = new DefaultEvaluator(),
     options: BacktestWorkerOptions = {},
   ) {
     this.pollIntervalMs = Math.max(
@@ -66,6 +73,7 @@ export class BacktestWorker {
       250,
       options.leaseRenewIntervalMs ?? DEFAULT_LEASE_RENEW_INTERVAL_MS,
     );
+    this.buildRevision = options.buildRevision ?? resolveBuildRevision();
   }
 
   public start(): void {
@@ -161,15 +169,20 @@ export class BacktestWorker {
       leaseTimer.unref();
 
       const input = await this.queue.loadInput(job);
+      this.assertSupportedVersions(input);
+      const backtester = BacktesterRegistry.create(
+        input.simulationRulesVersion,
+      );
+      const evaluator = EvaluatorRegistry.create(input.evaluatorVersion);
       const strategy = safelyCreateStrategy(input);
       safelyAssertStrategy(strategy, input.pair, input.timeframe);
-      const simulation = safelyRunBacktester(this.backtester, {
+      const simulation = safelyRunBacktester(backtester, {
         ...input,
         strategy,
       });
       if (leaseLost) throw new JobLeaseLostError(job.id);
 
-      const metrics = this.evaluator.evaluate(
+      const metrics = evaluator.evaluate(
         simulation.trades,
         input.initialInvestment,
       );
@@ -249,6 +262,49 @@ export class BacktestWorker {
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
+
+  // A NULL recorded version predates provenance tracking (a legacy Experiment) and
+  // runs under this worker's current implementation. A recorded, non-NULL version
+  // that no longer matches never falls back silently; it fails the job instead.
+  private assertSupportedVersions(input: BacktestExecutionInput): void {
+    if (input.strategyImplementationVersion !== null) {
+      let expected: string;
+      try {
+        expected = resolveStrategyImplementationVersion(
+          input.strategyId,
+          extractMemberStrategyIds(input),
+        );
+      } catch (error) {
+        throw new UnsupportedVersionError(
+          error instanceof Error
+            ? error.message
+            : `Strategy implementation "${input.strategyId}" is not registered`,
+        );
+      }
+      if (expected !== input.strategyImplementationVersion) {
+        throw new UnsupportedVersionError(
+          `Recorded Strategy implementation version "${input.strategyImplementationVersion}" for "${input.strategyId}" is unavailable on this worker (currently provides "${expected}")`,
+        );
+      }
+    }
+
+    if (
+      input.buildRevision !== null &&
+      input.buildRevision !== this.buildRevision
+    ) {
+      throw new UnsupportedVersionError(
+        `Recorded application build revision "${input.buildRevision}" is not supported by this worker (running "${this.buildRevision}")`,
+      );
+    }
+  }
+}
+
+function extractMemberStrategyIds(
+  input: BacktestExecutionInput,
+): readonly string[] | undefined {
+  if (input.strategyId !== 'composite') return undefined;
+  if (!isCompositeRequest(input.strategyParams)) return undefined;
+  return input.strategyParams.members.map((member) => member.strategyId);
 }
 
 function safelyCreateStrategy(input: BacktestExecutionInput): Strategy {

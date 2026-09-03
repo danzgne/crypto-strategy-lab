@@ -218,17 +218,10 @@ export async function executeRepresentativeRun(
 
   for (const wId of workerIds) {
     const queue = new PostgresJobQueue(new PrismaJobRepository(prisma));
-    const worker = new BacktestWorker(
-      wId,
-      queue,
-      logger,
-      undefined,
-      undefined,
-      {
-        pollIntervalMs: 50,
-        maxPollIntervalMs: 200,
-      },
-    );
+    const worker = new BacktestWorker(wId, queue, logger, {
+      pollIntervalMs: 50,
+      maxPollIntervalMs: 200,
+    });
     worker.start();
     workers.push(worker);
   }

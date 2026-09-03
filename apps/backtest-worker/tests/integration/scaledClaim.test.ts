@@ -147,17 +147,10 @@ describe('scaled claim and independent worker observation', () => {
       await heartbeatRepo.recordStarted(wId);
       const repo = new PrismaJobRepository(prisma);
       const queue = new PostgresJobQueue(repo);
-      const worker = new BacktestWorker(
-        wId,
-        queue,
-        logger,
-        undefined,
-        undefined,
-        {
-          pollIntervalMs: 50,
-          maxPollIntervalMs: 200,
-        },
-      );
+      const worker = new BacktestWorker(wId, queue, logger, {
+        pollIntervalMs: 50,
+        maxPollIntervalMs: 200,
+      });
       worker.start();
       workers.push(worker);
     }

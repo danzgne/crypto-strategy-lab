@@ -6,6 +6,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -203,3 +204,4 @@ const createSMCStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(SMC_STRATEGY_ID, createSMCStrategy);
+StrategyImplementationRegistry.register(SMC_STRATEGY_ID, 'smc-v1');

@@ -59,19 +59,12 @@ export async function runWorker(
         leaseDurationMs,
       );
       const queue = new PostgresJobQueue(jobRepository);
-      worker = new BacktestWorker(
-        config.workerId,
-        queue,
-        logger,
-        undefined,
-        undefined,
-        {
-          leaseRenewIntervalMs: Math.max(250, Math.floor(leaseDurationMs / 3)),
-          ...(config.pollIntervalMs === undefined
-            ? {}
-            : { pollIntervalMs: config.pollIntervalMs }),
-        },
-      );
+      worker = new BacktestWorker(config.workerId, queue, logger, {
+        leaseRenewIntervalMs: Math.max(250, Math.floor(leaseDurationMs / 3)),
+        ...(config.pollIntervalMs === undefined
+          ? {}
+          : { pollIntervalMs: config.pollIntervalMs }),
+      });
       worker.start();
     } else {
       logger.warn(

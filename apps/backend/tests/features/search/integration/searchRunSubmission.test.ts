@@ -433,6 +433,51 @@ describe('SearchRun use-case seam: atomic and fail-fast candidate submission', (
     coordinator.stop();
   });
 
+  it('persists complete, typed provenance on every searched Experiment', async () => {
+    const historyProvider = workingHistoryProvider('ISSUE90PROVENANCE');
+    const eventBus = new TestEventBus();
+    const coordinator = new SearchCoordinator({
+      eventBus,
+      historyProvider,
+      prisma,
+    });
+    await coordinator.start();
+
+    const runId = await coordinator.startRun({
+      generator: new SequentialGenerator('issue90-provenance'),
+      ownerId,
+      searchSpace: { ...defaultSearchSpace, pair: 'ISSUE90PROVENANCE' },
+      stopPolicy: { maxCandidates: 1, maxInFlight: 10 },
+    });
+    searchRunIds.push(runId);
+
+    await waitUntil(
+      () => (coordinator.getRun(runId)?.acceptedCandidates ?? 0) >= 1,
+    );
+    coordinator.stop();
+
+    const experiment = await prisma.experiment.findFirstOrThrow({
+      where: { ownerId, searchRunId: runId },
+    });
+    experimentIds.push(experiment.id);
+    if (experiment.datasetSnapshotId) {
+      datasetSnapshotIds.push(experiment.datasetSnapshotId);
+    }
+
+    const persistedRun = await prisma.searchRun.findUniqueOrThrow({
+      where: { id: runId },
+    });
+
+    expect(experiment.strategyImplementationVersion).toBe('ma-v1');
+    expect(experiment.simulationRulesVersion).toBe('historical-v1');
+    expect(experiment.evaluatorVersion).toBe('default-v1');
+    expect(experiment.buildRevision).not.toBeNull();
+    expect(experiment.generatorAlgorithm).toBe('issue90-provenance');
+    expect(experiment.generatorVersion).toBe('issue90-provenance');
+    expect(experiment.generatorSeed).toBe(persistedRun.seed);
+    expect(experiment.generationOrdinal).toBe(1);
+  });
+
   it('reconciles a persisted terminal job on restart and lets a restored STOPPING run become terminal', async () => {
     const firstCoordinator = new SearchCoordinator({
       eventBus: new TestEventBus(),

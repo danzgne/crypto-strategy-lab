@@ -7,6 +7,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -135,3 +136,4 @@ const createBBStrategy: StrategyFactory = Object.assign(
 
 StrategyRegistry.register(BB_STRATEGY_ID, createBBStrategy);
 StrategyRegistry.registerAlias(BOLLINGER_STRATEGY_ID, BB_STRATEGY_ID);
+StrategyImplementationRegistry.register(BB_STRATEGY_ID, 'bb-v1');

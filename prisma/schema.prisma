@@ -163,6 +163,15 @@ model Experiment {
   simulationRulesVersion String  @default("historical-v1")
   evaluatorVersion       String  @default("default-v1")
 
+  // Nullable: never overwritten. NULL on any of these marks a legacy Experiment created
+  // before provenance tracking existed; a new Experiment always populates all of them.
+  strategyImplementationVersion String?
+  buildRevision                 String?
+  generatorAlgorithm            String?
+  generatorVersion              String?
+  generatorSeed                 Int?
+  generationOrdinal             Int?
+
   score                Decimal? @db.Decimal(38, 18)
   return               Decimal? @db.Decimal(38, 18)
   maxDrawdown          Decimal? @db.Decimal(38, 18)

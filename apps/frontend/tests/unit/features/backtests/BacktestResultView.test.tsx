@@ -47,6 +47,78 @@ describe('BacktestResultView', () => {
     ).toBeInTheDocument();
     expect(screen.getByText('TAKE_PROFIT')).toBeInTheDocument();
   });
+
+  it('renders a readable provenance section, including generator provenance for a searched candidate', () => {
+    vi.mocked(useBacktest).mockReturnValue({
+      error: null,
+      loading: false,
+      result: {
+        ...completedResult,
+        provenance: {
+          buildRevision: 'abc1234',
+          datasetSnapshotFingerprint: 'snapshot-fingerprint',
+          evaluatorVersion: 'default-v1',
+          generator: {
+            algorithm: 'random',
+            generationOrdinal: 7,
+            seed: 42,
+            version: 'random-v1',
+          },
+          reproducible: true,
+          simulationRulesVersion: 'historical-v1',
+          strategyImplementationVersion: 'ma-v1',
+          strategyParams: { fast: 20, slow: 50 },
+          strategyVersionId: 'version-1',
+        },
+      },
+    });
+
+    render(<BacktestResultView experimentId="experiment-1" />);
+
+    expect(
+      screen.getByRole('heading', { name: 'Provenance' }),
+    ).toBeInTheDocument();
+    expect(screen.getByText('Reproducible')).toBeInTheDocument();
+    expect(screen.getByText('ma-v1')).toBeInTheDocument();
+    expect(screen.getByText('historical-v1')).toBeInTheDocument();
+    expect(screen.getByText('default-v1')).toBeInTheDocument();
+    expect(screen.getByText('abc1234')).toBeInTheDocument();
+    expect(screen.getByText('snapshot-fingerprint')).toBeInTheDocument();
+    expect(screen.getByText('random')).toBeInTheDocument();
+    expect(screen.getByText('random-v1')).toBeInTheDocument();
+    expect(screen.getByText('42')).toBeInTheDocument();
+    expect(screen.getByText('7')).toBeInTheDocument();
+  });
+
+  it('marks a legacy result without provenance as not reproducible and without generator provenance', () => {
+    vi.mocked(useBacktest).mockReturnValue({
+      error: null,
+      loading: false,
+      result: {
+        ...completedResult,
+        provenance: {
+          buildRevision: null,
+          datasetSnapshotFingerprint: 'snapshot-fingerprint',
+          evaluatorVersion: 'default-v1',
+          generator: null,
+          reproducible: false,
+          simulationRulesVersion: 'historical-v1',
+          strategyImplementationVersion: null,
+          strategyParams: { fast: 20, slow: 50 },
+          strategyVersionId: 'version-1',
+        },
+      },
+    });
+
+    render(<BacktestResultView experimentId="experiment-1" />);
+
+    expect(screen.getByText('Legacy (partial)')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Manual backtest: no search generator produced this candidate.',
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 const completedResult: BacktestResultResponse = {
@@ -86,6 +158,17 @@ const completedResult: BacktestResultResponse = {
     wins: 1,
   },
   pair: 'BTCUSDT',
+  provenance: {
+    buildRevision: 'dev',
+    datasetSnapshotFingerprint: 'fingerprint',
+    evaluatorVersion: 'default-v1',
+    generator: null,
+    reproducible: true,
+    simulationRulesVersion: 'historical-v1',
+    strategyImplementationVersion: 'ma-v1',
+    strategyParams: { fast: 20, slow: 50 },
+    strategyVersionId: 'version-1',
+  },
   simulationRulesVersion: 'historical-v1',
   slippage: '5',
   startTime: 60_000,

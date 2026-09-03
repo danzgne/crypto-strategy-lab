@@ -15,12 +15,18 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import {
   createDomainEvent,
+  CURRENT_EVALUATOR_VERSION,
+  CURRENT_SIMULATION_RULES_VERSION,
   DEFAULT_STOP_POLICY,
+  resolveBuildRevision,
   TIMEFRAME_INTERVAL_MS,
 } from '@crypto-strategy-lab/shared';
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
-import { StrategyRegistry } from '@crypto-strategy-lab/strategy-engine';
+import {
+  resolveStrategyImplementationVersion,
+  StrategyRegistry,
+} from '@crypto-strategy-lab/strategy-engine';
 import {
   Prisma,
   type AppPrismaClient,
@@ -30,6 +36,7 @@ import { fingerprintDataset } from '../../backtests';
 import type { DomainEventPublisher } from '../../marketData/application/interfaces/domainEventPublisher.interface';
 import type { AppLogger } from '../../../../utils/logger';
 import {
+  algorithmFamilyName,
   RANDOM_GENERATOR_ID,
   StrategyGeneratorRegistry,
   UnsupportedAlgorithmError,
@@ -598,6 +605,21 @@ export class SearchCoordinator {
       return false;
     }
 
+    const isComposite = candidate.strategyIds.length > 1;
+    let strategyImplementationVersion: string;
+    try {
+      strategyImplementationVersion = resolveStrategyImplementationVersion(
+        isComposite ? 'composite' : (candidate.strategyIds[0] ?? 'unknown'),
+        isComposite ? candidate.strategyIds : undefined,
+      );
+    } catch (error) {
+      this.logger?.error(
+        { candidate, error, searchRunId: run.searchRunId },
+        'Refusing to persist a searched candidate whose Strategy implementation is not registered',
+      );
+      return false;
+    }
+
     try {
       // One transaction: an enqueue failure rolls back the Experiment too.
       const { experimentId } = await this.prisma.$transaction(
@@ -610,17 +632,25 @@ export class SearchCoordinator {
 
           const experiment = await transaction.experiment.create({
             data: {
+              buildRevision: resolveBuildRevision(),
               datasetSnapshotId,
               endTime: BigInt(run.searchSpace.endTime),
-              evaluatorVersion: 'default-v1',
+              evaluatorVersion: CURRENT_EVALUATOR_VERSION,
               fingerprint: candidate.fingerprint,
+              generationOrdinal: candidate.provenance.generationOrdinal,
+              generatorAlgorithm: algorithmFamilyName(
+                candidate.provenance.algorithm,
+              ),
+              generatorSeed: candidate.provenance.seed ?? run.seed,
+              generatorVersion: candidate.provenance.algorithm,
               initialInvestment: run.searchSpace.initialInvestment ?? '10000',
               ownerId: run.ownerId,
               pair: run.searchSpace.pair,
               searchRunId: run.searchRunId,
-              simulationRulesVersion: 'historical-v1',
+              simulationRulesVersion: CURRENT_SIMULATION_RULES_VERSION,
               slippage: run.searchSpace.slippage ?? '5',
               startTime: BigInt(run.searchSpace.startTime),
+              strategyImplementationVersion,
               strategyVersionId: strategyVersion.id,
               timeframe: run.searchSpace.timeframe,
               transactionCost: run.searchSpace.transactionCost ?? '0.0008',

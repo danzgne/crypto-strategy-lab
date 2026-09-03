@@ -7,6 +7,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -133,6 +134,7 @@ const createMAStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(MA_STRATEGY_ID, createMAStrategy);
+StrategyImplementationRegistry.register(MA_STRATEGY_ID, 'ma-v1');
 
 function validatePeriod(name: string, value: number): void {
   if (!Number.isInteger(value) || value < 1) {

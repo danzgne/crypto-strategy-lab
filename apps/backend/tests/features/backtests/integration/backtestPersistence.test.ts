@@ -135,9 +135,28 @@ describe('backtest persistence', () => {
     }
     expect(new Set(snapshotIds).size).toBe(1);
 
+    for (const experiment of experiments) {
+      expect(experiment.strategyImplementationVersion).toBe('ma-v1');
+      expect(experiment.simulationRulesVersion).toBe('historical-v1');
+      expect(experiment.evaluatorVersion).toBe('default-v1');
+      expect(experiment.buildRevision).not.toBeNull();
+      expect(experiment.generatorAlgorithm).toBeNull();
+      expect(experiment.generatorVersion).toBeNull();
+      expect(experiment.generatorSeed).toBeNull();
+      expect(experiment.generationOrdinal).toBeNull();
+    }
+
     const resource = await service.get(ownerId, first.experimentId);
     expect(resource).toMatchObject({
       initialInvestment: '100.123456789012345678',
+      provenance: {
+        buildRevision: expect.any(String),
+        evaluatorVersion: 'default-v1',
+        generator: null,
+        reproducible: true,
+        simulationRulesVersion: 'historical-v1',
+        strategyImplementationVersion: 'ma-v1',
+      },
       slippage: '5',
       transactionCost: '0.000800000000000001',
     });

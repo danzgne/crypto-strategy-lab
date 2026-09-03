@@ -12,6 +12,11 @@ import {
   formatStrategyType,
 } from '@crypto-strategy-lab/shared/strategy';
 
+import {
+  COMPOSITE_STRATEGY_IMPLEMENTATION_ID,
+  StrategyImplementationRegistry,
+} from './implementationVersion';
+
 export type CombinationMode = 'majority' | 'weighted';
 
 export const DEFAULT_COMPOSITE_THRESHOLD = 0.3;
@@ -702,3 +707,8 @@ function canonicalizeApplicability(value: unknown): string {
     pairs: pairs.map((pair) => pair.toUpperCase()).sort(),
   });
 }
+
+StrategyImplementationRegistry.register(
+  COMPOSITE_STRATEGY_IMPLEMENTATION_ID,
+  'composite-v1',
+);

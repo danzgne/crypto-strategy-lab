@@ -18,6 +18,9 @@ describe('classifyError', () => {
     class UnsupportedExecutionInputError extends Error {
       override name = 'UnsupportedExecutionInputError';
     }
+    class UnsupportedVersionError extends Error {
+      override name = 'UnsupportedVersionError';
+    }
 
     expect(classifyError(new InvalidConfigError('bad params'))).toBe(
       'PERMANENT',
@@ -27,6 +30,11 @@ describe('classifyError', () => {
     ).toBe('PERMANENT');
     expect(
       classifyError(new UnsupportedExecutionInputError('not applicable')),
+    ).toBe('PERMANENT');
+    expect(
+      classifyError(
+        new UnsupportedVersionError('UNSUPPORTED_VERSION: bad version'),
+      ),
     ).toBe('PERMANENT');
   });
 

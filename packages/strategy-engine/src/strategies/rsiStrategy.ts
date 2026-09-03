@@ -7,6 +7,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -133,3 +134,4 @@ const createRSIStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(RSI_STRATEGY_ID, createRSIStrategy);
+StrategyImplementationRegistry.register(RSI_STRATEGY_ID, 'rsi-v1');

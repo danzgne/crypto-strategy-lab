@@ -53,3 +53,12 @@ export class StrategyGeneratorRegistry {
     return [...this.factories.keys()];
   }
 }
+
+/**
+ * Derives the algorithm family name from a registered, versioned generator id
+ * (e.g. `"random-v1"` -> `"random"`), so provenance can record which algorithm
+ * generated a candidate separately from which registered version of it ran.
+ */
+export function algorithmFamilyName(algorithmId: string): string {
+  return algorithmId.replace(/-v\d+$/i, '') || algorithmId;
+}

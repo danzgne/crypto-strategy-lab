@@ -6,6 +6,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import {
   evaluateRule,
@@ -69,6 +70,7 @@ const createRuleStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(RULE_STRATEGY_ID, createRuleStrategy);
+StrategyImplementationRegistry.register(RULE_STRATEGY_ID, 'rule-v1');
 
 export function isRuleStrategy(strategy: Strategy): strategy is RuleStrategy {
   return strategy.id === RULE_STRATEGY_ID;
