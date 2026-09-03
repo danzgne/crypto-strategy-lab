@@ -9,6 +9,7 @@ describe('health routes', () => {
       healthRepository: {
         checkConnection: vi.fn().mockResolvedValue(undefined),
         recordStarted: vi.fn().mockResolvedValue(undefined),
+        recordHeartbeat: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
       authService:
@@ -36,6 +37,7 @@ describe('health routes', () => {
       healthRepository: {
         checkConnection,
         recordStarted: vi.fn().mockResolvedValue(undefined),
+        recordHeartbeat: vi.fn().mockResolvedValue(undefined),
         recordStopped: vi.fn().mockResolvedValue(undefined),
       },
       authService:

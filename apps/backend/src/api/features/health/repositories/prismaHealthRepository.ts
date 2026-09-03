@@ -30,6 +30,16 @@ export class PrismaHealthRepository implements HealthRepository {
     });
   }
 
+  public async recordHeartbeat(instanceId: string): Promise<void> {
+    const now = new Date();
+    await this.prisma.serviceHeartbeat.update({
+      where: {
+        service_instanceId: { service: SERVICE_NAME, instanceId },
+      },
+      data: { lastSeenAt: now },
+    });
+  }
+
   public async recordStopped(instanceId: string): Promise<void> {
     const now = new Date();
     await this.prisma.serviceHeartbeat.update({
