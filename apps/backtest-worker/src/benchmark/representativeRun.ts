@@ -8,11 +8,12 @@ import { PostgresJobQueue } from '../queue/PostgresJobQueue';
 import { BacktestWorker } from '../worker/BacktestWorker';
 import { createAppLogger } from '../utils/logger';
 import { generateWorkerId } from '../config/workerConfig';
+import { formatHumanReport, type BenchmarkMetrics } from './benchmarkReport';
 import {
-  formatHumanReport,
-  getMachineContext,
-  type BenchmarkMetrics,
-} from './benchmarkReport';
+  cleanupBenchmarkCampaign,
+  gatherBenchmarkMetrics,
+  waitForBenchmarkCompletion,
+} from './benchmarkHelpers';
 
 loadEnvironment({
   path: new URL('../../../../.env', import.meta.url),
@@ -232,111 +233,41 @@ export async function executeRepresentativeRun(
     workers.push(worker);
   }
 
-  const startTime = Date.now();
-
+  let completionResult = { peakConnections: 1, wallTimeSeconds: 0 };
   try {
-    while (true) {
-      const counts = await prisma.$queryRaw<
-        Array<{ status: string; count: bigint | number }>
-      >`
-        SELECT status, count(*)::int as count
-        FROM backtest_jobs
-        WHERE "ownerId" = ${ownerId}
-        GROUP BY status;
-      `;
-
-      let completed = 0;
-      let failed = 0;
-      for (const row of counts) {
-        if (row.status === 'COMPLETED') completed = Number(row.count);
-        if (row.status === 'FAILED') failed = Number(row.count);
-      }
-
-      if (completed + failed >= totalJobs) break;
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
+    completionResult = await waitForBenchmarkCompletion(prisma, {
+      ownerId,
+      pollIntervalMs: 200,
+      silent,
+      totalJobs,
+    });
   } finally {
     for (const worker of workers) {
       await worker.stop();
     }
   }
 
-  const wallTimeSeconds = (Date.now() - startTime) / 1000;
-
-  const completedCountResult = await prisma.$queryRaw<Array<{ count: number }>>`
-    SELECT count(*)::int AS count FROM backtest_jobs WHERE "ownerId" = ${ownerId} AND status = 'COMPLETED';
-  `;
-  const failedCountResult = await prisma.$queryRaw<Array<{ count: number }>>`
-    SELECT count(*)::int AS count FROM backtest_jobs WHERE "ownerId" = ${ownerId} AND status = 'FAILED';
-  `;
-  const completedJobs = Number(completedCountResult[0]?.count ?? 0);
-  const failedJobs = Number(failedCountResult[0]?.count ?? 0);
-
-  const metrics: BenchmarkMetrics = {
-    totalJobs,
-    completedJobs,
-    failedJobs,
-    lostJobs: 0,
-    duplicates: 0,
-    totalRetries: 0,
-    workerCount: 2,
+  const metrics = await gatherBenchmarkMetrics(prisma, {
     datasetCandleCount: candleCount,
-    wallTimeSeconds,
-    throughputJobsPerSecond:
-      wallTimeSeconds > 0 ? completedJobs / wallTimeSeconds : 0,
-    p95QueueWaitMs: 10,
-    p95ExecutionDurationMs: 20,
-    peakPostgresConnections: 2,
-    machineContext: getMachineContext(),
-  };
+    ownerId,
+    peakConnections: completionResult.peakConnections,
+    totalJobs,
+    wallTimeSeconds: completionResult.wallTimeSeconds,
+    workerCount: 2,
+  });
 
   if (!silent) {
     process.stdout.write(formatHumanReport(metrics) + '\n');
   }
 
   // Cleanup
-  await prisma.trade.deleteMany({ where: { ownerId } });
-  await prisma.backtestJob.deleteMany({ where: { ownerId } });
-
-  const repExperiments = await prisma.experiment.findMany({
-    select: { id: true },
-    where: { ownerId },
+  await cleanupBenchmarkCampaign(prisma, {
+    definitionIds: [maDef.id, rsiDef.id, bbDef.id, compDef.id],
+    ownerId,
+    silent,
+    snapshotId: snapshot.id,
+    versionIds: versions,
   });
-  const repExpIds = repExperiments.map((e) => e.id);
-
-  await prisma.experiment.deleteMany({ where: { ownerId } });
-
-  if (repExpIds.length > 0) {
-    const outbox = await prisma.outboxEvent.findMany({
-      where: {
-        name: {
-          in: ['BacktestStarted', 'BacktestCompleted', 'StrategyEvaluated'],
-        },
-      },
-    });
-    const toDelete = outbox
-      .filter((e) => {
-        const payload = e.payload as { experimentId?: unknown };
-        return (
-          typeof payload?.experimentId === 'string' &&
-          repExpIds.includes(payload.experimentId)
-        );
-      })
-      .map((e) => e.id);
-    if (toDelete.length > 0) {
-      await prisma.outboxEvent.deleteMany({
-        where: { id: { in: toDelete } },
-      });
-    }
-  }
-
-  await prisma.datasetSnapshot.deleteMany({ where: { id: snapshot.id } });
-  await prisma.strategyVersion.deleteMany({ where: { id: { in: versions } } });
-  await prisma.strategyDefinition.deleteMany({
-    where: { id: { in: [maDef.id, rsiDef.id, bbDef.id, compDef.id] } },
-  });
-  await prisma.leaderboard.deleteMany({ where: { ownerId } });
-  await prisma.user.deleteMany({ where: { id: ownerId } });
   await prisma.$disconnect();
 
   return metrics;

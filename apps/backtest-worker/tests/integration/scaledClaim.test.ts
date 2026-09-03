@@ -12,6 +12,7 @@ import { BacktestWorker } from '../../src/worker/BacktestWorker';
 import { PrismaServiceHeartbeatRepository } from '../../src/repositories/prisma/prismaServiceHeartbeatRepository';
 import { createAppLogger } from '../../src/utils/logger';
 import { generateWorkerId } from '../../src/config/workerConfig';
+import { cleanupBenchmarkCampaign } from '../../src/benchmark/benchmarkHelpers';
 
 describe('scaled claim and independent worker observation', () => {
   let prisma: WorkerPrismaClient;
@@ -88,47 +89,13 @@ describe('scaled claim and independent worker observation', () => {
   });
 
   afterAll(async () => {
-    await prisma.trade.deleteMany({
-      where: { experimentId: { in: experimentIds } },
+    await cleanupBenchmarkCampaign(prisma, {
+      definitionIds: [strategyDefId],
+      ownerId,
+      silent: true,
+      snapshotId,
+      versionIds: [strategyVersionId],
     });
-    await prisma.backtestJob.deleteMany({
-      where: { experimentId: { in: experimentIds } },
-    });
-    await prisma.experiment.deleteMany({
-      where: { id: { in: experimentIds } },
-    });
-    await prisma.datasetSnapshot.deleteMany({ where: { id: snapshotId } });
-    await prisma.strategyVersion.deleteMany({
-      where: { id: strategyVersionId },
-    });
-    await prisma.strategyDefinition.deleteMany({
-      where: { id: strategyDefId },
-    });
-    await prisma.leaderboard.deleteMany({ where: { ownerId } });
-    await prisma.user.deleteMany({ where: { id: ownerId } });
-
-    const outboxEvents = await prisma.outboxEvent.findMany({
-      where: {
-        name: {
-          in: ['BacktestStarted', 'BacktestCompleted', 'StrategyEvaluated'],
-        },
-      },
-    });
-    const idsToDelete = outboxEvents
-      .filter((e) => {
-        const payload = e.payload as { experimentId?: unknown };
-        return (
-          typeof payload.experimentId === 'string' &&
-          experimentIds.includes(payload.experimentId)
-        );
-      })
-      .map((e) => e.id);
-    if (idsToDelete.length > 0) {
-      await prisma.outboxEvent.deleteMany({
-        where: { id: { in: idsToDelete } },
-      });
-    }
-
     await prisma.$disconnect();
   });
 
