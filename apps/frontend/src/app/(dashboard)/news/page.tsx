@@ -6,8 +6,7 @@ import {
   NewsHeader,
   NewsControlBar,
   NewsFeedList,
-  ExtractionDiagramPanel,
-  SelfHealingDiagramPanel,
+  ExtractionTemplatePanel,
   AnalysisOutputPanel,
   StrategyIntegrationPanel,
   AdminSourceModal,
@@ -145,9 +144,9 @@ export default function NewsPage() {
           />
         </div>
 
-        {/* Middle Column: LLM Extraction & Self-Healing */}
+        {/* Middle Column: Extraction Template health */}
         <div className="lg:col-span-5 space-y-6">
-          <ExtractionDiagramPanel
+          <ExtractionTemplatePanel
             isAdmin={isAdmin}
             selectedTab={selectedTab}
             websiteSources={extraction.websiteSources}
@@ -164,15 +163,6 @@ export default function NewsPage() {
             onGenerate={extraction.handleGenerate}
             onPreview={extraction.handlePreview}
             onSaveProposal={extraction.handleSaveProposal}
-            onActivate={extraction.handleActivate}
-          />
-          <SelfHealingDiagramPanel
-            isAdmin={isAdmin}
-            selectedTab={selectedTab}
-            hasWebsiteSources={extraction.websiteSources.length > 0}
-            panel={extraction.panel}
-            isLoading={extraction.isLoading}
-            actionState={extraction.actionState}
             onActivate={extraction.handleActivate}
             onReject={extraction.handleReject}
             onUpdateSettings={extraction.handleUpdateSettings}

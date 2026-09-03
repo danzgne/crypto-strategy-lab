@@ -4,8 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { NewsFeedList } from '../../../../src/features/news/components/NewsFeedList';
 import { NewsControlBar } from '../../../../src/features/news/components/NewsControlBar';
 import { AnalysisOutputPanel } from '../../../../src/features/news/components/AnalysisOutputPanel';
-import { ExtractionDiagramPanel } from '../../../../src/features/news/components/ExtractionDiagramPanel';
-import { SelfHealingDiagramPanel } from '../../../../src/features/news/components/SelfHealingDiagramPanel';
+import { ExtractionTemplatePanel } from '../../../../src/features/news/components/ExtractionTemplatePanel';
 import type {
   NewsItem,
   NewsSource,
@@ -205,62 +204,56 @@ describe('News Frontend Components', () => {
     settings: { driftDetectionEnabled: true, driftThreshold: 0.1 },
   };
 
-  it('ExtractionDiagramPanel shows an empty state when no Website Source is configured', () => {
+  const baseExtractionProps = {
+    isAdmin: false,
+    selectedTab: 'WEBSITE' as const,
+    websiteSources: [websiteSource],
+    selectedSourceId: 'source-1',
+    onSelectSource: vi.fn(),
+    isLoading: false,
+    candidate: null,
+    actionState: 'idle' as const,
+    pastedHtml: '',
+    onPastedHtmlChange: vi.fn(),
+    previewResult: null,
+    isPreviewing: false,
+    onGenerate: vi.fn(),
+    onPreview: vi.fn(),
+    onSaveProposal: vi.fn(),
+    onActivate: vi.fn(),
+    onReject: vi.fn(),
+    onUpdateSettings: vi.fn(),
+  };
+
+  it('ExtractionTemplatePanel shows an empty state when no Website Source is configured', () => {
     render(
-      <ExtractionDiagramPanel
+      <ExtractionTemplatePanel
+        {...baseExtractionProps}
         selectedTab="ALL"
         websiteSources={[]}
         selectedSourceId={null}
-        onSelectSource={vi.fn()}
         panel={null}
-        isLoading={false}
-        candidate={null}
-        actionState="idle"
-        pastedHtml=""
-        onPastedHtmlChange={vi.fn()}
-        previewResult={null}
-        isPreviewing={false}
-        onGenerate={vi.fn()}
-        onPreview={vi.fn()}
-        onSaveProposal={vi.fn()}
-        onActivate={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('LLM-assisted Extraction')).toBeInTheDocument();
+    expect(screen.getByText('Extraction Template')).toBeInTheDocument();
     expect(
       screen.getByText('No Website Sources configured yet.'),
     ).toBeInTheDocument();
   });
 
-  it('ExtractionDiagramPanel renders the active template for a selected Website Source', () => {
+  it('ExtractionTemplatePanel renders the active template for a selected Website Source', () => {
     render(
-      <ExtractionDiagramPanel
-        selectedTab="WEBSITE"
-        websiteSources={[websiteSource]}
-        selectedSourceId="source-1"
-        onSelectSource={vi.fn()}
-        panel={panelFixture}
-        isLoading={false}
-        candidate={null}
-        actionState="idle"
-        pastedHtml=""
-        onPastedHtmlChange={vi.fn()}
-        previewResult={null}
-        isPreviewing={false}
-        onGenerate={vi.fn()}
-        onPreview={vi.fn()}
-        onSaveProposal={vi.fn()}
-        onActivate={vi.fn()}
-      />,
+      <ExtractionTemplatePanel {...baseExtractionProps} panel={panelFixture} />,
     );
 
-    expect(screen.getByText('Template: v1')).toBeInTheDocument();
+    expect(screen.getByText('v1 active')).toBeInTheDocument();
     expect(screen.getByText('article.cs-article-card')).toBeInTheDocument();
-    expect(screen.getByText('Confidence: 0.92')).toBeInTheDocument();
+    expect(screen.getByText('0.92')).toBeInTheDocument();
+    expect(screen.getByText('Drift: Stable')).toBeInTheDocument();
   });
 
-  it('ExtractionDiagramPanel lets an admin roll back to a superseded version', () => {
+  it('ExtractionTemplatePanel lets an admin roll back to a superseded version', () => {
     const supersededVersion: ExtractionPanelData['versionHistory'][number] = {
       ...activeVersionFixture,
       id: 'version-0',
@@ -270,56 +263,35 @@ describe('News Frontend Components', () => {
     const onActivate = vi.fn();
 
     render(
-      <ExtractionDiagramPanel
+      <ExtractionTemplatePanel
+        {...baseExtractionProps}
         isAdmin={true}
-        selectedTab="WEBSITE"
-        websiteSources={[websiteSource]}
-        selectedSourceId="source-1"
-        onSelectSource={vi.fn()}
         panel={{
           ...panelFixture,
           versionHistory: [activeVersionFixture, supersededVersion],
         }}
-        isLoading={false}
-        candidate={null}
-        actionState="idle"
-        pastedHtml=""
-        onPastedHtmlChange={vi.fn()}
-        previewResult={null}
-        isPreviewing={false}
-        onGenerate={vi.fn()}
-        onPreview={vi.fn()}
-        onSaveProposal={vi.fn()}
         onActivate={onActivate}
       />,
     );
 
+    fireEvent.click(screen.getByText('Version history'));
     fireEvent.click(screen.getByText('Roll back'));
     expect(onActivate).toHaveBeenCalledWith('version-0');
   });
 
-  it('SelfHealingDiagramPanel shows drift status and an admin-editable threshold', () => {
+  it('ExtractionTemplatePanel shows trailing-24h health and lets an admin toggle drift detection', () => {
     const onUpdateSettings = vi.fn();
     render(
-      <SelfHealingDiagramPanel
+      <ExtractionTemplatePanel
+        {...baseExtractionProps}
         isAdmin={true}
-        selectedTab="WEBSITE"
-        hasWebsiteSources={true}
         panel={panelFixture}
-        isLoading={false}
-        actionState="idle"
-        onActivate={vi.fn()}
-        onReject={vi.fn()}
         onUpdateSettings={onUpdateSettings}
       />,
     );
 
-    expect(screen.getByText('Stable')).toBeInTheDocument();
-    expect(
-      screen.getByText(/No proposal is pending review/),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Source health & drift detection'));
 
-    // Trailing-24h source health, not just the drift verdict
     expect(screen.getByText('0.90')).toBeInTheDocument();
     expect(screen.getByText('20')).toBeInTheDocument();
 
@@ -330,7 +302,7 @@ describe('News Frontend Components', () => {
     });
   });
 
-  it('SelfHealingDiagramPanel offers Activate/Reject to an admin when a proposal is open', () => {
+  it('ExtractionTemplatePanel offers Activate/Reject to an admin when a proposal is open', () => {
     const proposedVersion: ExtractionPanelData['proposedVersion'] = {
       ...activeVersionFixture,
       id: 'version-2',
@@ -342,21 +314,18 @@ describe('News Frontend Components', () => {
     const onActivate = vi.fn();
 
     render(
-      <SelfHealingDiagramPanel
+      <ExtractionTemplatePanel
+        {...baseExtractionProps}
         isAdmin={true}
-        selectedTab="WEBSITE"
-        hasWebsiteSources={true}
         panel={{ ...panelFixture, proposedVersion }}
-        isLoading={false}
-        actionState="idle"
         onActivate={onActivate}
-        onReject={vi.fn()}
-        onUpdateSettings={vi.fn()}
       />,
     );
 
-    expect(screen.getByText('Proposal: v2 (based on v1)')).toBeInTheDocument();
-    fireEvent.click(screen.getByText('Activate now'));
+    expect(
+      screen.getByText('Replacement proposed: v2 (based on v1)'),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Activate'));
     expect(onActivate).toHaveBeenCalledWith('version-2');
   });
 
