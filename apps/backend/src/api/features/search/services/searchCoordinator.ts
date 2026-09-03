@@ -37,6 +37,13 @@ import {
 import { createSearchRunSeed } from '../generators/randomSource';
 import { assertSearchSpaceBacktestable } from './searchSpaceBuilder';
 
+export class DatasetSnapshotPreparationError extends Error {
+  public constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = 'DatasetSnapshotPreparationError';
+  }
+}
+
 export type SearchEventBus = DomainEventPublisher & {
   subscribe<TName extends DomainEventName>(
     name: TName,
@@ -68,6 +75,12 @@ export interface EnqueueJobInput {
   ownerId: string;
 }
 
+// Runs inside the same transaction as Experiment creation, for atomicity.
+export type EnqueueJobFn = (
+  transaction: Prisma.TransactionClient,
+  input: EnqueueJobInput,
+) => Promise<string>;
+
 export interface SearchCoordinatorProgressEvent {
   searchRunId: string;
   ownerId: string;
@@ -85,7 +98,7 @@ export interface SearchCoordinatorDependencies {
   eventBus: SearchEventBus;
   historyProvider?: BacktestHistoryProvider | undefined;
   onProgress?: ((event: SearchCoordinatorProgressEvent) => void) | undefined;
-  enqueueJob?: ((input: EnqueueJobInput) => Promise<string>) | undefined;
+  enqueueJob?: EnqueueJobFn | undefined;
   logger?: AppLogger | undefined;
   reconcileIntervalMs?: number | undefined;
 }
@@ -129,7 +142,7 @@ export class SearchCoordinator {
   private readonly historyProvider: BacktestHistoryProvider | undefined;
   private readonly onProgress:
     ((event: SearchCoordinatorProgressEvent) => void) | undefined;
-  private readonly enqueueJobFn: (input: EnqueueJobInput) => Promise<string>;
+  private readonly enqueueJobFn: EnqueueJobFn;
   private readonly logger: SearchCoordinatorDependencies['logger'];
   private readonly reconcileIntervalMs: number;
   private readonly activeRuns = new Map<string, ActiveRunState>();
@@ -147,8 +160,8 @@ export class SearchCoordinator {
       deps.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
     this.enqueueJobFn =
       deps.enqueueJob ??
-      (async (input: EnqueueJobInput) => {
-        const job = await this.prisma.backtestJob.create({
+      (async (transaction, input) => {
+        const job = await transaction.backtestJob.create({
           data: {
             experimentId: input.experimentId,
             ownerId: input.ownerId,
@@ -265,69 +278,14 @@ export class SearchCoordinator {
         1,
       );
 
-    let datasetSnapshotId: string | null = null;
-    if (this.historyProvider) {
-      try {
-        const prepared = await this.historyProvider.prepareHistoricalCandles(
-          {
-            endTime: alignedSearchSpace.endTime,
-            pair: alignedSearchSpace.pair,
-            startTime: alignedSearchSpace.startTime,
-            timeframe: alignedSearchSpace.timeframe,
-          },
-          200,
-          100_000,
-        );
-
-        const fingerprint = fingerprintDataset({
-          candles: prepared.candles,
-          endTime: alignedSearchSpace.endTime,
-          pair: alignedSearchSpace.pair,
-          startTime: alignedSearchSpace.startTime,
-          timeframe: alignedSearchSpace.timeframe,
-          warmupCandleCount: prepared.warmupCandleCount,
-        });
-
-        const snapshot = await this.prisma.datasetSnapshot?.upsert?.({
-          where: { fingerprint },
-          create: {
-            candles: prepared.candles as unknown as Prisma.InputJsonValue,
-            endTime: BigInt(alignedSearchSpace.endTime),
-            fingerprint,
-            pair: alignedSearchSpace.pair,
-            startTime: BigInt(alignedSearchSpace.startTime),
-            timeframe: alignedSearchSpace.timeframe,
-            warmupCandleCount: prepared.warmupCandleCount,
-          },
-          update: {},
-        });
-
-        datasetSnapshotId = snapshot ? snapshot.id : null;
-      } catch (error) {
-        this.logger?.warn(
-          { error, searchSpace: alignedSearchSpace },
-          'Failed to prepare historical dataset for search run via historyProvider',
-        );
-      }
-    }
-
-    if (!datasetSnapshotId && this.prisma.datasetSnapshot?.findFirst) {
-      const existing = await this.prisma.datasetSnapshot.findFirst({
-        where: {
-          endTime: BigInt(alignedSearchSpace.endTime),
-          pair: alignedSearchSpace.pair,
-          startTime: BigInt(alignedSearchSpace.startTime),
-          timeframe: alignedSearchSpace.timeframe,
-        },
-      });
-      if (existing) {
-        datasetSnapshotId = existing.id;
-      }
-    }
+    // Fail fast: no SearchRun, Experiment, or Backtest Job exists until this succeeds.
+    const datasetSnapshotId =
+      await this.prepareDatasetSnapshot(alignedSearchSpace);
 
     const searchRun = await this.prisma.searchRun.create({
       data: {
         algorithm: algorithmName,
+        datasetSnapshotId,
         nextGenerationOrdinal: 1,
         ownerId: options.ownerId,
         searchConfig: {
@@ -506,14 +464,13 @@ export class SearchCoordinator {
           continue;
         }
 
-        // Candidate accepted
-        run.seenFingerprints.add(candidate.fingerprint);
-
         const success = await this.persistAndEnqueueCandidate(run, candidate);
         if (!success) {
+          // Not marked seen, so a failed submission can be retried instead of blocked.
           continue;
         }
 
+        run.seenFingerprints.add(candidate.fingerprint);
         run.acceptedCandidates++;
         run.inFlightJobs++;
 
@@ -571,11 +528,78 @@ export class SearchCoordinator {
     return false;
   }
 
+  private async prepareDatasetSnapshot(
+    searchSpace: SearchSpace,
+  ): Promise<string> {
+    if (!this.historyProvider) {
+      throw new DatasetSnapshotPreparationError(
+        'No history provider is configured; cannot obtain an immutable Dataset Snapshot for this search space',
+      );
+    }
+
+    try {
+      const prepared = await this.historyProvider.prepareHistoricalCandles(
+        {
+          endTime: searchSpace.endTime,
+          pair: searchSpace.pair,
+          startTime: searchSpace.startTime,
+          timeframe: searchSpace.timeframe,
+        },
+        200,
+        100_000,
+      );
+
+      const fingerprint = fingerprintDataset({
+        candles: prepared.candles,
+        endTime: searchSpace.endTime,
+        pair: searchSpace.pair,
+        startTime: searchSpace.startTime,
+        timeframe: searchSpace.timeframe,
+        warmupCandleCount: prepared.warmupCandleCount,
+      });
+
+      const snapshot = await this.prisma.datasetSnapshot.upsert({
+        where: { fingerprint },
+        create: {
+          candles: prepared.candles as unknown as Prisma.InputJsonValue,
+          endTime: BigInt(searchSpace.endTime),
+          fingerprint,
+          pair: searchSpace.pair,
+          startTime: BigInt(searchSpace.startTime),
+          timeframe: searchSpace.timeframe,
+          warmupCandleCount: prepared.warmupCandleCount,
+        },
+        update: {},
+      });
+
+      return snapshot.id;
+    } catch (error) {
+      this.logger?.error(
+        { error, searchSpace },
+        'Failed to prepare an immutable Dataset Snapshot for search run startup; aborting before creating a SearchRun',
+      );
+      throw new DatasetSnapshotPreparationError(
+        'Failed to prepare an immutable Dataset Snapshot for this search space',
+        { cause: error },
+      );
+    }
+  }
+
   private async persistAndEnqueueCandidate(
     run: ActiveRunState,
     candidate: CandidateStrategy,
   ): Promise<boolean> {
+    const datasetSnapshotId = run.datasetSnapshotId;
+    if (!datasetSnapshotId) {
+      this.logger?.error(
+        { searchRunId: run.searchRunId },
+        'Refusing to create a searched Experiment without a Dataset Snapshot reference',
+      );
+      return false;
+    }
+
     try {
+      // One transaction: an enqueue failure rolls back the Experiment too.
       const { experimentId } = await this.prisma.$transaction(
         async (transaction: Prisma.TransactionClient) => {
           const strategyVersion = await this.findOrCreateStrategyVersion(
@@ -586,9 +610,7 @@ export class SearchCoordinator {
 
           const experiment = await transaction.experiment.create({
             data: {
-              ...(run.datasetSnapshotId
-                ? { datasetSnapshotId: run.datasetSnapshotId }
-                : {}),
+              datasetSnapshotId,
               endTime: BigInt(run.searchSpace.endTime),
               evaluatorVersion: 'default-v1',
               fingerprint: candidate.fingerprint,
@@ -605,18 +627,18 @@ export class SearchCoordinator {
             },
           });
 
+          await this.enqueueJobFn(transaction, {
+            experimentId: experiment.id,
+            ownerId: run.ownerId,
+            searchRunId: run.searchRunId,
+          });
+
           return {
             experimentId: experiment.id,
             strategyVersionId: strategyVersion.id,
           };
         },
       );
-
-      await this.enqueueJobFn({
-        experimentId,
-        ownerId: run.ownerId,
-        searchRunId: run.searchRunId,
-      });
 
       run.activeExperimentIds.add(experimentId);
 
@@ -1000,11 +1022,11 @@ export class SearchCoordinator {
       const seenFingerprints = new Set<string>();
       const activeExperimentIds = new Set<string>();
       let inFlight = 0;
-      let restoredDatasetSnapshotId: string | null | undefined = undefined;
+      let inferredDatasetSnapshotId: string | null = null;
 
       for (const exp of experiments) {
-        if (exp.datasetSnapshotId && !restoredDatasetSnapshotId) {
-          restoredDatasetSnapshotId = exp.datasetSnapshotId;
+        if (exp.datasetSnapshotId && !inferredDatasetSnapshotId) {
+          inferredDatasetSnapshotId = exp.datasetSnapshotId;
         }
         if (exp.fingerprint) {
           seenFingerprints.add(exp.fingerprint);
@@ -1019,10 +1041,31 @@ export class SearchCoordinator {
         }
       }
 
+      // Fall back to an Experiment's snapshot for runs restored before this column existed.
+      const datasetSnapshotId =
+        record.datasetSnapshotId ?? inferredDatasetSnapshotId;
+
       if (!StrategyGeneratorRegistry.has(record.algorithm)) {
         this.logger?.error(
           { algorithm: record.algorithm, searchRunId: record.id },
           'Cannot restore SearchRun: algorithm is no longer registered',
+        );
+        await this.prisma.searchRun.update({
+          data: {
+            status: 'FAILED',
+            stoppedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          where: { id: record.id },
+        });
+        continue;
+      }
+
+      // Only a RUNNING run needs a snapshot to resume generating candidates.
+      if (record.status === 'RUNNING' && !datasetSnapshotId) {
+        this.logger?.error(
+          { searchRunId: record.id },
+          'Cannot restore SearchRun: no Dataset Snapshot is recorded for further candidate generation',
         );
         await this.prisma.searchRun.update({
           data: {
@@ -1049,7 +1092,7 @@ export class SearchCoordinator {
         bestScore: record.bestScore ? Number(record.bestScore) : null,
         consecutiveFailures: record.consecutiveFailures,
         consecutiveNoImprovement: record.consecutiveNoImprovement,
-        datasetSnapshotId: restoredDatasetSnapshotId,
+        datasetSnapshotId,
         drainResolvers: [],
         experimentCandidateMap: new Map(),
         generator,
@@ -1068,6 +1111,13 @@ export class SearchCoordinator {
       };
 
       this.activeRuns.set(record.id, runState);
+
+      if (inFlight !== record.inFlightJobs) {
+        await this.prisma.searchRun.update({
+          data: { inFlightJobs: inFlight, updatedAt: new Date() },
+          where: { id: record.id },
+        });
+      }
 
       if (record.status === 'RUNNING') {
         void this.runGenerationLoop(runState);

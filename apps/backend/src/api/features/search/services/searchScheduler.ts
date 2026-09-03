@@ -148,6 +148,9 @@ export class SearchScheduler {
       userId,
     };
 
+    // Await the first run so a startup failure fails this call, not the background loop.
+    await this.startNewRun(session);
+
     this.activeSessions.set(userId, session);
 
     // Launch continuous chaining loop for this user session asynchronously
@@ -238,6 +241,18 @@ export class SearchScheduler {
     }));
   }
 
+  private async startNewRun(session: ActiveUserSession): Promise<string> {
+    const runId = await this.coordinator.startRun({
+      algorithmName: session.algorithm,
+      ownerId: session.userId,
+      searchSpace: session.searchSpace,
+      stopPolicy: session.stopPolicy,
+    });
+    session.currentRunId = runId;
+    this.emitProgress(session);
+    return runId;
+  }
+
   /**
    * Continuous Discovery chaining loop for a user.
    * Runs bounded SearchRuns sequentially until the session is paused or stopped.
@@ -247,16 +262,8 @@ export class SearchScheduler {
 
     try {
       while (this.isRunning && session.status === 'ACTIVE') {
-        // Start an independent SearchRun sampled from scratch
-        const runId = await this.coordinator.startRun({
-          algorithmName: session.algorithm,
-          ownerId: session.userId,
-          searchSpace: session.searchSpace,
-          stopPolicy: session.stopPolicy,
-        });
-
-        session.currentRunId = runId;
-        this.emitProgress(session);
+        // startSession already starts the first run; only chain a fresh one here.
+        const runId = session.currentRunId ?? (await this.startNewRun(session));
 
         // Wait for the bounded SearchRun to reach terminal state (COMPLETED / FAILED)
         const finalRun = await this.coordinator.waitForRunCompletion(runId);
