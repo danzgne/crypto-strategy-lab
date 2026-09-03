@@ -37,6 +37,279 @@ const bufferedUpdate: Candle = {
 };
 
 describe('MarketDataService', () => {
+  it('keeps a subscription referenced when initial history fails and recovers later', async () => {
+    vi.useFakeTimers();
+    try {
+      const recoveryFormingCandle: Candle = {
+        ...formingCandle,
+        close: 101.25,
+        volume: 14,
+      };
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const closeStreams = [vi.fn(), vi.fn()];
+      const fetchCandles = vi
+        .fn<ExchangeAdapter['fetchCandles']>()
+        .mockRejectedValueOnce(new Error('initial history unavailable'))
+        .mockResolvedValueOnce([historyCandle, recoveryFormingCandle]);
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles,
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers.push(handlers);
+          return closeStreams[streamHandlers.length - 1]!;
+        }),
+      };
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onCandle, onStatus },
+      );
+
+      expect(subscription.candles).toEqual([]);
+      expect(onStatus).toHaveBeenLastCalledWith('STALE');
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      });
+      expect(exchangeAdapter.openKlineStream).toHaveBeenCalledTimes(2);
+      expect(onStatus).toHaveBeenLastCalledWith('LIVE');
+      expect(onCandle).toHaveBeenCalledWith(historyCandle);
+      expect(onCandle).toHaveBeenCalledWith(recoveryFormingCandle);
+
+      const recoveredSubscription = await service.subscribe({
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      });
+      expect(recoveredSubscription.candles).toEqual([
+        historyCandle,
+        recoveryFormingCandle,
+      ]);
+
+      await recoveredSubscription.unsubscribe();
+      await subscription.unsubscribe();
+      expect(closeStreams[0]).toHaveBeenCalledOnce();
+      expect(closeStreams[1]).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a subscription referenced when initial stream setup fails and recovers later', async () => {
+    vi.useFakeTimers();
+    try {
+      const recoveryClosedCandle: Candle = {
+        ...formingCandle,
+        close: 101.25,
+        isClosed: true,
+      };
+      const recoveryFormingCandle: Candle = {
+        ...recoveryClosedCandle,
+        openTime: recoveryClosedCandle.openTime + 60_000,
+        closeTime: recoveryClosedCandle.closeTime + 60_000,
+        open: 101.25,
+        high: 102,
+        low: 101,
+        close: 101.75,
+        volume: 14,
+        isClosed: false,
+      };
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const closeStream = vi.fn();
+      const fetchCandles = vi
+        .fn<ExchangeAdapter['fetchCandles']>()
+        .mockResolvedValueOnce([historyCandle, formingCandle])
+        .mockResolvedValueOnce([
+          historyCandle,
+          recoveryClosedCandle,
+          recoveryFormingCandle,
+        ]);
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles,
+        openKlineStream: vi
+          .fn<ExchangeAdapter['openKlineStream']>()
+          .mockRejectedValueOnce(new Error('initial stream unavailable'))
+          .mockImplementation((_keys, handlers) => {
+            streamHandlers.push(handlers);
+            return closeStream;
+          }),
+      };
+      const onCandle = vi.fn();
+      const onStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+        now: () => recoveryFormingCandle.closeTime,
+      });
+
+      const subscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onCandle, onStatus },
+      );
+
+      expect(subscription.candles).toEqual([historyCandle, formingCandle]);
+      expect(onStatus).toHaveBeenLastCalledWith('STALE');
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(exchangeAdapter.openKlineStream).toHaveBeenCalledTimes(2);
+      expect(fetchCandles).toHaveBeenNthCalledWith(2, {
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: MAX_CANDLE_LIMIT,
+        startTime: historyCandle.openTime - 60_000,
+        endTime: recoveryFormingCandle.closeTime,
+      });
+      expect(onStatus).toHaveBeenLastCalledWith('LIVE');
+      expect(onCandle).toHaveBeenCalledWith(recoveryClosedCandle);
+      expect(onCandle).toHaveBeenCalledWith(recoveryFormingCandle);
+
+      await subscription.unsubscribe();
+      expect(closeStream).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('closes a replacement stream when disposal happens during recovery backfill', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveRecoveryHistory: (candles: Candle[]) => void = () => undefined;
+      const pendingRecoveryHistory = new Promise<Candle[]>((resolve) => {
+        resolveRecoveryHistory = resolve;
+      });
+      const streamHandlers: Array<
+        Parameters<ExchangeAdapter['openKlineStream']>[1]
+      > = [];
+      const closeStreams = [vi.fn(), vi.fn()];
+      let resolveRecoveryStreamOpened: () => void = () => undefined;
+      const recoveryStreamOpened = new Promise<void>((resolve) => {
+        resolveRecoveryStreamOpened = resolve;
+      });
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi
+          .fn<ExchangeAdapter['fetchCandles']>()
+          .mockRejectedValueOnce(new Error('initial history unavailable'))
+          .mockReturnValueOnce(pendingRecoveryHistory),
+        openKlineStream: vi.fn((_keys, handlers) => {
+          streamHandlers.push(handlers);
+          if (streamHandlers.length === 2) resolveRecoveryStreamOpened();
+          return closeStreams[streamHandlers.length - 1]!;
+        }),
+      };
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+      });
+
+      const subscription = await service.subscribe({
+        pair: 'BTCUSDT',
+        timeframe: '1m',
+        limit: 10,
+      });
+      streamHandlers[0]?.onStatus?.('RECONNECTING');
+      await vi.advanceTimersByTimeAsync(25);
+      await recoveryStreamOpened;
+
+      const unsubscribePromise = subscription.unsubscribe();
+      await Promise.resolve();
+      expect(closeStreams[1]).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+
+      resolveRecoveryHistory([historyCandle]);
+      await unsubscribePromise;
+      await service.close();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('contains initial degradation to the affected market subscription', async () => {
+    vi.useFakeTimers();
+    try {
+      const ethCandle: Candle = { ...historyCandle, pair: 'ETHUSDT' };
+      let btcHistoryAttempts = 0;
+      const streamHandlers: Array<{
+        pair: string;
+        handlers: Parameters<ExchangeAdapter['openKlineStream']>[1];
+      }> = [];
+      const closeStreams = [vi.fn(), vi.fn(), vi.fn()];
+      const exchangeAdapter: ExchangeAdapter = {
+        fetchCandles: vi.fn(async (query: CandleQuery) => {
+          if (query.pair === 'BTCUSDT' && btcHistoryAttempts++ === 0) {
+            throw new Error('BTC history unavailable');
+          }
+          return query.pair === 'BTCUSDT' ? [historyCandle] : [ethCandle];
+        }),
+        openKlineStream: vi.fn((keys, handlers) => {
+          const pair = keys[0]?.pair;
+          if (pair === undefined) throw new Error('Expected one market key');
+          streamHandlers.push({ pair, handlers });
+          return closeStreams[streamHandlers.length - 1]!;
+        }),
+      };
+      const btcStatus = vi.fn();
+      const ethStatus = vi.fn();
+      const service = new MarketDataService({
+        exchangeAdapter,
+        candleRepository: {
+          upsertClosed: vi.fn().mockResolvedValue(undefined),
+        },
+        reconnectPolicy: { initialDelayMs: 25, maxDelayMs: 25 },
+      });
+
+      const btcSubscription = await service.subscribe(
+        { pair: 'BTCUSDT', timeframe: '1m', limit: 10 },
+        { onStatus: btcStatus },
+      );
+      const ethSubscription = await service.subscribe(
+        { pair: 'ETHUSDT', timeframe: '1m', limit: 10 },
+        { onStatus: ethStatus },
+      );
+
+      expect(btcSubscription.candles).toEqual([]);
+      expect(ethSubscription.candles).toEqual([ethCandle]);
+      expect(btcStatus).toHaveBeenLastCalledWith('STALE');
+      expect(ethStatus).toHaveBeenLastCalledWith('LIVE');
+
+      await vi.advanceTimersByTimeAsync(25);
+
+      expect(btcStatus).toHaveBeenLastCalledWith('LIVE');
+      expect(ethStatus).toHaveBeenLastCalledWith('LIVE');
+      expect(exchangeAdapter.openKlineStream).toHaveBeenCalledTimes(3);
+
+      await btcSubscription.unsubscribe();
+      await ethSubscription.unsubscribe();
+      expect(closeStreams[0]).toHaveBeenCalledOnce();
+      expect(closeStreams[1]).toHaveBeenCalledOnce();
+      expect(closeStreams[2]).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('merges buffered stream updates after REST history and emits each market event once', async () => {
     let streamHandlers:
       Parameters<ExchangeAdapter['openKlineStream']>[1] | undefined;

@@ -73,6 +73,21 @@ Default local endpoints:
 | Backend readiness | <http://localhost:3100/api/v1/health/ready> |
 | PostgreSQL        | `localhost:5434`                            |
 
+Direct mode is the default and is the simplest workflow for host development and local Compose debugging. To test
+the production-like single-origin topology, start the optional `edge` profile instead:
+
+```bash
+docker compose --profile edge up --build -d --wait edge
+pnpm edge:smoke
+```
+
+Open <http://localhost:8080>. Nginx routes the browser's `/` requests to the profile's Next.js container and its
+`/api/*` plus `/socket.io/*` requests to Express, including WebSocket upgrades and polling fallback. The smoke check
+loads the frontend, calls readiness, registers a temporary user, verifies the httpOnly session cookie through `/me`,
+and connects through both Socket.IO transports. Set `EDGE_PORT` and `EDGE_URL` together when using another host port.
+The profile adds a second frontend build only so its browser API/realtime URL can fall back to the edge origin; the
+default `frontend` service and direct `3000`/`3100` ports are unchanged.
+
 Useful operations:
 
 ```bash

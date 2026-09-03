@@ -46,7 +46,7 @@ export function DiscoveryDashboard() {
         <div className="flex items-center gap-2">
           <StatusBadge tone="positive">
             <RadioTower aria-hidden="true" className="size-3.5" />
-            Binance API + WebSocket
+            Market data service
           </StatusBadge>
           <Link
             className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"

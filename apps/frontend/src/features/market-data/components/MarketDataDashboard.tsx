@@ -89,7 +89,7 @@ export function MarketDataDashboard({
           <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-600 sm:text-base">
             Watch four independently switchable market panels in real time. The
             browser receives normalized candles from the Market Data Service;
-            Binance remains behind the backend exchange adapter.
+            the configured exchange adapter remains behind the backend boundary.
           </p>
         </div>
         <StatusBadge tone="neutral">
@@ -205,8 +205,8 @@ export function MarketDataDashboard({
               Scope boundary
             </p>
             <p className="mt-2 text-xs leading-5 text-blue-900/70">
-              The browser never connects to Binance. The live flow is Frontend →
-              Market Data Service → Exchange Adapter → Binance.
+              The browser never connects to an exchange directly. The live flow
+              is Frontend → Market Data Service → Exchange Adapter.
             </p>
           </div>
         </aside>

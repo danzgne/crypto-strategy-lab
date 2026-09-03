@@ -9,7 +9,7 @@ describe('ConnectionStatusCard', () => {
       <ConnectionStatusCard
         connection={{
           phase: 'live',
-          dataSource: 'Binance API + WebSocket',
+          dataSource: 'Configured market adapter',
           latencyMs: 18,
           lastDataAt: '2026-08-21T10:00:00.000Z',
           serverTime: '2026-08-21T10:00:00.000Z',
@@ -21,7 +21,7 @@ describe('ConnectionStatusCard', () => {
     expect(screen.getByTestId('connection-indicator')).toHaveTextContent(
       'Connected',
     );
-    expect(screen.getByText('Binance API + WebSocket')).toBeInTheDocument();
+    expect(screen.getByText('Configured market adapter')).toBeInTheDocument();
     expect(screen.getByText('18 ms')).toBeInTheDocument();
     expect(screen.getByText('Stable')).toBeInTheDocument();
   });

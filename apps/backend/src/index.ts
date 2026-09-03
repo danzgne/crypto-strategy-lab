@@ -274,7 +274,7 @@ async function startBackend(): Promise<void> {
     leaderboardEventBus: eventBus,
     logger,
     marketDataService,
-    marketDataSource: 'Binance API + WebSocket',
+    marketDataSource: 'Configured exchange adapter',
     marketTickService,
     onDiscoveryGatewayRegistered: (emitter) => {
       discoveryGatewayEmitter = emitter;

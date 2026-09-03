@@ -10,10 +10,12 @@
   "scripts": {
     "build": "pnpm prisma:generate && pnpm --filter @crypto-strategy-lab/shared build && pnpm --filter @crypto-strategy-lab/strategy-engine build && pnpm --filter @crypto-strategy-lab/backend build && pnpm --filter @crypto-strategy-lab/backtest-worker build && pnpm --filter @crypto-strategy-lab/frontend build",
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test && pnpm build",
+    "compose:config": "docker compose config --quiet && docker compose --profile edge config --quiet",
     "dev": "pnpm prisma:generate && pnpm --parallel --stream --filter @crypto-strategy-lab/backend --filter @crypto-strategy-lab/backtest-worker --filter @crypto-strategy-lab/frontend dev",
     "dev:backend": "pnpm --filter @crypto-strategy-lab/backend dev",
     "dev:frontend": "pnpm --filter @crypto-strategy-lab/frontend dev",
     "dev:worker": "pnpm --filter @crypto-strategy-lab/backtest-worker dev",
+    "edge:smoke": "node apps/backend/scripts/edge-smoke.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm --recursive --if-present lint",

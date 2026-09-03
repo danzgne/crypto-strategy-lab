@@ -6,20 +6,20 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import { io, type Socket } from 'socket.io-client';
 
+import { getPublicBackendUrl } from '../api/publicBackendUrl';
+
 export type AppSocket = Socket<ServerToClientEvents, ClientToServerEvents>;
 
 let realtimeSocket: AppSocket | undefined;
 
 export function getRealtimeSocket(): AppSocket {
-  realtimeSocket ??= io(
-    process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:3100',
-    {
-      autoConnect: false,
-      reconnection: true,
-      transports: ['websocket'],
-      withCredentials: true,
-    },
-  );
+  realtimeSocket ??= io(getPublicBackendUrl(), {
+    autoConnect: false,
+    reconnection: true,
+    transports: ['websocket', 'polling'],
+    tryAllTransports: true,
+    withCredentials: true,
+  });
 
   return realtimeSocket;
 }
