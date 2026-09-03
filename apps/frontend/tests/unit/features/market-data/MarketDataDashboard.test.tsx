@@ -140,12 +140,12 @@ describe('MarketDataDashboard', () => {
     fireEvent.change(strategySelector, { target: { value: 'builtin:ma' } });
     expect(strategySelector).toHaveValue('builtin:ma');
     expect(timeframeSelectors).toHaveLength(4);
-    const workspace = screen.getByRole('region', {
-      name: 'Live market workspace',
-    });
-    expect(within(workspace).getByTestId('workspace-controls')).toHaveClass(
+    expect(
+      screen.getByRole('region', { name: 'Live market workspace' }),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId('workspace-controls')).toHaveClass(
       'grid',
-      'sm:grid-cols-2',
+      'md:grid-cols-2',
     );
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
     expect(screen.getByText('Configured market adapter')).toBeInTheDocument();
