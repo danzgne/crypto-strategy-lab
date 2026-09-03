@@ -139,7 +139,12 @@ interface ActiveRunState {
   activeExperimentIds: Set<string>;
   experimentCandidateMap: Map<
     string,
-    { name: string; strategyIds: string[]; mode?: 'majority' | 'weighted' }
+    {
+      name: string;
+      strategyIds: string[];
+      memberLabels?: readonly (string | null)[] | undefined;
+      mode?: 'majority' | 'weighted';
+    }
   >;
   latestCandidate?: EvaluatingCandidateSummary | undefined;
   bestCandidate?: BestCandidateSummary | undefined;
@@ -695,11 +700,15 @@ export class SearchCoordinator {
         (isComposite
           ? `Composite (${candidate.combinationConfig?.mode ?? 'majority'})`
           : (candidate.strategyIds[0]?.toUpperCase() ?? 'UNKNOWN'));
+      const memberLabels = candidate.memberSources?.map(
+        (source) => source?.displayName ?? null,
+      );
 
       const evaluatingSummary: EvaluatingCandidateSummary = {
         ...(candidate.combinationConfig?.mode
           ? { mode: candidate.combinationConfig.mode }
           : {}),
+        ...(memberLabels ? { memberLabels } : {}),
         name: candidateName,
         pair: run.searchSpace.pair,
         strategyIds: [...candidate.strategyIds],
@@ -710,6 +719,7 @@ export class SearchCoordinator {
         ...(candidate.combinationConfig?.mode
           ? { mode: candidate.combinationConfig.mode }
           : {}),
+        ...(memberLabels ? { memberLabels } : {}),
         name: candidateName,
         strategyIds: [...candidate.strategyIds],
       });
@@ -841,6 +851,7 @@ export class SearchCoordinator {
               payload.maxDrawdown !== undefined
                 ? Number(payload.maxDrawdown)
                 : undefined,
+            memberLabels: candidateInfo?.memberLabels,
             mode: candidateInfo?.mode,
             name: candidateInfo?.name ?? 'Best Strategy',
             profit:

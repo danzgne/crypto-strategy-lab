@@ -146,6 +146,10 @@ export type DiscoverySessionStatus = 'ACTIVE' | 'PAUSED' | 'STOPPED';
 export interface EvaluatingCandidateSummary {
   readonly name: string;
   readonly strategyIds: string[];
+  // Parallel to strategyIds; an entry is the Library entry's display name where a member is
+  // version-sourced, null elsewhere. Two members can share a registry id (e.g. two "rule" Library
+  // entries), so the UI needs this to tell them apart instead of rendering the bare id twice.
+  readonly memberLabels?: readonly (string | null)[] | undefined;
   readonly mode?: 'majority' | 'weighted' | undefined;
   readonly pair: string;
   readonly timeframe: string;
@@ -155,6 +159,7 @@ export interface BestCandidateSummary {
   readonly experimentId: string;
   readonly name: string;
   readonly strategyIds: string[];
+  readonly memberLabels?: readonly (string | null)[] | undefined;
   readonly mode?: 'majority' | 'weighted' | undefined;
   readonly score: number;
   readonly profit?: number | undefined;

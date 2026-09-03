@@ -478,6 +478,35 @@ describe('Discovery UI Components', () => {
       const tradesLink = screen.getByTestId('view-best-backtest-link');
       expect(tradesLink).toHaveAttribute('href', '/backtests/exp-best-123');
     });
+
+    it('renders distinct member badges when two members share a registry id, using memberLabels', () => {
+      const mockDiscovery = createMockDiscovery({
+        progress: {
+          acceptedCandidates: 5,
+          bestScore: null,
+          inFlightJobs: 1,
+          latestCandidate: {
+            memberLabels: ['My Rule A', 'My Rule B'],
+            mode: 'majority',
+            name: 'Composite (majority)',
+            pair: 'BTCUSDT',
+            strategyIds: ['rule', 'rule'],
+            timeframe: '1h',
+          },
+          maxCandidates: 100,
+          sessionId: 's-live-2',
+          sessionStatus: 'ACTIVE',
+          totalRunsCompleted: 0,
+          userId: 'u-1',
+        },
+      });
+
+      render(<DiscoveryProgressCard discovery={mockDiscovery} />);
+
+      const banner = screen.getByTestId('evaluating-candidate-banner');
+      expect(banner).toHaveTextContent('MY RULE A');
+      expect(banner).toHaveTextContent('MY RULE B');
+    });
   });
 
   describe('DiscoveryRunHistoryTable', () => {

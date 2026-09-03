@@ -1035,6 +1035,71 @@ describe('SearchCoordinator', () => {
     expect(lastProgress.bestCandidate?.winRate).toBe(0.6);
   });
 
+  it('reports parallel memberLabels so two members sharing a registry id stay distinguishable in progress summaries', async () => {
+    class DuplicateRegistryIdGenerator implements StrategyGenerator {
+      public generate(): CandidateStrategy {
+        return {
+          combinationConfig: { mode: 'majority' },
+          fingerprint: 'fp-dup-registry-id',
+          memberSources: [
+            {
+              displayName: 'My Rule A',
+              strategyVersionId: 'ver-a',
+              versionTag: 'rule@a',
+            },
+            {
+              displayName: 'My Rule B',
+              strategyVersionId: 'ver-b',
+              versionTag: 'rule@b',
+            },
+          ],
+          parameterSnapshots: [{ period: 10 }, { period: 20 }],
+          provenance: { algorithm: 'fake', generationOrdinal: 1 },
+          strategyIds: ['rule', 'rule'],
+        };
+      }
+    }
+
+    const progressUpdates: unknown[] = [];
+    const generator = new DuplicateRegistryIdGenerator();
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (_transaction, input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
+      onProgress: (event) => {
+        progressUpdates.push(event);
+      },
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    await coordinator.startRun({
+      generator,
+      ownerId: 'user-1',
+      searchSpace: defaultSearchSpace,
+      stopPolicy: { maxCandidates: 1, maxInFlight: 1 },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const lastProgress = progressUpdates[progressUpdates.length - 1] as {
+      latestCandidate?: {
+        strategyIds: string[];
+        memberLabels?: (string | null)[];
+      };
+    };
+
+    expect(lastProgress.latestCandidate?.strategyIds).toEqual(['rule', 'rule']);
+    expect(lastProgress.latestCandidate?.memberLabels).toEqual([
+      'My Rule A',
+      'My Rule B',
+    ]);
+  });
+
   it('rejects an unsupported algorithm and creates no SearchRun, Experiment, or Backtest Job', async () => {
     const coordinator = new SearchCoordinator({
       enqueueJob: async (_transaction, input) => {

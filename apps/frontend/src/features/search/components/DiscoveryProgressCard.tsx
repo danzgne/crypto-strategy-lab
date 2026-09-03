@@ -214,12 +214,13 @@ export function DiscoveryProgressCard({
               <span className="text-[11px] font-medium text-slate-500">
                 Components:
               </span>
-              {latestCandidate.strategyIds.map((stratId) => (
+              {latestCandidate.strategyIds.map((stratId, index) => (
                 <span
-                  key={stratId}
+                  key={`${stratId}-${index}`}
                   className="inline-flex items-center rounded-md border border-indigo-100 bg-white px-2 py-0.5 text-[11px] font-semibold text-indigo-800 shadow-xs"
                 >
-                  {stratId.toUpperCase()}
+                  {latestCandidate.memberLabels?.[index]?.toUpperCase() ??
+                    stratId.toUpperCase()}
                 </span>
               ))}
             </div>
@@ -266,12 +267,13 @@ export function DiscoveryProgressCard({
           {/* Sub-strategies badges & metrics */}
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-1.5">
-              {bestCandidate.strategyIds.map((id) => (
+              {bestCandidate.strategyIds.map((id, index) => (
                 <span
-                  key={id}
+                  key={`${id}-${index}`}
                   className="rounded-md border border-amber-200 bg-white px-2 py-0.5 text-xs font-bold text-amber-950 shadow-xs"
                 >
-                  {id.toUpperCase()}
+                  {bestCandidate.memberLabels?.[index]?.toUpperCase() ??
+                    id.toUpperCase()}
                 </span>
               ))}
               {bestCandidate.mode && (
