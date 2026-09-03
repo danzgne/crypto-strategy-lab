@@ -3,6 +3,7 @@ import type { SearchScheduler } from '../services/searchScheduler';
 import type { TradeRetentionService } from '../services/tradeRetentionService';
 import type { StartDiscoverySessionInput } from '@crypto-strategy-lab/shared';
 import { UnsupportedAlgorithmError } from '../generators';
+import { DatasetSnapshotPreparationError } from '../services/searchCoordinator';
 
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -47,6 +48,13 @@ export class SearchController {
         res.status(400).json({
           algorithm: err.algorithm,
           code: 'UNSUPPORTED_ALGORITHM',
+          error: err.message,
+        });
+        return;
+      }
+      if (err instanceof DatasetSnapshotPreparationError) {
+        res.status(503).json({
+          code: 'DATASET_SNAPSHOT_PREPARATION_FAILED',
           error: err.message,
         });
         return;

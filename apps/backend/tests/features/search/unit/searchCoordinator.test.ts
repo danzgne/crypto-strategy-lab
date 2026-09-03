@@ -73,6 +73,27 @@ class FakeGenerator implements StrategyGenerator {
   }
 }
 
+const defaultHistoryProvider = {
+  prepareHistoricalCandles: vi.fn(async () => ({
+    candles: [
+      {
+        close: 100,
+        closeTime: 3_600_000,
+        high: 105,
+        isClosed: true,
+        low: 95,
+        open: 100,
+        openTime: 0,
+        pair: defaultSearchSpace.pair,
+        timeframe: defaultSearchSpace.timeframe,
+        volume: 10,
+      },
+    ],
+    selectedCandles: [],
+    warmupCandleCount: 1,
+  })),
+};
+
 interface MockPrisma {
   $transaction: (
     callback: (tx: {
@@ -182,6 +203,10 @@ describe('SearchCoordinator', () => {
         findFirst: vi.fn(async () => null),
         findMany: vi.fn(async () => []),
       },
+      datasetSnapshot: {
+        findFirst: vi.fn(async () => null),
+        upsert: vi.fn(async () => ({ id: 'snapshot-default' })),
+      },
       experiment: {
         findMany: vi.fn(async () => []),
       },
@@ -221,11 +246,12 @@ describe('SearchCoordinator', () => {
 
   it('stops at candidate cap and emits StrategyGenerated events', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -259,11 +285,12 @@ describe('SearchCoordinator', () => {
 
   it('deduplicates candidate fingerprints and does not increment failure count', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -290,11 +317,12 @@ describe('SearchCoordinator', () => {
 
   it('stops at consecutive no improvement and tracks best score', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -388,11 +416,12 @@ describe('SearchCoordinator', () => {
 
   it('drains in-flight jobs and marks COMPLETED when reaching 0 in-flight', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -464,11 +493,12 @@ describe('SearchCoordinator', () => {
 
   it('reconciles drifted in-flight counts against Backtest Job state and unsticks a STOPPING run', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -509,11 +539,12 @@ describe('SearchCoordinator', () => {
 
   it('stops when time budget is exceeded', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -543,11 +574,12 @@ describe('SearchCoordinator', () => {
     }));
 
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -598,11 +630,12 @@ describe('SearchCoordinator', () => {
     }
 
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -670,11 +703,12 @@ describe('SearchCoordinator', () => {
     ]);
 
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -744,6 +778,7 @@ describe('SearchCoordinator', () => {
 
     const coordinator = new SearchCoordinator({
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -802,7 +837,7 @@ describe('SearchCoordinator', () => {
     };
 
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
@@ -829,11 +864,12 @@ describe('SearchCoordinator', () => {
   it('notifies onProgress callback during candidate generation and evaluation', async () => {
     const progressUpdates: unknown[] = [];
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       onProgress: (event) => {
         progressUpdates.push(event);
       },
@@ -898,11 +934,12 @@ describe('SearchCoordinator', () => {
 
   it('rejects an unsupported algorithm and creates no SearchRun, Experiment, or Backtest Job', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -923,11 +960,12 @@ describe('SearchCoordinator', () => {
 
   it('resolves the registered random-v1 generator through the registry instead of an implicit fallback', async () => {
     const coordinator = new SearchCoordinator({
-      enqueueJob: async (input) => {
+      enqueueJob: async (_transaction, input) => {
         enqueuedJobs.push(input);
         return `job-${enqueuedJobs.length}`;
       },
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
@@ -982,6 +1020,7 @@ describe('SearchCoordinator', () => {
 
     const coordinator = new SearchCoordinator({
       eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
       prisma: fakePrisma as unknown as AppPrismaClient,
     });
 
