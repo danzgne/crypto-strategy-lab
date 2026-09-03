@@ -49,6 +49,9 @@ export interface LibraryEntryDetail extends LibraryEntryBase {
 export interface LibraryBuiltin {
   strategyId: string;
   paramsSchema: StrategyParamsSchema;
+  // True for a Strategy usable only in live/preview evaluation (e.g. NewsSentimentStrategy), never
+  // in a historical Search Space or backtest. Mirrors StrategyRegistry so clients don't duplicate it.
+  liveOnly?: boolean;
 }
 
 export interface LibraryListResponse {

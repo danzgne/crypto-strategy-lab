@@ -2,8 +2,11 @@
 
 import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
 import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared/search';
+import { isVersionMember } from '@crypto-strategy-lab/shared';
 import type {
+  EnabledStrategyDescriptor,
   LibraryBuiltin,
+  LibraryEntry,
   Pair,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
@@ -16,13 +19,25 @@ import {
   Compass,
   Shuffle,
 } from 'lucide-react';
-import { useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
 import type { UseDiscoverySessionResult } from '../hooks/useDiscoverySession';
 
 const AVAILABLE_PAIRS: Pair[] = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'];
 const AVAILABLE_TIMEFRAMES: Timeframe[] = ['1m', '5m', '15m', '1h', '4h', '1d'];
 const DISCOVERY_CONFIG_STORAGE_KEY =
-  'crypto-strategy-lab:discovery-form-config';
+  'crypto-strategy-lab:discovery-form-config:v2';
+const DEFAULT_SELECTED_STRATEGIES = [
+  'builtin:ma',
+  'builtin:rsi',
+  'builtin:bb',
+  'builtin:sr',
+];
 
 interface StoredDiscoveryConfig {
   pair?: Pair;
@@ -33,7 +48,7 @@ interface StoredDiscoveryConfig {
   timeBudgetMinutes?: number;
 }
 
-function getInitialConfig(): StoredDiscoveryConfig {
+function getStoredConfig(): StoredDiscoveryConfig {
   if (typeof window === 'undefined') return {};
   try {
     const stored = localStorage.getItem(DISCOVERY_CONFIG_STORAGE_KEY);
@@ -43,92 +58,163 @@ function getInitialConfig(): StoredDiscoveryConfig {
   }
 }
 
+function builtinOptionId(strategyId: string): string {
+  return `builtin:${strategyId}`;
+}
+
+function entryOptionId(entryId: string): string {
+  return `entry:${entryId}`;
+}
+
+// Never fires: the client snapshot (`true`) is a static value, so there's nothing to
+// resubscribe to. useSyncExternalStore is only used here for its getServerSnapshot split,
+// the React-sanctioned way to read "is this the hydrated client render yet?".
+function subscribeNever() {
+  return () => {};
+}
+function getClientMountedSnapshot() {
+  return true;
+}
+function getServerMountedSnapshot() {
+  return false;
+}
+
+function builtinDisabledReason(builtin: LibraryBuiltin): string | null {
+  return builtin.liveOnly === true
+    ? 'Live only — preview it on the realtime chart instead'
+    : null;
+}
+
+// Mirrors the backend's own applicability check (searchCoordinator.hasApplicabilityConflict), so a
+// selection the UI shows as available never gets silently rejected once a session actually starts.
+function entryApplicabilityReason(
+  entry: LibraryEntry,
+  pair: Pair,
+  timeframe: Timeframe,
+): string | null {
+  const params = entry.latestVersion.params;
+  if (!params) return null;
+
+  const declaredTimeframe = params.timeframe;
+  if (
+    typeof declaredTimeframe === 'string' &&
+    declaredTimeframe !== timeframe
+  ) {
+    return `Only applies to ${declaredTimeframe}`;
+  }
+
+  const applicability = params.applicability;
+  if (applicability && typeof applicability === 'object') {
+    const pairs = (applicability as Record<string, unknown>).pairs;
+    if (Array.isArray(pairs) && !pairs.includes(pair)) {
+      return `Not available for ${pair}`;
+    }
+    if (typeof pairs === 'string' && pairs !== pair) {
+      return `Not available for ${pair}`;
+    }
+  }
+
+  return null;
+}
+
+function libraryEntryDisabledReason(
+  entry: LibraryEntry,
+  builtins: readonly LibraryBuiltin[],
+  pair: Pair,
+  timeframe: Timeframe,
+): string | null {
+  if (entry.kind === 'composite') {
+    return "Composite entries can't be added to a Search Space yet";
+  }
+  const builtin = builtins.find((b) => b.strategyId === entry.strategyId);
+  const builtinReason = builtin ? builtinDisabledReason(builtin) : null;
+  return builtinReason ?? entryApplicabilityReason(entry, pair, timeframe);
+}
+
 interface DiscoverySessionControlProps {
   builtins: readonly LibraryBuiltin[];
+  entries: readonly LibraryEntry[];
+  libraryLoading: boolean;
   discovery: UseDiscoverySessionResult;
 }
 
 export function DiscoverySessionControl({
   builtins,
+  entries,
+  libraryLoading,
   discovery,
 }: DiscoverySessionControlProps) {
-  const [selectedPair, setSelectedPair] = useState<Pair>(() => {
-    if (discovery.session?.searchSpace.pair) {
-      return discovery.session.searchSpace.pair;
-    }
-    const init = getInitialConfig();
-    return init.pair && AVAILABLE_PAIRS.includes(init.pair)
-      ? init.pair
-      : 'BTCUSDT';
-  });
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    getClientMountedSnapshot,
+    getServerMountedSnapshot,
+  );
 
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>(() => {
-    if (discovery.session?.searchSpace.timeframe) {
-      return discovery.session.searchSpace.timeframe;
-    }
-    const init = getInitialConfig();
-    return init.timeframe && AVAILABLE_TIMEFRAMES.includes(init.timeframe)
-      ? init.timeframe
-      : '1h';
-  });
-
-  const [selectedStrategies, setSelectedStrategies] = useState<string[]>(() => {
-    if (discovery.session?.searchSpace.enabledStrategies?.length) {
-      return discovery.session.searchSpace.enabledStrategies.map((s) => s.id);
-    }
-    const init = getInitialConfig();
-    if (Array.isArray(init.strategies) && init.strategies.length > 0) {
-      const mapped = init.strategies
-        .map((id) =>
-          id === 'bollinger' ? 'bb' : id === 'support-resistance' ? 'sr' : id,
-        )
-        .filter((id, index, arr) => arr.indexOf(id) === index);
-      if (mapped.length > 0) return mapped;
-    }
-    return ['ma', 'rsi', 'bb', 'sr'];
-  });
-
+  const [selectedPair, setSelectedPair] = useState<Pair>(
+    () => discovery.session?.searchSpace.pair ?? 'BTCUSDT',
+  );
+  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>(
+    () => discovery.session?.searchSpace.timeframe ?? '1h',
+  );
+  const [selectedStrategies, setSelectedStrategies] = useState<string[]>(() => [
+    ...DEFAULT_SELECTED_STRATEGIES,
+  ]);
   const [permittedModes, setPermittedModes] = useState<
     ('majority' | 'weighted')[]
-  >(() => {
-    if (discovery.session?.searchSpace.permittedCombinationModes?.length) {
-      return [...discovery.session.searchSpace.permittedCombinationModes];
-    }
-    const init = getInitialConfig();
-    return Array.isArray(init.modes) && init.modes.length > 0
-      ? init.modes
-      : ['majority', 'weighted'];
-  });
-
-  const [maxCandidates, setMaxCandidates] = useState<number>(() => {
-    if (discovery.session?.stopPolicy.maxCandidates) {
-      return discovery.session.stopPolicy.maxCandidates;
-    }
-    const init = getInitialConfig();
-    return typeof init.maxCandidates === 'number' && init.maxCandidates > 0
-      ? init.maxCandidates
-      : 100;
-  });
-
-  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState<number>(() => {
-    if (discovery.session?.stopPolicy.timeBudgetMs) {
-      return Math.max(
-        1,
-        Math.round(discovery.session.stopPolicy.timeBudgetMs / 60000),
-      );
-    }
-    const init = getInitialConfig();
-    return typeof init.timeBudgetMinutes === 'number' &&
-      init.timeBudgetMinutes > 0
-      ? init.timeBudgetMinutes
-      : 15;
-  });
-
+  >(() => ['majority', 'weighted']);
+  const [maxCandidates, setMaxCandidates] = useState<number>(100);
+  const [timeBudgetMinutes, setTimeBudgetMinutes] = useState<number>(15);
+  const [libraryFilter, setLibraryFilter] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const isSessionActive = discovery.session?.status === 'ACTIVE';
   const isSessionPaused = discovery.session?.status === 'PAUSED';
   const isSessionRunning = isSessionActive || isSessionPaused;
+
+  // Storage is only ever read here, once, after mount: an initializer above would run during SSR
+  // and during the client's first (pre-hydration) render with different `typeof window` results,
+  // producing a server/client text mismatch. Waiting for the Library to load too means a stored
+  // selection is validated against real ids instead of restored blind (see ADR-0028 / issue #103).
+  const appliedStoredConfigRef = useRef(false);
+  useEffect(() => {
+    if (appliedStoredConfigRef.current) return;
+    if (!mounted || libraryLoading || isSessionRunning) return;
+    appliedStoredConfigRef.current = true;
+
+    // One-time sync from an external system (localStorage) into form state, guarded above so it
+    // can never re-fire: not the "derive during render" case react-hooks/set-state-in-effect wants.
+    /* eslint-disable react-hooks/set-state-in-effect */
+    const stored = getStoredConfig();
+    if (stored.pair && AVAILABLE_PAIRS.includes(stored.pair)) {
+      setSelectedPair(stored.pair);
+    }
+    if (stored.timeframe && AVAILABLE_TIMEFRAMES.includes(stored.timeframe)) {
+      setSelectedTimeframe(stored.timeframe);
+    }
+    if (Array.isArray(stored.strategies)) {
+      const validIds = new Set([
+        ...builtins.map((b) => builtinOptionId(b.strategyId)),
+        ...entries
+          .filter((e) => e.archivedAt === null)
+          .map((e) => entryOptionId(e.id)),
+      ]);
+      const restored = stored.strategies.filter((id) => validIds.has(id));
+      if (restored.length > 0) setSelectedStrategies(restored);
+    }
+    if (Array.isArray(stored.modes) && stored.modes.length > 0) {
+      setPermittedModes(stored.modes);
+    }
+    if (typeof stored.maxCandidates === 'number' && stored.maxCandidates > 0) {
+      setMaxCandidates(stored.maxCandidates);
+    }
+    if (
+      typeof stored.timeBudgetMinutes === 'number' &&
+      stored.timeBudgetMinutes > 0
+    ) {
+      setTimeBudgetMinutes(stored.timeBudgetMinutes);
+    }
+    /* eslint-enable react-hooks/set-state-in-effect */
+  }, [mounted, libraryLoading, isSessionRunning, builtins, entries]);
 
   const currentPair =
     isSessionRunning && discovery.session?.searchSpace.pair
@@ -140,12 +226,26 @@ export function DiscoverySessionControl({
       ? discovery.session.searchSpace.timeframe
       : selectedTimeframe;
 
-  const currentStrategies =
-    isSessionRunning &&
-    discovery.session?.searchSpace.enabledStrategies &&
-    discovery.session.searchSpace.enabledStrategies.length > 0
-      ? discovery.session.searchSpace.enabledStrategies.map((s) => s.id)
-      : selectedStrategies;
+  const currentStrategies = useMemo(() => {
+    if (
+      isSessionRunning &&
+      discovery.session?.searchSpace.enabledStrategies &&
+      discovery.session.searchSpace.enabledStrategies.length > 0
+    ) {
+      return discovery.session.searchSpace.enabledStrategies.map((member) => {
+        if (isVersionMember(member)) {
+          const entry = entries.find(
+            (e) => e.latestVersion.id === member.strategyVersionId,
+          );
+          return entry
+            ? entryOptionId(entry.id)
+            : entryOptionId(member.strategyVersionId);
+        }
+        return builtinOptionId(member.id);
+      });
+    }
+    return selectedStrategies;
+  }, [isSessionRunning, discovery.session, entries, selectedStrategies]);
 
   const currentModes =
     isSessionRunning &&
@@ -228,16 +328,43 @@ export function DiscoverySessionControl({
     saveToStorage({ timeBudgetMinutes: val });
   };
 
+  const visibleEntries = useMemo(() => {
+    const nonArchived = entries.filter((e) => e.archivedAt === null);
+    const query = libraryFilter.trim().toLowerCase();
+    if (!query) return nonArchived;
+    return nonArchived.filter(
+      (e) =>
+        e.name.toLowerCase().includes(query) ||
+        e.tags.some((tag) => tag.toLowerCase().includes(query)),
+    );
+  }, [entries, libraryFilter]);
+
   const handleStart = async () => {
     if (selectedStrategies.length === 0 || permittedModes.length === 0) return;
     setSubmitting(true);
     try {
-      const canonicalizedStrategies = selectedStrategies
-        .map((id) =>
-          id === 'bollinger' ? 'bb' : id === 'support-resistance' ? 'sr' : id,
-        )
-        .filter((id, index, arr) => arr.indexOf(id) === index);
-      const enabledStrategies = canonicalizedStrategies.map((id) => ({ id }));
+      const enabledStrategies: EnabledStrategyDescriptor[] = [];
+      for (const value of selectedStrategies) {
+        if (value.startsWith('builtin:')) {
+          enabledStrategies.push({ id: value.slice('builtin:'.length) });
+          continue;
+        }
+        if (value.startsWith('entry:')) {
+          const entryId = value.slice('entry:'.length);
+          const entry = entries.find((e) => e.id === entryId);
+          if (!entry || entry.kind === 'composite') continue;
+          enabledStrategies.push({
+            displayName: entry.name,
+            id: entry.strategyId,
+            kind: 'version',
+            params: entry.latestVersion.params ?? {},
+            strategyVersionId: entry.latestVersion.id,
+            versionTag: entry.latestVersion.versionTag,
+          });
+        }
+      }
+      if (enabledStrategies.length === 0) return;
+
       const interval = TIMEFRAME_INTERVAL_MS[selectedTimeframe] ?? 3_600_000;
       const now = Date.now();
       const endTime = Math.floor(now / interval) * interval;
@@ -248,7 +375,7 @@ export function DiscoverySessionControl({
         maxCandidates,
         modes: permittedModes,
         pair: selectedPair,
-        strategies: canonicalizedStrategies,
+        strategies: selectedStrategies,
         timeBudgetMinutes,
         timeframe: selectedTimeframe,
       });
@@ -272,6 +399,10 @@ export function DiscoverySessionControl({
       setSubmitting(false);
     }
   };
+
+  if (!mounted || libraryLoading) {
+    return <DiscoverySessionControlSkeleton />;
+  }
 
   return (
     <section
@@ -390,20 +521,29 @@ export function DiscoverySessionControl({
         </div>
       </div>
 
-      {/* Standalone Strategies Pool */}
+      {/* Search Space members */}
       <div className="mt-4">
         <label className="text-xs font-semibold text-slate-700">
-          Strategy Candidates Pool ({currentStrategies.length} selected)
+          Search Space ({currentStrategies.length} selected)
         </label>
-        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+
+        <p className="mt-1.5 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+          Built-in
+        </p>
+        <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {builtins.map((builtin) => {
-            const isSelected = currentStrategies.includes(builtin.strategyId);
+            const value = builtinOptionId(builtin.strategyId);
+            const isSelected = currentStrategies.includes(value);
+            const disabledReason = builtinDisabledReason(builtin);
+            const isDisabled =
+              isSessionActive || isSessionPaused || disabledReason !== null;
             return (
               <button
                 key={builtin.strategyId}
                 type="button"
-                disabled={isSessionActive || isSessionPaused}
-                onClick={() => toggleStrategy(builtin.strategyId)}
+                disabled={isDisabled}
+                title={disabledReason ?? undefined}
+                onClick={() => toggleStrategy(value)}
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
                   isSelected
                     ? 'border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900'
@@ -416,13 +556,83 @@ export function DiscoverySessionControl({
                   readOnly
                   className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
                 />
-                <span className="truncate">
+                <span className="min-w-0 flex-1 truncate">
                   {builtin.strategyId.toUpperCase()}
                 </span>
+                {disabledReason && (
+                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
+                    Live only
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
+
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+            My Library
+          </p>
+          {entries.length > 5 && (
+            <input
+              type="search"
+              value={libraryFilter}
+              onChange={(e) => setLibraryFilter(e.target.value)}
+              placeholder="Filter by name or tag"
+              className="w-40 rounded-lg border border-slate-200 px-2 py-1 text-[11px] text-slate-700 focus:border-indigo-500 focus:outline-none"
+            />
+          )}
+        </div>
+
+        {visibleEntries.length === 0 ? (
+          <p className="mt-1.5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[11px] text-slate-500">
+            {entries.length === 0
+              ? 'Strategies you save to your Library will show up here.'
+              : 'No Library entries match this filter.'}
+          </p>
+        ) : (
+          <div className="mt-1.5 max-h-48 space-y-1.5 overflow-y-auto rounded-xl border border-slate-100 p-1.5">
+            {visibleEntries.map((entry) => {
+              const value = entryOptionId(entry.id);
+              const isSelected = currentStrategies.includes(value);
+              const disabledReason = libraryEntryDisabledReason(
+                entry,
+                builtins,
+                currentPair,
+                currentTimeframe,
+              );
+              const isDisabled =
+                isSessionActive || isSessionPaused || disabledReason !== null;
+              return (
+                <button
+                  key={entry.id}
+                  type="button"
+                  disabled={isDisabled}
+                  title={disabledReason ?? undefined}
+                  onClick={() => toggleStrategy(value)}
+                  className={`flex w-full items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
+                    isSelected
+                      ? 'border-indigo-500 bg-indigo-50/50 font-semibold text-indigo-900'
+                      : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  } disabled:pointer-events-none disabled:opacity-60`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    readOnly
+                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <span className="min-w-0 flex-1 truncate">{entry.name}</span>
+                  {disabledReason && (
+                    <span className="shrink-0 truncate text-[10px] font-medium text-slate-400">
+                      {disabledReason}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Combination Modes */}
@@ -546,6 +756,36 @@ export function DiscoverySessionControl({
           </>
         )}
       </div>
+    </section>
+  );
+}
+
+function DiscoverySessionControlSkeleton() {
+  return (
+    <section
+      aria-hidden="true"
+      className="animate-pulse rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      data-testid="discovery-session-control-skeleton"
+    >
+      <div className="flex items-center gap-2.5 border-b border-slate-100 pb-4">
+        <span className="size-9 rounded-xl bg-slate-100" />
+        <div className="space-y-1.5">
+          <div className="h-4 w-48 rounded bg-slate-100" />
+          <div className="h-3 w-64 rounded bg-slate-100" />
+        </div>
+      </div>
+      <div className="mt-4 h-9 rounded-xl bg-slate-100" />
+      <div className="mt-5 grid grid-cols-2 gap-4">
+        <div className="h-9 rounded-xl bg-slate-100" />
+        <div className="h-9 rounded-xl bg-slate-100" />
+      </div>
+      <div className="mt-4 h-40 rounded-xl bg-slate-100" />
+      <div className="mt-4 h-6 w-56 rounded bg-slate-100" />
+      <div className="mt-4 grid grid-cols-2 gap-3">
+        <div className="h-12 rounded-lg bg-slate-100" />
+        <div className="h-12 rounded-lg bg-slate-100" />
+      </div>
+      <div className="mt-5 h-11 rounded-xl bg-slate-100" />
     </section>
   );
 }

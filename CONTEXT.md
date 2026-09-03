@@ -98,7 +98,9 @@ Combination Engine when assembling a Composite Strategy and by the SearchCoordin
 never by raising from inside `analyze()`.
 
 **Composite Strategy**:
-At least two unique Strategy Versions combined into one Signal-producing unit. Its immutable definition contains the
+At least two unique Strategy Versions combined into one Signal-producing unit. A CandidateStrategy with a single member
+is therefore not a Composite Strategy, and a Composite Strategy assembled from a User's Search Space may mix built-in
+Strategy Versions with ones from that User's Strategy Library. Its immutable definition contains the
 member versions, an explicit `majority` or `weighted` mode, and (for weighted mode) nonnegative normalized weights
 and a threshold. Every member sees the same Context. Majority mode emits BUY or SELL only when that action has a
 strict majority of all member actions; otherwise it emits HOLD. Weighted mode maps BUY/SELL/HOLD to `+1/-1/0`,
@@ -117,17 +119,25 @@ single-member, duplicate-member, or otherwise invalid definitions and does not s
 HOLD.
 
 **CandidateStrategy**:
-A frozen Composite Strategy once it has been produced by a StrategyGenerator and submitted to the Backtester/Evaluator
-pipeline. Downstream components (Backtester, Evaluator, Leaderboard, Visualization) treat it as opaque — they don't
-need to know how it was generated.
+A frozen set of one or more Strategy Versions produced by a StrategyGenerator and submitted to the Backtester/Evaluator
+pipeline. One member means the candidate is that Strategy Version alone and carries no combination mode, which is what
+gives a Composite Strategy's members a baseline to be compared against; two or more members means the candidate *is* a
+Composite Strategy and carries its mode, weights, and threshold. Downstream components (Backtester, Evaluator,
+Leaderboard, Visualization) treat it as opaque — they don't need to know how it was generated.
 
 **StrategyGenerator**:
 The interface behind a search algorithm (`RandomGenerator`, `DomainGuidedGenerator`, `GeneticGenerator`, ...).
 Produces CandidateStrategies. Swappable independently of everything downstream.
 
 **Search Space**:
-The bounded set of enabled Strategies, parameter domains, and permitted combination choices from which a
-StrategyGenerator may produce CandidateStrategies.
+The bounded set of members and permitted combination choices from which a StrategyGenerator may produce
+CandidateStrategies, together with the Pair, Timeframe, and date range they are evaluated over. A member is one of two
+kinds: a **registry member**, a registered Strategy id plus the parameter domains a generator samples within, or a
+**version member**, one immutable Strategy Version from a User's Strategy Library whose parameters are fixed and never
+sampled. A generator's only freedom over a version member is whether to include it and what weight it carries (see
+ADR-0028).
+_Avoid_: Candidate (reserve for a generator's output; the UI label for the Search Space's members says Search Space,
+not "candidates").
 
 **SearchRun**:
 A bounded search session that generates CandidateStrategies, queues their Experiments, and tracks progress until

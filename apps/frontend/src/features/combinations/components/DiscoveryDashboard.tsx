@@ -103,6 +103,10 @@ export function DiscoveryDashboard() {
             <DiscoverySessionControl
               builtins={library.builtins}
               discovery={discovery}
+              entries={library.entries.filter(
+                (entry) => entry.archivedAt === null,
+              )}
+              libraryLoading={library.loading}
             />
             <DiscoveryProgressCard discovery={discovery} />
           </div>

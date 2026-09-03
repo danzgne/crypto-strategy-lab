@@ -40,6 +40,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -59,6 +61,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -105,6 +109,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -152,6 +158,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -170,17 +178,17 @@ describe('Discovery UI Components', () => {
       expect(timeBudgetInput).toHaveValue(30);
     });
 
-    it('restores draft settings from localStorage when no active session exists', () => {
+    it('restores draft settings from localStorage when no active session exists', async () => {
       const storedConfig = {
         maxCandidates: 80,
         modes: ['majority'],
         pair: 'SOLUSDT',
-        strategies: ['bb', 'sr'],
+        strategies: ['builtin:bb', 'builtin:sr'],
         timeBudgetMinutes: 45,
         timeframe: '4h',
       };
       localStorage.setItem(
-        'crypto-strategy-lab:discovery-form-config',
+        'crypto-strategy-lab:discovery-form-config:v2',
         JSON.stringify(storedConfig),
       );
 
@@ -189,10 +197,14 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
-      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      const pairSelect = await screen.findByRole('combobox', {
+        name: /Market Pair/i,
+      });
       const timeframeSelect = screen.getByRole('combobox', {
         name: /Timeframe/i,
       });
@@ -206,7 +218,32 @@ describe('Discovery UI Components', () => {
       expect(maxCandidatesInput).toHaveValue(80);
       expect(timeBudgetInput).toHaveValue(45);
 
-      localStorage.removeItem('crypto-strategy-lab:discovery-form-config');
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
+    });
+
+    it('ignores an unknown stored strategy id and falls back to nothing selected for it', async () => {
+      const storedConfig = {
+        strategies: ['builtin:ma', 'entry:deleted-entry-id'],
+      };
+      localStorage.setItem(
+        'crypto-strategy-lab:discovery-form-config:v2',
+        JSON.stringify(storedConfig),
+      );
+
+      const mockDiscovery = createMockDiscovery({ session: null });
+      render(
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
+        />,
+      );
+
+      const maCheckbox = await screen.findByRole('button', { name: /^MA$/i });
+      expect(maCheckbox.querySelector('input')).toBeChecked();
+
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
     });
   });
 

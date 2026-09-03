@@ -170,10 +170,15 @@ export class PrismaLeaderboardRepository implements LeaderboardProjectionReposit
         experiment.strategyVersion.strategyDefinition.type === 'composite'
           ? 'composite'
           : 'singular';
+      const candidateMemberLabels =
+        experiment.strategyVersion.strategyDefinition.candidateMemberLabels;
       const display = formatStrategyDisplay(
         strategyKind,
         experiment.strategyVersion.params,
         experiment.strategyVersion.strategyDefinition.name,
+        Array.isArray(candidateMemberLabels)
+          ? (candidateMemberLabels as (string | null)[])
+          : null,
       );
       if (strategyKind === 'composite' && display.members.length < 2) {
         return [];

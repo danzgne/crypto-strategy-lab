@@ -283,6 +283,66 @@ describe('SearchCoordinator', () => {
     expect(generatedEvents.length).toBe(5);
   });
 
+  it('deduplicates a repeated registry member but keeps two distinct version members with the same registry id (ADR-0028)', async () => {
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (_transaction, input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    const runId = await coordinator.startRun({
+      generator: new FakeGenerator(),
+      ownerId: 'user-1',
+      searchSpace: {
+        ...defaultSearchSpace,
+        enabledStrategies: [
+          { id: 'ma' },
+          { id: 'ma' },
+          {
+            displayName: 'Entry A',
+            id: 'rule',
+            kind: 'version',
+            params: {},
+            strategyVersionId: 'sv-a',
+            versionTag: 'a',
+          },
+          {
+            displayName: 'Entry B',
+            id: 'rule',
+            kind: 'version',
+            params: {},
+            strategyVersionId: 'sv-b',
+            versionTag: 'b',
+          },
+        ],
+      },
+      stopPolicy: { maxCandidates: 1, maxInFlight: 10 },
+    });
+
+    await new Promise((r) => setTimeout(r, 20));
+
+    const persistedRun = searchRunsDb.get(runId) as {
+      searchConfig: {
+        searchSpace: { enabledStrategies: Record<string, unknown>[] };
+      };
+    };
+    const enabledStrategies =
+      persistedRun.searchConfig.searchSpace.enabledStrategies;
+
+    expect(enabledStrategies).toHaveLength(3);
+    const versionMemberIds = enabledStrategies
+      .filter((member) => member.kind === 'version')
+      .map((member) => member.strategyVersionId)
+      .sort();
+    expect(versionMemberIds).toEqual(['sv-a', 'sv-b']);
+  });
+
   it('deduplicates candidate fingerprints and does not increment failure count', async () => {
     const coordinator = new SearchCoordinator({
       enqueueJob: async (_transaction, input) => {

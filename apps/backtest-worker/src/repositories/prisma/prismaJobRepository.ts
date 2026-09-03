@@ -298,7 +298,9 @@ export class PrismaJobRepository implements JobRepository {
           strategyVersion: {
             select: {
               params: true,
-              strategyDefinition: { select: { name: true, type: true } },
+              strategyDefinition: {
+                select: { candidateMemberLabels: true, name: true, type: true },
+              },
             },
           },
           strategyVersionId: true,
@@ -311,10 +313,15 @@ export class PrismaJobRepository implements JobRepository {
         experiment.strategyVersion.strategyDefinition.type === 'composite'
           ? 'composite'
           : 'singular';
+      const candidateMemberLabels =
+        experiment.strategyVersion.strategyDefinition.candidateMemberLabels;
       const strategyDisplay = formatStrategyDisplay(
         strategyKind,
         experiment.strategyVersion.params,
         experiment.strategyVersion.strategyDefinition.name,
+        Array.isArray(candidateMemberLabels)
+          ? (candidateMemberLabels as (string | null)[])
+          : null,
       );
 
       const claimed = await transaction.backtestJob.updateMany({
