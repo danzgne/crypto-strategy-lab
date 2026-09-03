@@ -58,7 +58,7 @@ export function DiscoveryProgressCard({
               className="text-base font-semibold text-slate-900"
               id="discovery-progress-heading"
             >
-              Tiến trình Discovery
+              Discovery Progress
             </h2>
             <p className="text-xs text-slate-500">
               Live generation, candidate deduplication &amp; backtest evaluation
@@ -186,8 +186,8 @@ export function DiscoveryProgressCard({
               </span>
               <span className="font-semibold text-slate-700">
                 {sessionStatus === 'ACTIVE'
-                  ? 'Đang đánh giá (Evaluating):'
-                  : 'Chiến lược đánh giá gần nhất:'}
+                  ? 'Evaluating:'
+                  : 'Last evaluated strategy:'}
               </span>
               <span className="font-mono font-semibold text-indigo-900">
                 {latestCandidate.name}
@@ -258,7 +258,7 @@ export function DiscoveryProgressCard({
               className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition hover:bg-indigo-700"
               data-testid="view-best-backtest-link"
             >
-              <span>Xem chi tiết Trades</span>
+              <span>View trade details</span>
               <ArrowUpRight className="size-3.5" />
             </Link>
           </div>

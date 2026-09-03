@@ -91,10 +91,6 @@ export default function StrategyEnginePage() {
         <h1 className="text-2xl font-bold tracking-tight text-slate-900">
           Create a Strategy from a Prompt or URL
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Enter natural language or a website link and the system generates a
-          strategy you can save to the library
-        </p>
       </div>
 
       {hasEngaged ? (

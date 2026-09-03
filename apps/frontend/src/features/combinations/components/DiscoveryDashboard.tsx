@@ -10,12 +10,10 @@ import {
   MoreVertical,
   Play,
   Plus,
-  RadioTower,
   TestTubeDiagonal,
 } from 'lucide-react';
 import Link from 'next/link';
 
-import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { LeaderboardPanel } from '../../leaderboard';
 import {
   DiscoveryProgressCard,
@@ -33,28 +31,15 @@ export function DiscoveryDashboard() {
   return (
     <div>
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-            Strategy Library
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Browse the built-in strategies, author or fork your own, combine
-            them into a composite, and run any saved version on the chart or in
-            a backtest.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge tone="positive">
-            <RadioTower aria-hidden="true" className="size-3.5" />
-            Market data service
-          </StatusBadge>
-          <Link
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-            href="/strategies/new"
-          >
-            <Plus aria-hidden="true" className="size-3.5" /> New strategy
-          </Link>
-        </div>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+          Strategy Library
+        </h1>
+        <Link
+          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+          href="/strategies/new"
+        >
+          <Plus aria-hidden="true" className="size-3.5" /> New strategy
+        </Link>
       </div>
 
       {library.error !== null && (
