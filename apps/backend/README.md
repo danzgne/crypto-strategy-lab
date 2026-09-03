@@ -146,7 +146,10 @@ never calls the Leaderboard from this feature.
 
 The worker's completion outbox is dispatched by `PrismaOutboxDispatcher` into the in-memory domain-event bus. This
 keeps `BacktestCompleted` and `StrategyEvaluated` decoupled from future Ranking/Leaderboard consumers while
-retaining the result transactionally.
+retaining the result transactionally. Multiple backend replicas claim rows with PostgreSQL `SKIP LOCKED` and an
+expiring claim token, then deliver claimed rows concurrently without assuming event order. A publish-before-ack
+crash can redeliver an event, so consumers remain idempotent; failures use bounded exponential backoff with jitter,
+and the eighth failure leaves the row dead-lettered for read-only inspection instead of blocking other events.
 
 Recent trades follow a separate market-data slice:
 

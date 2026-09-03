@@ -190,7 +190,8 @@ Manual Backtest UI
   → Backtest Worker claims a lease
   → Backtester → Evaluator
   → Trades + Metrics + completed Job + lifecycle events in one transaction
-  → Backend outbox dispatcher → in-memory Domain Event Bus
+  → Backend outbox dispatcher (expiring claims, concurrent delivery, bounded retries)
+  → in-memory Domain Event Bus
   → GET /api/v1/backtests and /api/v1/backtests/:experimentId (1s frontend polling)
 ```
 

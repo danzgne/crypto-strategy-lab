@@ -252,6 +252,16 @@ because an entry may name private member Strategies and would otherwise publish 
 The component that consumes StrategyEvaluated facts, selects a User's highest-scoring eligible Experiments, and
 maintains the User's Leaderboard. It does not run backtests or recompute evaluation Scores.
 
+### Domain Events & Delivery
+
+**Outbox Event**:
+A domain event committed with the business transaction and held for asynchronous delivery to the Domain Event Bus.
+Its delivery is at least once and unordered, so consumers must tolerate redelivery and must not depend on creation order.
+
+**Dead-Lettered Event**:
+An Outbox Event whose delivery has failed eight times and will not be retried automatically. It remains stored for
+read-only inspection and operational recovery.
+
 ### Market Data
 
 **Pair**:
