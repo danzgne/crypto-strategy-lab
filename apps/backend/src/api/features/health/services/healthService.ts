@@ -33,6 +33,10 @@ export class HealthService implements HealthServiceContract {
     await this.repository.recordStarted(instanceId);
   }
 
+  public async recordHeartbeat(instanceId: string): Promise<void> {
+    await this.repository.recordHeartbeat(instanceId);
+  }
+
   public async recordStopped(instanceId: string): Promise<void> {
     await this.repository.recordStopped(instanceId);
   }

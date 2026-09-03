@@ -28,6 +28,10 @@ import {
   StrategyLibraryService,
 } from '@/api/features/strategies';
 import {
+  OperationsService,
+  PrismaOperationsRepository,
+} from '@/api/features/admin';
+import {
   PrismaNewsRepository,
   PrismaExtractionTemplateRepository,
   NewsCrawler,
@@ -229,6 +233,16 @@ async function startBackend(): Promise<void> {
   outboxDispatcher.start();
   await healthService.recordStarted(config.instanceId);
 
+  const heartbeatIntervalMs = 10_000;
+  const heartbeatTimer = setInterval(() => {
+    void healthService
+      .recordHeartbeat(config.instanceId)
+      .catch((err: unknown) => {
+        logger.warn({ err }, 'Failed to record backend heartbeat');
+      });
+  }, heartbeatIntervalMs);
+  heartbeatTimer.unref();
+
   const sessionMiddleware = createSessionMiddleware(prisma, {
     secret: config.sessionSecret,
     secureCookie: config.secureCookie,
@@ -252,6 +266,9 @@ async function startBackend(): Promise<void> {
     logger.error({ err }, 'Initial background news crawl encountered an error');
   });
 
+  const operationsRepository = new PrismaOperationsRepository(prisma);
+  const operationsService = new OperationsService(operationsRepository);
+
   const app = createApp({
     allowedOrigin: config.frontendOrigin,
     authService,
@@ -261,6 +278,7 @@ async function startBackend(): Promise<void> {
     leaderboardService,
     logger,
     newsService,
+    operationsService,
     searchController,
     sessionMiddleware,
     strategies: {
@@ -300,6 +318,7 @@ async function startBackend(): Promise<void> {
     shuttingDown = true;
     logger.info({ signal }, 'Backend shutdown started');
 
+    clearInterval(heartbeatTimer);
     newsScheduler.stop();
     await searchScheduler.stop();
     await searchCoordinator.stop();

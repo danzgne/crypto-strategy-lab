@@ -7,6 +7,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Search,
+  Server,
   Settings,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -53,6 +54,21 @@ export function DashboardShell({
 }) {
   const pathname = usePathname();
 
+  const navItems: NavItem[] = [
+    ...navigation.slice(0, 5),
+    ...(user?.role === 'ADMIN'
+      ? [
+          {
+            label: 'Operations',
+            icon: Server,
+            href: '/admin/operations',
+            implemented: true,
+          },
+        ]
+      : []),
+    ...navigation.slice(5),
+  ];
+
   return (
     <AuthProvider initialUser={user}>
       <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[248px_1fr]">
@@ -70,7 +86,7 @@ export function DashboardShell({
           </div>
 
           <nav aria-label="Primary navigation" className="mt-10 space-y-1.5">
-            {navigation.map(({ label, icon: Icon, href, implemented }) => {
+            {navItems.map(({ label, icon: Icon, href, implemented }) => {
               const isActive =
                 implemented &&
                 (href === '/' ? pathname === '/' : pathname.startsWith(href));

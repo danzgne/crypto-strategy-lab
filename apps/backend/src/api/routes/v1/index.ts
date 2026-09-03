@@ -8,6 +8,8 @@ import { createAuthFeatureRouter, AuthController } from '@/api/features/auth';
 import {
   createAdminFeatureRouter,
   AdminController,
+  OperationsController,
+  type OperationsServiceInterface,
 } from '@/api/features/admin';
 import {
   createNewsFeatureRouter,
@@ -55,27 +57,45 @@ export function createV1Router(
   leaderboardService?: LeaderboardServiceInterface,
   searchController?: SearchController,
   extractionTemplateService?: ExtractionTemplateService,
+  operationsService?: OperationsServiceInterface,
 ): Router {
   const router = Router();
   router.use('/health', createHealthFeatureRouter(healthRepository));
   router.use('/auth', createAuthFeatureRouter(new AuthController(authService)));
 
-  if (newsService) {
-    const extractionTemplateController = extractionTemplateService
-      ? new ExtractionTemplateController(newsService, extractionTemplateService)
+  if (newsService || operationsService) {
+    const extractionTemplateController =
+      newsService && extractionTemplateService
+        ? new ExtractionTemplateController(
+            newsService,
+            extractionTemplateService,
+          )
+        : undefined;
+
+    const adminController = newsService
+      ? new AdminController(newsService)
       : undefined;
 
-    const adminController = new AdminController(newsService);
+    const operationsController = operationsService
+      ? new OperationsController(operationsService)
+      : undefined;
+
     router.use(
       '/admin',
-      createAdminFeatureRouter(adminController, extractionTemplateController),
+      createAdminFeatureRouter(
+        adminController,
+        extractionTemplateController,
+        operationsController,
+      ),
     );
 
-    const newsController = new NewsController(newsService);
-    router.use(
-      '/news',
-      createNewsFeatureRouter(newsController, extractionTemplateController),
-    );
+    if (newsService) {
+      const newsController = new NewsController(newsService);
+      router.use(
+        '/news',
+        createNewsFeatureRouter(newsController, extractionTemplateController),
+      );
+    }
   }
 
   if (strategies) {
