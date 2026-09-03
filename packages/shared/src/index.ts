@@ -11,3 +11,4 @@ export * from './news/extractionTemplate';
 export * from './backtest';
 export * from './leaderboard/types';
 export * from './search';
+export * from './operations/types';

@@ -28,6 +28,10 @@ import {
   StrategyLibraryService,
 } from '@/api/features/strategies';
 import {
+  OperationsService,
+  PrismaOperationsRepository,
+} from '@/api/features/admin';
+import {
   PrismaNewsRepository,
   PrismaExtractionTemplateRepository,
   NewsCrawler,
@@ -252,6 +256,9 @@ async function startBackend(): Promise<void> {
     logger.error({ err }, 'Initial background news crawl encountered an error');
   });
 
+  const operationsRepository = new PrismaOperationsRepository(prisma);
+  const operationsService = new OperationsService(operationsRepository);
+
   const app = createApp({
     allowedOrigin: config.frontendOrigin,
     authService,
@@ -261,6 +268,7 @@ async function startBackend(): Promise<void> {
     leaderboardService,
     logger,
     newsService,
+    operationsService,
     searchController,
     sessionMiddleware,
     strategies: {

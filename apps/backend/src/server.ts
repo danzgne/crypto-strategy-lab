@@ -11,6 +11,7 @@ import type {
 import type { BacktestServiceInterface } from '@/api/features/backtests';
 import type { LeaderboardServiceInterface } from '@/api/features/leaderboard';
 import type { SearchController } from '@/api/features/search';
+import type { OperationsServiceInterface } from '@/api/features/admin';
 import { createErrorHandler } from '@/api/middlewares/handlers/errorHandler';
 import { notFoundHandler } from '@/api/middlewares/handlers/notFoundHandler';
 import { requestLogger } from '@/api/middlewares/logging/requestLogger';
@@ -33,6 +34,7 @@ interface AppDependencies {
   leaderboardService?: LeaderboardServiceInterface;
   searchController?: SearchController;
   extractionTemplateService?: ExtractionTemplateService;
+  operationsService?: OperationsServiceInterface;
 }
 
 export function createApp({
@@ -47,6 +49,7 @@ export function createApp({
   leaderboardService,
   searchController,
   extractionTemplateService,
+  operationsService,
 }: AppDependencies): Express {
   const app = express();
 
@@ -68,6 +71,7 @@ export function createApp({
       leaderboardService,
       searchController,
       extractionTemplateService,
+      operationsService,
     ),
   );
   app.use(notFoundHandler);

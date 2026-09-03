@@ -4,7 +4,7 @@ import { sendError } from '@/utils/response/ApiResponse';
 
 export function authorizeRole(role: Role) {
   return (req: Request, res: Response, next: NextFunction) => {
-    if (!req.session.userId) {
+    if (!req.session || !req.session.userId) {
       sendError(
         res,
         { code: 'UNAUTHORIZED', message: 'Not authenticated' },
