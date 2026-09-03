@@ -77,21 +77,37 @@ vi.mock('../../../../src/features/search', () => ({
 import { DiscoveryDashboard } from '../../../../src/features/combinations';
 
 describe('DiscoveryDashboard', () => {
-  it('lists built-ins read-only and lets a composite be assembled and saved', () => {
+  it('defaults to the Auto Discovery tab', () => {
     render(<DiscoveryDashboard />);
 
     expect(
       screen.getByRole('heading', { name: 'Strategy Library' }),
     ).toBeInTheDocument();
+    expect(screen.getByTestId('discovery-session-control')).toBeInTheDocument();
+    expect(screen.getByTestId('discovery-progress-card')).toBeInTheDocument();
+  });
+
+  it('lists built-ins read-only under the Library tab', () => {
+    render(<DiscoveryDashboard />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Library' }));
+
     expect(
       screen.getByRole('heading', { name: 'Built-in strategies' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Composite Strategy' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('saved-strategies-panel')).toHaveTextContent(
       'My strategies',
     );
+  });
+
+  it('lets a composite be assembled and saved under the Manual Build tab', () => {
+    render(<DiscoveryDashboard />);
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Manual Build' }));
+
+    expect(
+      screen.getByRole('heading', { name: 'Composite Strategy' }),
+    ).toBeInTheDocument();
 
     fireEvent.change(
       screen.getByRole('combobox', { name: 'Add strategy to composite' }),

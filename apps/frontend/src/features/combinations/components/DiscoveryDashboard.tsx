@@ -6,13 +6,17 @@ import {
   Archive,
   ArchiveRestore,
   BookMarked,
+  Compass,
   Copy,
+  Layers,
   MoreVertical,
   Play,
   Plus,
   TestTubeDiagonal,
+  Trophy,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 
 import { LeaderboardPanel } from '../../leaderboard';
 import {
@@ -24,9 +28,23 @@ import {
 import { strategyLibraryClient, useStrategyLibrary } from '../../strategies';
 import { ManualCompositeBuilder } from './ManualCompositeBuilder';
 
+type DashboardTab = 'discover' | 'manual' | 'library' | 'leaderboard';
+
+const TABS: ReadonlyArray<{
+  id: DashboardTab;
+  label: string;
+  icon: typeof Compass;
+}> = [
+  { id: 'discover', label: 'Auto Discovery', icon: Compass },
+  { id: 'manual', label: 'Manual Build', icon: Layers },
+  { id: 'library', label: 'Library', icon: BookMarked },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+];
+
 export function DiscoveryDashboard() {
   const library = useStrategyLibrary();
   const discovery = useDiscoverySession();
+  const [activeTab, setActiveTab] = useState<DashboardTab>('discover');
 
   return (
     <div>
@@ -60,38 +78,76 @@ export function DiscoveryDashboard() {
         </div>
       )}
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-        <DiscoverySessionControl
-          builtins={library.builtins}
-          discovery={discovery}
-        />
-        <DiscoveryProgressCard discovery={discovery} />
+      <div
+        aria-label="Strategy Library sections"
+        className="mt-7 inline-flex flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+        role="tablist"
+      >
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            aria-selected={activeTab === id}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === id
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-100'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+            key={id}
+            onClick={() => setActiveTab(id)}
+            role="tab"
+            type="button"
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <DiscoveryRunHistoryTable discovery={discovery} />
+      {activeTab === 'discover' && (
+        <div role="tabpanel">
+          <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+            <DiscoverySessionControl
+              builtins={library.builtins}
+              discovery={discovery}
+            />
+            <DiscoveryProgressCard discovery={discovery} />
+          </div>
 
-      <div className="mt-8">
-        <ManualCompositeBuilder
-          builtins={library.builtins}
-          entries={library.entries}
-          onSaved={library.refresh}
-        />
-      </div>
+          <DiscoveryRunHistoryTable discovery={discovery} />
+        </div>
+      )}
 
-      <BuiltinsSection builtins={library.builtins} />
+      {activeTab === 'manual' && (
+        <div className="mt-7" role="tabpanel">
+          <ManualCompositeBuilder
+            builtins={library.builtins}
+            entries={library.entries}
+            onSaved={library.refresh}
+          />
+        </div>
+      )}
 
-      <EntriesSection
-        entries={library.entries}
-        hasMore={library.hasMore}
-        loading={library.loading}
-        loadingMore={library.loadingMore}
-        onArchiveChanged={library.refresh}
-        onLoadMore={library.loadMore}
-        setShowArchived={library.setShowArchived}
-        showArchived={library.showArchived}
-      />
+      {activeTab === 'library' && (
+        <div role="tabpanel">
+          <BuiltinsSection builtins={library.builtins} />
 
-      <LeaderboardPanel />
+          <EntriesSection
+            entries={library.entries}
+            hasMore={library.hasMore}
+            loading={library.loading}
+            loadingMore={library.loadingMore}
+            onArchiveChanged={library.refresh}
+            onLoadMore={library.loadMore}
+            setShowArchived={library.setShowArchived}
+            showArchived={library.showArchived}
+          />
+        </div>
+      )}
+
+      {activeTab === 'leaderboard' && (
+        <div role="tabpanel">
+          <LeaderboardPanel />
+        </div>
+      )}
     </div>
   );
 }
