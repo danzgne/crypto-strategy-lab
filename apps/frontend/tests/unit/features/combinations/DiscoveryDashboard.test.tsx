@@ -81,7 +81,7 @@ describe('DiscoveryDashboard', () => {
     render(<DiscoveryDashboard />);
 
     expect(
-      screen.getByRole('heading', { name: 'Strategy Library' }),
+      screen.getByRole('heading', { name: 'Strategy Workbench' }),
     ).toBeInTheDocument();
     expect(screen.getByTestId('discovery-session-control')).toBeInTheDocument();
     expect(screen.getByTestId('discovery-progress-card')).toBeInTheDocument();
@@ -97,6 +97,10 @@ describe('DiscoveryDashboard', () => {
     ).toBeInTheDocument();
     expect(screen.getByTestId('saved-strategies-panel')).toHaveTextContent(
       'My strategies',
+    );
+    expect(screen.getByRole('link', { name: /New strategy/ })).toHaveAttribute(
+      'href',
+      '/strategies/new',
     );
   });
 

@@ -48,17 +48,9 @@ export function DiscoveryDashboard() {
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-          Strategy Library
-        </h1>
-        <Link
-          className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-          href="/strategies/new"
-        >
-          <Plus aria-hidden="true" className="size-3.5" /> New strategy
-        </Link>
-      </div>
+      <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+        Strategy Workbench
+      </h1>
 
       {library.error !== null && (
         <div
@@ -79,7 +71,7 @@ export function DiscoveryDashboard() {
       )}
 
       <div
-        aria-label="Strategy Library sections"
+        aria-label="Strategy Workbench sections"
         className="mt-7 inline-flex flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
         role="tablist"
       >
@@ -246,14 +238,22 @@ function EntriesSection({
             My strategies
           </h2>
         </div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-          <input
-            checked={showArchived}
-            onChange={(event) => setShowArchived(event.target.checked)}
-            type="checkbox"
-          />
-          Show archived
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <input
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+              type="checkbox"
+            />
+            Show archived
+          </label>
+          <Link
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            href="/strategies/new"
+          >
+            <Plus aria-hidden="true" className="size-3.5" /> New strategy
+          </Link>
+        </div>
       </div>
 
       {loading ? (

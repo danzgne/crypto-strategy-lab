@@ -34,7 +34,12 @@ const navigation: NavItem[] = [
     href: '/strategy-engine',
     implemented: true,
   },
-  { label: 'Discovery', icon: Search, href: '/discovery', implemented: true },
+  {
+    label: 'Strategy Workbench',
+    icon: Search,
+    href: '/discovery',
+    implemented: true,
+  },
   { label: 'Backtest', icon: BarChart3, href: '/backtests', implemented: true },
   {
     label: 'News Crawler',
