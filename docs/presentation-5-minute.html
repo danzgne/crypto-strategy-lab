@@ -1,0 +1,1843 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crypto Strategy Lab — Kiến trúc</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ===========================================
+       FIXED 16:9 STAGE: MANDATORY BASE STYLES
+       Include the complete fixed-stage contract so the deck never reflows.
+       =========================================== */
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: var(--stage-bg, #000);
+      }
+
+      .deck-viewport {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        background: var(--stage-bg, #000);
+      }
+
+      .deck-stage {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        transform-origin: 0 0;
+        background: var(--slide-bg, #fff);
+      }
+
+      .slide {
+        position: absolute;
+        inset: 0;
+        width: 1920px;
+        height: 1080px;
+        overflow: hidden;
+        display: block;
+        visibility: hidden;
+        opacity: 0;
+        pointer-events: none;
+        background: var(--slide-bg, #fff);
+      }
+
+      .slide.active,
+      .slide.visible {
+        visibility: visible;
+        opacity: 1;
+        pointer-events: auto;
+        z-index: 1;
+      }
+
+      img,
+      video,
+      canvas,
+      svg {
+        max-width: 100%;
+        max-height: 100%;
+      }
+
+      .deck-controls {
+        position: fixed;
+        left: 50%;
+        bottom: 22px;
+        transform: translateX(-50%);
+        z-index: 1000;
+      }
+
+      @media print {
+        html,
+        body {
+          width: 1920px;
+          height: auto;
+          overflow: visible;
+          background: #fff;
+        }
+
+        .deck-viewport {
+          position: static;
+          overflow: visible;
+          background: #fff;
+        }
+
+        .deck-stage {
+          position: static;
+          width: auto;
+          height: auto;
+          transform: none !important;
+          background: none;
+        }
+
+        .slide {
+          position: relative;
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          pointer-events: auto !important;
+          width: 1920px;
+          height: 1080px;
+          break-after: page;
+          page-break-after: always;
+        }
+
+        .slide:last-child {
+          break-after: auto;
+          page-break-after: auto;
+        }
+
+        .deck-controls {
+          display: none !important;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation-duration: 0.01ms !important;
+          transition-duration: 0.2s !important;
+        }
+      }
+
+      /* ===========================================
+       THEME TOKENS: NEON CONTRACT
+       Dark technical canvas, cyan contracts, magenta emphasis.
+       =========================================== */
+      :root {
+        --stage-bg: #060b15;
+        --slide-bg: #0a1020;
+        --ink: #f1f7ff;
+        --ink-soft: #c1cde1;
+        --muted: #8c9bb5;
+        --faint: #40516f;
+        --panel: rgba(11, 20, 39, 0.86);
+        --panel-strong: #101d36;
+        --line: rgba(95, 132, 190, 0.32);
+        --cyan: #3ff7d5;
+        --magenta: #ff4fa3;
+        --blue: #7194ff;
+        --yellow: #ffc857;
+        --font-display: 'Syne', sans-serif;
+        --font-body: 'Space Mono', monospace;
+        --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+        --duration-normal: 0.62s;
+      }
+
+      /* ===========================================
+       GLOBAL PRESENTATION SURFACE
+       Atmospheric grid and controlled typography for the fixed canvas.
+       =========================================== */
+      * {
+        box-sizing: border-box;
+      }
+
+      .slide {
+        padding: 70px 82px 66px;
+        color: var(--ink);
+        font-family: var(--font-body);
+        background:
+          radial-gradient(
+            circle at 86% 8%,
+            rgba(255, 79, 163, 0.14),
+            transparent 26%
+          ),
+          radial-gradient(
+            circle at 10% 88%,
+            rgba(63, 247, 213, 0.09),
+            transparent 30%
+          ),
+          #0a1020;
+      }
+
+      .slide::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        opacity: 0.12;
+        background-image:
+          linear-gradient(rgba(113, 148, 255, 0.22) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(113, 148, 255, 0.22) 1px, transparent 1px);
+        background-size: 48px 48px;
+        mask-image: linear-gradient(to bottom, black, transparent 90%);
+        pointer-events: none;
+      }
+
+      .scanlines {
+        position: absolute;
+        inset: 0;
+        z-index: 0;
+        opacity: 0.12;
+        background: repeating-linear-gradient(
+          0deg,
+          transparent 0 7px,
+          rgba(255, 255, 255, 0.08) 7px 8px
+        );
+        pointer-events: none;
+      }
+
+      .orbital-ring {
+        position: absolute;
+        right: -170px;
+        top: -250px;
+        width: 760px;
+        height: 760px;
+        border: 1px solid rgba(63, 247, 213, 0.28);
+        border-radius: 50%;
+        transform: rotate(-24deg) skewX(-16deg);
+        box-shadow:
+          0 0 0 30px rgba(63, 247, 213, 0.035),
+          0 0 0 64px rgba(255, 79, 163, 0.03);
+        pointer-events: none;
+      }
+
+      .slide-header,
+      .slide-footer,
+      .section-label,
+      .slide-title,
+      .slide-subtitle,
+      .slide-body {
+        position: relative;
+        z-index: 2;
+      }
+
+      .slide-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        height: 28px;
+        color: var(--muted);
+        font-size: 16px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .slide-header strong {
+        color: var(--cyan);
+        font-weight: 700;
+      }
+
+      .section-label {
+        margin-top: 42px;
+        color: var(--cyan);
+        font-size: 17px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+      }
+
+      .slide-title {
+        max-width: 1330px;
+        margin: 12px 0 0;
+        font-family: var(--font-display);
+        font-size: 64px;
+        font-weight: 800;
+        line-height: 0.98;
+        letter-spacing: -0.055em;
+        text-transform: uppercase;
+      }
+
+      .slide-title span {
+        color: var(--magenta);
+      }
+
+      .slide-subtitle {
+        max-width: 1160px;
+        margin: 18px 0 0;
+        color: var(--ink-soft);
+        font-size: 20px;
+        line-height: 1.4;
+      }
+
+      .slide-body {
+        margin-top: 28px;
+      }
+
+      .slide-footer {
+        position: absolute;
+        left: 82px;
+        right: 82px;
+        bottom: 26px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        color: var(--muted);
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .slide-footer .footer-accent {
+        color: var(--magenta);
+      }
+
+      /* ===========================================
+       MERMAID DIAGRAM SURFACES
+       Mermaid is the authored diagram; CSS fallback keeps the local file legible
+       if the CDN is unavailable while the Mermaid source remains in the DOM.
+       =========================================== */
+      .diagram-shell {
+        position: relative;
+        min-height: 580px;
+        overflow: hidden;
+        border: 1px solid rgba(63, 247, 213, 0.34);
+        background: linear-gradient(
+          145deg,
+          rgba(18, 35, 67, 0.9),
+          rgba(6, 13, 28, 0.86)
+        );
+        box-shadow: 16px 16px 0 rgba(255, 79, 163, 0.1);
+      }
+
+      .diagram-shell::after {
+        content: 'MERMAID / CONTRACT MAP';
+        position: absolute;
+        right: 24px;
+        top: 20px;
+        color: rgba(63, 247, 213, 0.66);
+        font-size: 13px;
+        letter-spacing: 0.14em;
+        pointer-events: none;
+      }
+
+      .diagram-shell .mermaid {
+        position: absolute;
+        inset: 58px 30px 24px;
+        display: grid;
+        place-items: center;
+        min-height: 0;
+        margin: 0;
+        opacity: 0;
+        transition: opacity 0.4s ease;
+      }
+
+      .diagram-shell.mermaid-ready .mermaid {
+        opacity: 1;
+      }
+
+      .diagram-shell.mermaid-ready .diagram-fallback {
+        visibility: hidden;
+        opacity: 0;
+      }
+
+      .mermaid svg {
+        width: 100% !important;
+        height: 100% !important;
+        max-width: 100% !important;
+        max-height: 100% !important;
+        overflow: visible;
+      }
+
+      .mermaid foreignObject,
+      .mermaid foreignObject div,
+      .mermaid .label,
+      .mermaid .nodeLabel {
+        overflow: visible !important;
+      }
+
+      .mermaid .nodeLabel p {
+        margin: 0;
+      }
+
+      .diagram-fallback {
+        position: absolute;
+        inset: 82px 30px 28px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        opacity: 1;
+        transition: opacity 0.4s ease;
+      }
+
+      .fallback-flow {
+        display: grid;
+        gap: 18px;
+        width: 100%;
+      }
+
+      .fallback-row {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+      }
+
+      .fallback-node {
+        min-width: 170px;
+        padding: 17px 14px;
+        border: 1px solid var(--cyan);
+        color: var(--ink);
+        background: rgba(15, 31, 59, 0.92);
+        font-size: 16px;
+        line-height: 1.25;
+        text-align: center;
+      }
+
+      .fallback-node.magenta {
+        border-color: var(--magenta);
+      }
+
+      .fallback-node.yellow {
+        border-color: var(--yellow);
+      }
+
+      .fallback-arrow {
+        color: var(--cyan);
+        font-size: 23px;
+      }
+
+      .fallback-label {
+        color: var(--muted);
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      /* ===========================================
+       SLIDE 1: SYSTEM CONTEXT
+       =========================================== */
+      .context-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 430px;
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .insight-stack {
+        display: grid;
+        grid-template-rows: repeat(3, 1fr) auto;
+        gap: 12px;
+        min-height: 580px;
+      }
+
+      .insight {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 22px 24px 22px 28px;
+        border-left: 3px solid var(--cyan);
+        background: rgba(10, 22, 43, 0.76);
+      }
+
+      .insight:nth-child(2) {
+        border-left-color: var(--magenta);
+      }
+      .insight:nth-child(3) {
+        border-left-color: var(--yellow);
+      }
+
+      .insight h3 {
+        margin: 0 0 10px;
+        color: var(--cyan);
+        font-family: var(--font-display);
+        font-size: 22px;
+        letter-spacing: -0.03em;
+        text-transform: uppercase;
+      }
+
+      .insight:nth-child(2) h3 {
+        color: var(--magenta);
+      }
+      .insight:nth-child(3) h3 {
+        color: var(--yellow);
+      }
+
+      .insight p {
+        margin: 0;
+        color: var(--ink-soft);
+        font-size: 17px;
+        line-height: 1.45;
+      }
+
+      .context-footnote {
+        padding: 16px 18px;
+        border: 1px solid rgba(255, 79, 163, 0.35);
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .context-footnote strong {
+        color: var(--magenta);
+      }
+
+      /* ===========================================
+       SLIDE 2: CONTAINER / MODULE VIEW
+       =========================================== */
+      .container-layout {
+        display: grid;
+        grid-template-columns: minmax(0, 1.08fr) minmax(470px, 0.92fr);
+        gap: 28px;
+        align-items: stretch;
+      }
+
+      .container-layout .diagram-shell {
+        min-height: 600px;
+      }
+
+      .module-panel {
+        min-height: 600px;
+        padding: 24px 26px;
+        border-top: 2px solid var(--magenta);
+        background: rgba(10, 22, 43, 0.78);
+      }
+
+      .module-panel h3 {
+        margin: 0;
+        color: var(--magenta);
+        font-family: var(--font-display);
+        font-size: 24px;
+        letter-spacing: -0.03em;
+        text-transform: uppercase;
+      }
+
+      .module-panel .lead {
+        margin: 10px 0 14px;
+        color: var(--ink-soft);
+        font-size: 15px;
+        line-height: 1.35;
+      }
+
+      .module-list {
+        display: grid;
+        gap: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .module-line {
+        display: grid;
+        grid-template-columns: 190px 1fr;
+        gap: 16px;
+        padding: 11px 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .module-line strong {
+        color: var(--cyan);
+        font-family: var(--font-display);
+        font-size: 17px;
+        text-transform: uppercase;
+      }
+
+      .module-line span {
+        color: var(--ink-soft);
+        font-size: 14px;
+        line-height: 1.3;
+      }
+
+      .container-callout {
+        margin-top: 14px;
+        padding: 13px 16px;
+        border: 1px solid rgba(63, 247, 213, 0.3);
+        color: var(--ink);
+        font-size: 14px;
+        line-height: 1.35;
+      }
+
+      .container-callout strong {
+        color: var(--cyan);
+      }
+
+      /* ===========================================
+       TABLE SYSTEM: CHECKLIST AND EVALUATION
+       Dense enough for four slides, still readable at projection scale.
+       =========================================== */
+      .table-kicker {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        color: var(--muted);
+        font-size: 14px;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+      }
+
+      .table-kicker strong {
+        color: var(--cyan);
+      }
+
+      .checklist-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 22px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        table-layout: fixed;
+      }
+
+      th {
+        padding: 12px 15px;
+        color: var(--cyan);
+        border-top: 1px solid var(--cyan);
+        border-bottom: 1px solid var(--line);
+        font-size: 13px;
+        letter-spacing: 0.12em;
+        text-align: left;
+        text-transform: uppercase;
+      }
+
+      td {
+        padding: 14px 15px;
+        border-bottom: 1px solid var(--line);
+        color: var(--ink-soft);
+        font-size: 15px;
+        line-height: 1.35;
+        vertical-align: top;
+      }
+
+      td strong {
+        color: var(--ink);
+      }
+
+      .check-table th:first-child,
+      .check-table td:first-child {
+        width: 48px;
+        color: var(--magenta);
+        font-family: var(--font-display);
+        font-size: 20px;
+        font-weight: 800;
+      }
+
+      .check-table th:nth-child(2),
+      .check-table td:nth-child(2) {
+        width: 39%;
+      }
+
+      .check-table tbody tr:nth-child(odd),
+      .evaluation-table tbody tr:nth-child(odd) {
+        background: rgba(17, 34, 65, 0.34);
+      }
+
+      .check-table code,
+      .evaluation-table code {
+        color: var(--cyan);
+        font-family: var(--font-body);
+        font-size: 0.92em;
+      }
+
+      .checklist-note {
+        margin-top: 16px;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      .evaluation-table th:nth-child(1) {
+        width: 220px;
+      }
+      .evaluation-table th:nth-child(2) {
+        width: 360px;
+      }
+      .evaluation-table th:nth-child(3) {
+        width: auto;
+      }
+
+      .evaluation-table td:first-child {
+        color: var(--magenta);
+        font-family: var(--font-display);
+        font-size: 17px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        text-transform: uppercase;
+      }
+
+      .evaluation-table td {
+        padding: 10px 14px;
+        font-size: 14px;
+        line-height: 1.3;
+      }
+
+      .evaluation-bottom {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 14px;
+        margin-top: 16px;
+      }
+
+      .trigger {
+        padding: 13px 16px;
+        border-left: 2px solid var(--yellow);
+        background: rgba(255, 200, 87, 0.08);
+        color: var(--ink-soft);
+        font-size: 13px;
+        line-height: 1.35;
+      }
+
+      .trigger strong {
+        display: block;
+        margin-bottom: 5px;
+        color: var(--yellow);
+        font-family: var(--font-display);
+        font-size: 15px;
+        text-transform: uppercase;
+      }
+
+      /* ===========================================
+       OUT-OF-STAGE CONTROLS AND EDIT MODE
+       Navigation stays outside the fixed slide canvas.
+       =========================================== */
+      .deck-controls {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 9px 13px;
+        border: 1px solid rgba(63, 247, 213, 0.24);
+        border-radius: 999px;
+        color: var(--muted);
+        background: rgba(6, 11, 21, 0.84);
+        box-shadow: 0 8px 26px rgba(0, 0, 0, 0.35);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        backdrop-filter: blur(12px);
+      }
+
+      .nav-button {
+        width: 26px;
+        height: 26px;
+        border: 1px solid rgba(63, 247, 213, 0.35);
+        border-radius: 50%;
+        color: var(--cyan);
+        background: transparent;
+        cursor: pointer;
+      }
+
+      .nav-button:hover {
+        border-color: var(--cyan);
+        background: rgba(63, 247, 213, 0.12);
+      }
+
+      .progress-track {
+        width: 190px;
+        height: 3px;
+        overflow: hidden;
+        background: rgba(140, 155, 181, 0.22);
+      }
+
+      .progress-fill {
+        width: 25%;
+        height: 100%;
+        background: linear-gradient(90deg, var(--cyan), var(--magenta));
+        transition: width 0.45s var(--ease-out-expo);
+      }
+
+      .edit-hotzone {
+        position: fixed;
+        top: 0;
+        left: 0;
+        z-index: 10000;
+        width: 82px;
+        height: 82px;
+        cursor: pointer;
+      }
+
+      .edit-toggle {
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        z-index: 10001;
+        width: 42px;
+        height: 42px;
+        border: 1px solid rgba(63, 247, 213, 0.45);
+        border-radius: 50%;
+        color: var(--cyan);
+        background: rgba(6, 11, 21, 0.88);
+        cursor: pointer;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+
+      .edit-toggle.show,
+      .edit-toggle.active {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .edit-bar {
+        position: fixed;
+        top: 18px;
+        left: 72px;
+        z-index: 10001;
+        display: none;
+        gap: 8px;
+        align-items: center;
+        padding: 7px 10px;
+        border: 1px solid rgba(255, 79, 163, 0.42);
+        border-radius: 8px;
+        color: var(--ink-soft);
+        background: rgba(6, 11, 21, 0.92);
+        font: 12px var(--font-body);
+      }
+
+      body.editing .edit-bar {
+        display: flex;
+      }
+
+      .edit-bar button {
+        padding: 5px 8px;
+        border: 1px solid rgba(63, 247, 213, 0.35);
+        color: var(--cyan);
+        background: transparent;
+        cursor: pointer;
+        font: inherit;
+      }
+
+      body.editing [data-editable] {
+        outline: 1px dashed rgba(63, 247, 213, 0.6);
+        outline-offset: 4px;
+      }
+
+      .toast {
+        position: fixed;
+        right: 24px;
+        bottom: 24px;
+        z-index: 10002;
+        padding: 11px 14px;
+        border-left: 2px solid var(--cyan);
+        color: var(--ink);
+        background: rgba(6, 11, 21, 0.94);
+        font: 13px var(--font-body);
+        opacity: 0;
+        transform: translateY(8px);
+        transition:
+          opacity 0.25s ease,
+          transform 0.25s ease;
+        pointer-events: none;
+      }
+
+      .toast.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      /* ===========================================
+       REVEAL MOTION
+       Staggered entrances make the architecture feel like a live system boot.
+       =========================================== */
+      .reveal {
+        opacity: 0;
+        transform: translateY(22px);
+        transition:
+          opacity var(--duration-normal) var(--ease-out-expo),
+          transform var(--duration-normal) var(--ease-out-expo);
+      }
+
+      .slide.visible .reveal {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .slide.visible .reveal:nth-child(1) {
+        transition-delay: 0.05s;
+      }
+      .slide.visible .reveal:nth-child(2) {
+        transition-delay: 0.12s;
+      }
+      .slide.visible .reveal:nth-child(3) {
+        transition-delay: 0.19s;
+      }
+      .slide.visible .reveal:nth-child(4) {
+        transition-delay: 0.26s;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .reveal {
+          opacity: 1;
+          transform: none;
+          transition: none;
+        }
+        .orbital-ring {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="deck-viewport">
+      <main
+        class="deck-stage"
+        id="deckStage"
+        aria-label="Crypto Strategy Lab architecture presentation"
+      >
+        <!-- ===========================================
+           SLIDE 1: SYSTEM CONTEXT
+           =========================================== -->
+        <section
+          class="slide active visible"
+          data-slide="1"
+          aria-label="Slide 1: System Context"
+        >
+          <div class="scanlines"></div>
+          <div class="orbital-ring"></div>
+          <header class="slide-header">
+            <span><strong>01 / 04</strong> · Crypto Strategy Lab</span>
+            <span data-editable>architecture / demo</span>
+          </header>
+          <p class="section-label reveal" data-editable>
+            01 — Bối cảnh hệ thống
+          </p>
+          <h1 class="slide-title reveal" data-editable>
+            Ranh giới rõ ràng để <span>thay đổi an toàn.</span>
+          </h1>
+          <p class="slide-subtitle reveal" data-editable>
+            Frontend chỉ gọi Backend. Provider được thay thế sau interface.
+            Backtest chạy độc lập và dùng PostgreSQL làm system of record, queue
+            và outbox.
+          </p>
+          <div class="slide-body context-layout reveal">
+            <div class="diagram-shell" data-diagram="context">
+              <pre class="mermaid">
+flowchart LR
+  U([User])
+  F["Frontend"]
+  B["Backend&lt;br/&gt;modular monolith"]
+  DB[("PostgreSQL")]
+  X["Exchange&lt;br/&gt;Adapter"]
+  BN[("Binance")]
+  N["News&lt;br/&gt;Crawler"]
+  P["News&lt;br/&gt;Provider"]
+  NS[("News Sources")]
+  L["LLM&lt;br/&gt;Provider"]
+  LV[("Gemini / Groq")]
+  W["Backtest&lt;br/&gt;Worker"]
+  U --> F
+  F -->|HTTP + Socket.IO| B
+  B --> DB
+  B --> X --> BN
+  B --> N --> P --> NS
+  B --> L --> LV
+  W --> DB
+  classDef user fill:#0a1020,stroke:#3ff7d5,color:#f1f7ff,stroke-width:2px
+  classDef core fill:#132544,stroke:#3ff7d5,color:#f1f7ff,stroke-width:2px
+  classDef external fill:#171c3a,stroke:#ff4fa3,color:#f1f7ff,stroke-width:2px
+  classDef data fill:#101d36,stroke:#ffc857,color:#f1f7ff,stroke-width:2px
+  class U user
+  class F,B,X,N,P,L,W core
+  class DB,BN,NS,LV data
+              </pre>
+              <div class="diagram-fallback" aria-hidden="true">
+                <div class="fallback-flow">
+                  <div class="fallback-row">
+                    <div class="fallback-node">Người dùng</div>
+                    <div class="fallback-arrow">→</div>
+                    <div class="fallback-node">Next.js<br />Frontend</div>
+                    <div class="fallback-arrow">→</div>
+                    <div class="fallback-node magenta">
+                      Express<br />Backend
+                    </div>
+                  </div>
+                  <div class="fallback-row">
+                    <span class="fallback-label">HTTP / Socket.IO</span
+                    ><span class="fallback-arrow">↓</span>
+                    <div class="fallback-node yellow">
+                      PostgreSQL<br />dữ liệu · queue · outbox
+                    </div>
+                    <span class="fallback-label">↑ claim / lease</span>
+                    <div class="fallback-node">Backtest Worker</div>
+                  </div>
+                  <div class="fallback-row">
+                    <div class="fallback-node">Exchange Adapter</div>
+                    <div class="fallback-arrow">→</div>
+                    <div class="fallback-node yellow">Binance</div>
+                    <div class="fallback-node">News Crawler</div>
+                    <div class="fallback-arrow">→</div>
+                    <div class="fallback-node magenta">News Provider</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <aside class="insight-stack">
+              <div class="insight reveal">
+                <h3 data-editable>Không bypass</h3>
+                <p data-editable>
+                  Frontend không biết Binance. Market Data Service đi qua
+                  Exchange Adapter và trả contract chuẩn hóa.
+                </p>
+              </div>
+              <div class="insight reveal">
+                <h3 data-editable>Provider seam</h3>
+                <p data-editable>
+                  News Crawler chỉ biết News Provider. Thêm RSS, Website hoặc
+                  HTML provider không chạm Sentiment.
+                </p>
+              </div>
+              <div class="insight reveal">
+                <h3 data-editable>Worker boundary</h3>
+                <p data-editable>
+                  Worker claim Job, simulate, evaluate và persist kết quả; không
+                  phục vụ HTTP, WebSocket hoặc exchange.
+                </p>
+              </div>
+              <div class="context-footnote reveal" data-editable>
+                <strong>Deployment note:</strong> Nginx chỉ là edge profile tùy
+                chọn cho same-origin testing, không phải domain component.
+              </div>
+            </aside>
+          </div>
+          <footer class="slide-footer">
+            <span data-editable>C4 Context · external boundaries</span
+            ><span class="footer-accent" data-editable>01 / 04</span>
+          </footer>
+          <aside class="speaker-notes" hidden>
+            Ở mức System Context, Crypto Strategy Lab có một ranh giới ứng dụng
+            rõ ràng. Frontend chỉ giao tiếp với Express Backend thông qua HTTP
+            và Socket.IO. Market data đi qua Exchange Adapter, news đi qua News
+            Provider, còn backtest được thực thi bởi một Worker độc lập.
+            PostgreSQL vừa là nơi lưu trữ dữ liệu chính vừa là durable queue.
+          </aside>
+        </section>
+
+        <!-- ===========================================
+           SLIDE 2: CONTAINER / MODULE VIEW
+           =========================================== -->
+        <section
+          class="slide"
+          data-slide="2"
+          aria-label="Slide 2: Container and Module View"
+        >
+          <div class="scanlines"></div>
+          <header class="slide-header">
+            <span><strong>02 / 04</strong> · Crypto Strategy Lab</span>
+            <span data-editable>deployable units / module map</span>
+          </header>
+          <p class="section-label reveal" data-editable>
+            02 — Container và module
+          </p>
+          <h1 class="slide-title reveal" data-editable>
+            Modular monolith, <span>worker scale.</span>
+          </h1>
+          <p class="slide-subtitle reveal" data-editable>
+            Chỉ Backtest Worker là process độc lập. Các module nghiệp vụ vẫn nằm
+            trong Express Backend để giữ transaction và ownership rõ ràng.
+          </p>
+          <div class="slide-body container-layout reveal">
+            <div class="diagram-shell" data-diagram="container">
+              <pre class="mermaid">
+flowchart LR
+  F["Frontend"]
+  B["Backend&lt;br/&gt;modular monolith"]
+  W["Backtest&lt;br/&gt;Worker"]
+  DB[("PostgreSQL")]
+  M["Backend&lt;br/&gt;modules"]
+  F <-->|HTTP / Socket.IO| B
+  B -->|create jobs + publish| DB
+  W -->|claim + lease| DB
+  B -.->|modules| M
+  classDef app fill:#132544,stroke:#3ff7d5,color:#f1f7ff,stroke-width:2px
+  classDef worker fill:#171c3a,stroke:#ff4fa3,color:#f1f7ff,stroke-width:2px
+  classDef data fill:#101d36,stroke:#ffc857,color:#f1f7ff,stroke-width:2px
+  class F,B,M app
+  class W worker
+  class DB data
+              </pre>
+              <div class="diagram-fallback" aria-hidden="true">
+                <div class="fallback-flow">
+                  <div class="fallback-row">
+                    <div class="fallback-node">Next.js<br />Frontend</div>
+                    <div class="fallback-arrow">↔</div>
+                    <div class="fallback-node magenta">
+                      Express Backend<br />modular monolith
+                    </div>
+                  </div>
+                  <div class="fallback-row">
+                    <div class="fallback-node">
+                      Market · Strategy · Experiment
+                    </div>
+                    <div class="fallback-arrow">→</div>
+                    <div class="fallback-node">Search · News · Ranking</div>
+                  </div>
+                  <div class="fallback-row">
+                    <div class="fallback-node yellow">
+                      PostgreSQL<br />data · queue · outbox
+                    </div>
+                    <div class="fallback-arrow">↕</div>
+                    <div class="fallback-node magenta">
+                      Backtest Worker<br />claim · simulate · evaluate
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <section class="module-panel">
+              <h3 class="reveal" data-editable>Module ownership</h3>
+              <p class="lead reveal" data-editable>
+                Đây là module boundary, không phải danh sách microservice. Mỗi
+                module có một trách nhiệm và một seam rõ ràng.
+              </p>
+              <div class="module-list">
+                <div class="module-line reveal">
+                  <strong data-editable>Market</strong
+                  ><span data-editable
+                    >Candle chuẩn hóa + Dataset Snapshot.</span
+                  >
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>Strategy</strong
+                  ><span data-editable
+                    >Registry, Context, signal, composite.</span
+                  >
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>Experiment</strong
+                  ><span data-editable>Dataset, Experiment, Backtest Job.</span>
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>Search</strong
+                  ><span data-editable>Generator, SearchRun, candidates.</span>
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>Evaluation</strong
+                  ><span data-editable>Simulation, Trade, metrics.</span>
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>Ranking</strong
+                  ><span data-editable
+                    >StrategyEvaluated → Top-K projection.</span
+                  >
+                </div>
+                <div class="module-line reveal">
+                  <strong data-editable>News / Auth / Ops</strong
+                  ><span data-editable
+                    >News pipeline, access scope, health.</span
+                  >
+                </div>
+              </div>
+              <div class="container-callout reveal" data-editable>
+                <strong>Scale point:</strong> thêm worker replica không cần sửa
+                Backtester, Evaluator hay Ranking. PostgreSQL queue dùng `SKIP
+                LOCKED` và lease fencing.
+              </div>
+            </section>
+          </div>
+          <footer class="slide-footer">
+            <span data-editable>C4 Container · module ownership</span
+            ><span class="footer-accent" data-editable>02 / 04</span>
+          </footer>
+          <aside class="speaker-notes" hidden>
+            C4 Container View cho thấy các đơn vị có thể triển khai: Frontend,
+            Backend, PostgreSQL và Backtest Worker. Backend vẫn là một modular
+            monolith để các transaction cục bộ đơn giản và nhất quán. Chỉ phần
+            backtest chạy lâu được tách riêng, vì vậy số lượng worker có thể
+            tăng mà không cần sửa business logic chính.
+          </aside>
+        </section>
+
+        <!-- ===========================================
+           SLIDE 3: ARCHITECTURE CHECKLIST
+           =========================================== -->
+        <section
+          class="slide"
+          data-slide="3"
+          aria-label="Slide 3: Architecture Checklist"
+        >
+          <div class="scanlines"></div>
+          <header class="slide-header">
+            <span><strong>03 / 04</strong> · Crypto Strategy Lab</span>
+            <span data-editable>ten questions / explicit answers</span>
+          </header>
+          <p class="section-label reveal" data-editable>
+            03 — Checklist kiến trúc
+          </p>
+          <h1 class="slide-title reveal" data-editable>
+            Mười câu hỏi. <span>Mười câu trả lời.</span>
+          </h1>
+          <p class="slide-subtitle reveal" data-editable>
+            Nhóm câu hỏi theo bốn điểm kiểm tra: boundary, extension,
+            scale/reliability và provenance.
+          </p>
+          <div class="slide-body reveal">
+            <div class="table-kicker">
+              <span><strong>01—05</strong> · Boundary &amp; extension</span
+              ><span
+                ><strong>06—10</strong> · Provider, scale &amp;
+                traceability</span
+              >
+            </div>
+            <div class="checklist-grid">
+              <table
+                class="check-table"
+                aria-label="Architecture checklist questions 1 to 5"
+              >
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Câu hỏi</th>
+                    <th>Trả lời ngắn</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-editable>01</td>
+                    <td data-editable>
+                      <strong>Architectural drivers?</strong>
+                    </td>
+                    <td data-editable>
+                      Sửa đổi, thay thế, mở rộng, tin cậy, quan sát và tái lập.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>02</td>
+                    <td data-editable>
+                      <strong>C4 Context / Container?</strong>
+                    </td>
+                    <td data-editable>
+                      Context = boundary. Container = Frontend, Backend, Worker,
+                      PostgreSQL và module.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>03</td>
+                    <td data-editable><strong>Domain boundaries?</strong></td>
+                    <td data-editable>
+                      Market = data; Strategy = signal; Experiment =
+                      snapshot/job; News = raw item/sentiment.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>04</td>
+                    <td data-editable><strong>Thêm Strategy ở đâu?</strong></td>
+                    <td data-editable>
+                      Implement `Strategy` + đăng ký `StrategyRegistry` + test.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>05</td>
+                    <td data-editable>
+                      <strong>Đổi Search algorithm ở đâu?</strong>
+                    </td>
+                    <td data-editable>
+                      Implement/register `StrategyGenerator`; downstream nhận
+                      `CandidateStrategy` opaque.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <table
+                class="check-table"
+                aria-label="Architecture checklist questions 6 to 10"
+              >
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Câu hỏi</th>
+                    <th>Trả lời ngắn</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td data-editable>06</td>
+                    <td data-editable>
+                      <strong>Provider mới có đổi Frontend?</strong>
+                    </td>
+                    <td data-editable>
+                      Không. Thêm Adapter/Provider ở Backend; Frontend dùng
+                      contract chuẩn hóa.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>07</td>
+                    <td data-editable>
+                      <strong>100.000 backtest scale?</strong>
+                    </td>
+                    <td data-editable>
+                      PostgreSQL queue + `SKIP LOCKED` + lease + 1/2/4 worker
+                      benchmark.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>08</td>
+                    <td data-editable>
+                      <strong>Service lỗi có lan không?</strong>
+                    </td>
+                    <td data-editable>
+                      Không. `RECONNECTING`/`STALE`, provider-local failure và
+                      Worker retry.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>09</td>
+                    <td data-editable>
+                      <strong>Duplicate / retry / order?</strong>
+                    </td>
+                    <td data-editable>
+                      At-least-once, không global order, idempotent consumer,
+                      fencing và dead-letter.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td data-editable>10</td>
+                    <td data-editable>
+                      <strong>Leaderboard truy provenance?</strong>
+                    </td>
+                    <td data-editable>
+                      <code
+                        >Entry → Experiment → Version + Snapshot + seed +
+                        execution + build</code
+                      >.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="checklist-note" data-editable>
+              Chi tiết implementation và bằng chứng được ghi trong parent Issue
+              #82 cùng các child issue #83–#91.
+            </p>
+          </div>
+          <footer class="slide-footer">
+            <span data-editable
+              >Checklist · question → observable guarantee</span
+            ><span class="footer-accent" data-editable>03 / 04</span>
+          </footer>
+          <aside class="speaker-notes" hidden>
+            Ba câu đầu xác định boundary. Câu bốn đến câu sáu chứng minh hệ
+            thống dễ sửa và dễ thay thế. Câu bảy đến câu chín nói về khả năng mở
+            rộng và độ tin cậy. Câu mười chứng minh leaderboard result có thể
+            tái lập và truy ngược.
+          </aside>
+        </section>
+
+        <!-- ===========================================
+           SLIDE 4: ARCHITECTURE EVALUATION
+           =========================================== -->
+        <section
+          class="slide"
+          data-slide="4"
+          aria-label="Slide 4: Architecture Evaluation"
+        >
+          <div class="scanlines"></div>
+          <div class="orbital-ring"></div>
+          <header class="slide-header">
+            <span><strong>04 / 04</strong> · Crypto Strategy Lab</span>
+            <span data-editable>evaluation / evidence / demo</span>
+          </header>
+          <p class="section-label reveal" data-editable>
+            04 — Đánh giá kiến trúc
+          </p>
+          <h1 class="slide-title reveal" data-editable>
+            Thiết kế tốt khi <span>có thể kiểm chứng.</span>
+          </h1>
+          <p class="slide-subtitle reveal" data-editable>
+            Mỗi tiêu chí có một câu hỏi kiểm chứng và một bằng chứng quan sát
+            được trong code, test, dashboard hoặc benchmark.
+          </p>
+          <div class="slide-body reveal">
+            <table
+              class="evaluation-table"
+              aria-label="Architecture evaluation criteria"
+            >
+              <thead>
+                <tr>
+                  <th>Tiêu chí</th>
+                  <th>Câu hỏi kiểm chứng</th>
+                  <th>Bằng chứng / kết quả</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td data-editable>Modifiability</td>
+                  <td data-editable>Thêm MACD sửa bao nhiêu component?</td>
+                  <td data-editable>
+                    Một Strategy implementation + registry + test. Backtester,
+                    Evaluator, Ranking, Visualization và Frontend không đổi.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Replaceability</td>
+                  <td data-editable>
+                    Random → Domain-guided ảnh hưởng Backtester?
+                  </td>
+                  <td data-editable>
+                    Không. Chỉ `StrategyGenerator` thay đổi; Backtester nhận
+                    `CandidateStrategy`.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Scalability</td>
+                  <td data-editable>Tăng worker count có sửa core code?</td>
+                  <td data-editable>
+                    Không. `SKIP LOCKED`, lease và unique worker identity cho
+                    phép tăng replica.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Reliability</td>
+                  <td data-editable>News hoặc Binance lỗi thì sao?</td>
+                  <td data-editable>
+                    Provider-local failure; Market `RECONNECTING`/`STALE`;
+                    Backtest Job retry có giới hạn.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Observability</td>
+                  <td data-editable>Admin có thấy system health?</td>
+                  <td data-editable>
+                    `/admin/operations` có queue depth, P50/P95, throughput,
+                    retry, failure, lease loss, worker và outbox.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Reproducibility</td>
+                  <td data-editable>Top-K truy exact input?</td>
+                  <td data-editable>
+                    Leaderboard Entry → Experiment → parameters, dataset
+                    fingerprint, seed, versions và build revision.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Documentation</td>
+                  <td data-editable>
+                    Context / Container / Dynamic View / ADR khớp code?
+                  </td>
+                  <td data-editable>
+                    Tên, hướng dependency, ownership, failure semantics và
+                    Mermaid diagrams đồng nhất.
+                  </td>
+                </tr>
+                <tr>
+                  <td data-editable>Trade-off</td>
+                  <td data-editable>Mỗi technology choice có cost?</td>
+                  <td data-editable>
+                    PostgreSQL hiện tại; Redis/BullMQ trì hoãn; mỗi lựa chọn có
+                    benefit, consequence và trigger đo được.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <div class="evaluation-bottom">
+              <div class="trigger reveal" data-editable>
+                <strong>PostgreSQL</strong>Queue-wait P95 &gt; 1 giây hoặc 2→4
+                worker &lt; 1.5× khi connection bão hòa.
+              </div>
+              <div class="trigger reveal" data-editable>
+                <strong>Redis</strong>Chỉ thêm khi repeated reads &gt; 50% và
+                API P95 vẫn &gt; 200 ms.
+              </div>
+              <div class="trigger reveal" data-editable>
+                <strong>BullMQ</strong>Chỉ xem xét khi PostgreSQL tuning không
+                đủ hoặc cần priority/delay/rate limit phức tạp.
+              </div>
+            </div>
+          </div>
+          <footer class="slide-footer">
+            <span data-editable>Evidence → demo: realtime → leaderboard</span
+            ><span class="footer-accent" data-editable>04 / 04</span>
+          </footer>
+          <aside class="speaker-notes" hidden>
+            Kiến trúc không được đánh giá chỉ bằng việc diagram có đẹp hay
+            không, mà bằng việc mỗi câu hỏi về khả năng mở rộng, lỗi, scale và
+            tái lập đều có câu trả lời quan sát được. Các bằng chứng chi tiết
+            được ghi trong parent issue và các child issue.
+          </aside>
+        </section>
+      </main>
+    </div>
+
+    <!-- ===========================================
+       PRESENTATION CHROME
+       =========================================== -->
+    <nav class="deck-controls" aria-label="Điều khiển trình chiếu">
+      <button
+        class="nav-button"
+        id="prevButton"
+        type="button"
+        aria-label="Slide trước"
+      >
+        ←
+      </button>
+      <span id="slideCounter">01 / 04</span>
+      <div class="progress-track" aria-hidden="true">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <button
+        class="nav-button"
+        id="nextButton"
+        type="button"
+        aria-label="Slide tiếp theo"
+      >
+        →
+      </button>
+    </nav>
+    <div class="edit-hotzone" aria-hidden="true"></div>
+    <button
+      class="edit-toggle"
+      id="editToggle"
+      type="button"
+      title="Bật chế độ chỉnh sửa (E)"
+      aria-label="Bật chế độ chỉnh sửa"
+    >
+      ✎
+    </button>
+    <div class="edit-bar" id="editBar">
+      <span>Chế độ chỉnh sửa</span>
+      <button id="saveButton" type="button">Lưu</button>
+      <button id="exportButton" type="button">Tải HTML</button>
+      <button id="exitEditButton" type="button">Thoát</button>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- ===========================================
+       MERMAID LOADER
+       The visible diagrams are authored as Mermaid flowcharts above.
+       =========================================== -->
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+    <script>
+      /* ===========================================
+       SLIDE PRESENTATION CONTROLLER
+       Keyboard, touch, wheel, stage scaling, and progress chrome.
+       =========================================== */
+      class SlidePresentation {
+        constructor() {
+          this.slides = Array.from(document.querySelectorAll('.slide'));
+          this.currentSlide = 0;
+          this.stage = document.getElementById('deckStage');
+          this.counter = document.getElementById('slideCounter');
+          this.progressFill = document.getElementById('progressFill');
+          this.wheelLock = false;
+          this.touchStartX = null;
+          this.touchStartY = null;
+          this.setupStageScale();
+          this.setupKeyboardNav();
+          this.setupTouchNav();
+          this.setupWheelNav();
+          this.setupButtons();
+          this.showSlide(0);
+        }
+
+        setupStageScale() {
+          const scale = () => {
+            const factor = Math.min(
+              window.innerWidth / 1920,
+              window.innerHeight / 1080,
+            );
+            const x = (window.innerWidth - 1920 * factor) / 2;
+            const y = (window.innerHeight - 1080 * factor) / 2;
+            this.stage.style.transform = `translate(${x}px, ${y}px) scale(${factor})`;
+          };
+          scale();
+          window.addEventListener('resize', scale);
+        }
+
+        setupKeyboardNav() {
+          document.addEventListener('keydown', (event) => {
+            const editingText =
+              event.target &&
+              event.target.getAttribute &&
+              event.target.getAttribute('contenteditable') === 'true';
+            if (editingText && event.key !== 'Escape') return;
+            if (
+              event.key === 'ArrowRight' ||
+              event.key === 'PageDown' ||
+              event.key === ' '
+            ) {
+              event.preventDefault();
+              this.next();
+            }
+            if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
+              event.preventDefault();
+              this.previous();
+            }
+            if (event.key === 'Home') this.showSlide(0);
+            if (event.key === 'End') this.showSlide(this.slides.length - 1);
+          });
+        }
+
+        setupTouchNav() {
+          document.addEventListener(
+            'touchstart',
+            (event) => {
+              const touch = event.changedTouches[0];
+              this.touchStartX = touch.clientX;
+              this.touchStartY = touch.clientY;
+            },
+            { passive: true },
+          );
+          document.addEventListener(
+            'touchend',
+            (event) => {
+              if (this.touchStartX === null) return;
+              const touch = event.changedTouches[0];
+              const dx = touch.clientX - this.touchStartX;
+              const dy = touch.clientY - this.touchStartY;
+              this.touchStartX = null;
+              this.touchStartY = null;
+              if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy))
+                dx < 0 ? this.next() : this.previous();
+            },
+            { passive: true },
+          );
+        }
+
+        setupWheelNav() {
+          document.addEventListener(
+            'wheel',
+            (event) => {
+              if (this.wheelLock || Math.abs(event.deltaY) < 12) return;
+              this.wheelLock = true;
+              event.deltaY > 0 ? this.next() : this.previous();
+              window.setTimeout(() => {
+                this.wheelLock = false;
+              }, 650);
+            },
+            { passive: true },
+          );
+        }
+
+        setupButtons() {
+          document
+            .getElementById('prevButton')
+            .addEventListener('click', () => this.previous());
+          document
+            .getElementById('nextButton')
+            .addEventListener('click', () => this.next());
+        }
+
+        next() {
+          this.showSlide(this.currentSlide + 1);
+        }
+
+        previous() {
+          this.showSlide(this.currentSlide - 1);
+        }
+
+        showSlide(index) {
+          this.currentSlide = Math.max(
+            0,
+            Math.min(index, this.slides.length - 1),
+          );
+          this.slides.forEach((slide, slideIndex) => {
+            const active = slideIndex === this.currentSlide;
+            slide.classList.toggle('active', active);
+            slide.classList.toggle('visible', active);
+          });
+          const number = String(this.currentSlide + 1).padStart(2, '0');
+          this.counter.textContent = `${number} / ${String(this.slides.length).padStart(2, '0')}`;
+          this.progressFill.style.width = `${((this.currentSlide + 1) / this.slides.length) * 100}%`;
+        }
+      }
+
+      /* ===========================================
+       INLINE EDITOR
+       Hover the top-left hotzone or press E to edit, save to localStorage,
+       and export a copy with the current text.
+       =========================================== */
+      class InlineEditor {
+        constructor() {
+          this.isActive = false;
+          this.storageKey = 'crypto-strategy-lab-architecture-presentation-v1';
+          this.editable = Array.from(
+            document.querySelectorAll('[data-editable]'),
+          );
+          this.toggle = document.getElementById('editToggle');
+          this.toast = document.getElementById('toast');
+          this.load();
+          this.bind();
+        }
+
+        bind() {
+          this.toggle.addEventListener('click', () => this.toggleEditMode());
+          document
+            .getElementById('saveButton')
+            .addEventListener('click', () => this.save(true));
+          document
+            .getElementById('exportButton')
+            .addEventListener('click', () => this.exportHtml());
+          document
+            .getElementById('exitEditButton')
+            .addEventListener('click', () => this.toggleEditMode(false));
+          document.addEventListener('keydown', (event) => {
+            if (
+              (event.key === 'e' || event.key === 'E') &&
+              !event.target.getAttribute('contenteditable')
+            )
+              this.toggleEditMode();
+            if (
+              (event.ctrlKey || event.metaKey) &&
+              event.key.toLowerCase() === 's'
+            ) {
+              event.preventDefault();
+              this.save(true);
+            }
+            if (
+              event.key === 'Escape' &&
+              this.isActive &&
+              !event.target.getAttribute('contenteditable')
+            )
+              this.toggleEditMode(false);
+          });
+          this.editable.forEach((element) =>
+            element.addEventListener('input', () => this.save(false)),
+          );
+        }
+
+        toggleEditMode(force) {
+          this.isActive = typeof force === 'boolean' ? force : !this.isActive;
+          document.body.classList.toggle('editing', this.isActive);
+          this.toggle.classList.toggle('active', this.isActive);
+          this.editable.forEach((element) =>
+            element.setAttribute('contenteditable', String(this.isActive)),
+          );
+          this.showToast(
+            this.isActive
+              ? 'Đã bật chế độ chỉnh sửa'
+              : 'Đã thoát chế độ chỉnh sửa',
+          );
+        }
+
+        save(notify) {
+          const values = this.editable.map((element) => element.innerHTML);
+          localStorage.setItem(this.storageKey, JSON.stringify(values));
+          if (notify) this.showToast('Đã lưu nội dung trên trình duyệt');
+        }
+
+        load() {
+          const raw = localStorage.getItem(this.storageKey);
+          if (!raw) return;
+          try {
+            const values = JSON.parse(raw);
+            this.editable.forEach((element, index) => {
+              if (typeof values[index] === 'string')
+                element.innerHTML = values[index];
+            });
+          } catch (error) {
+            localStorage.removeItem(this.storageKey);
+          }
+        }
+
+        exportHtml() {
+          this.save(false);
+          const copy = document.documentElement.cloneNode(true);
+          copy
+            .querySelectorAll('[contenteditable]')
+            .forEach((element) => element.removeAttribute('contenteditable'));
+          const html = `<!doctype html>\n${copy.outerHTML}`;
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+          const link = document.createElement('a');
+          link.href = URL.createObjectURL(blob);
+          link.download = 'crypto-strategy-lab-architecture-edited.html';
+          link.click();
+          URL.revokeObjectURL(link.href);
+          this.showToast('Đã tải bản HTML đã chỉnh sửa');
+        }
+
+        showToast(message) {
+          this.toast.textContent = message;
+          this.toast.classList.add('visible');
+          window.clearTimeout(this.toastTimer);
+          this.toastTimer = window.setTimeout(
+            () => this.toast.classList.remove('visible'),
+            1900,
+          );
+        }
+      }
+
+      /* ===========================================
+       EDIT HOTZONE
+       JS-based hover with a grace period keeps the button reachable.
+       =========================================== */
+      const editor = new InlineEditor();
+      const hotzone = document.querySelector('.edit-hotzone');
+      const editToggle = document.getElementById('editToggle');
+      let hideTimeout = null;
+      const revealEditToggle = () => {
+        window.clearTimeout(hideTimeout);
+        editToggle.classList.add('show');
+      };
+      const hideEditToggle = () => {
+        hideTimeout = window.setTimeout(() => {
+          if (!editor.isActive) editToggle.classList.remove('show');
+        }, 400);
+      };
+      hotzone.addEventListener('mouseenter', revealEditToggle);
+      hotzone.addEventListener('mouseleave', hideEditToggle);
+      hotzone.addEventListener('click', () => editor.toggleEditMode());
+      editToggle.addEventListener('mouseenter', revealEditToggle);
+      editToggle.addEventListener('mouseleave', hideEditToggle);
+
+      /* ===========================================
+       MERMAID INITIALIZATION
+       Style the rendered SVGs to match the Neon Contract theme.
+       =========================================== */
+      async function renderMermaidDiagrams() {
+        if (!window.mermaid) return;
+        window.mermaid.initialize({
+          startOnLoad: false,
+          securityLevel: 'loose',
+          theme: 'base',
+          themeVariables: {
+            background: '#0d1930',
+            primaryColor: '#132544',
+            primaryTextColor: '#f1f7ff',
+            primaryBorderColor: '#3ff7d5',
+            lineColor: '#7194ff',
+            secondaryColor: '#171c3a',
+            tertiaryColor: '#101d36',
+            clusterBkg: '#0e1a31',
+            clusterBorder: '#ff4fa3',
+            edgeLabelBackground: '#0a1020',
+            fontFamily: 'Space Mono, monospace',
+            fontSize: '16px',
+          },
+          flowchart: {
+            curve: 'basis',
+            htmlLabels: true,
+            padding: 22,
+            nodeSpacing: 32,
+            rankSpacing: 58,
+          },
+        });
+        try {
+          const nodes = Array.from(document.querySelectorAll('.mermaid'));
+          await window.mermaid.run({ nodes });
+          document
+            .querySelectorAll('.diagram-shell')
+            .forEach((shell) => shell.classList.add('mermaid-ready'));
+        } catch (error) {
+          document
+            .querySelectorAll('.diagram-shell')
+            .forEach((shell) => shell.classList.add('mermaid-fallback'));
+        }
+      }
+
+      new SlidePresentation();
+      renderMermaidDiagrams();
+    </script>
+  </body>
+</html>
