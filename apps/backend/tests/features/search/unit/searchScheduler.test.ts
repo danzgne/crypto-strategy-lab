@@ -217,6 +217,50 @@ describe('SearchScheduler', () => {
     await scheduler.stopSession('user-3');
   });
 
+  it('forwards the selected algorithm to the coordinator instead of an implicit default', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-algo-1');
+    fakeCoordinator.waitForRunCompletion.mockReturnValue(new Promise(() => {}));
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+
+    await scheduler.startSession({
+      algorithm: 'random-v1',
+      searchSpace: defaultSearchSpace,
+      userId: 'user-algo',
+    });
+
+    expect(fakeCoordinator.startRun).toHaveBeenCalledWith(
+      expect.objectContaining({ algorithmName: 'random-v1' }),
+    );
+
+    await scheduler.stopSession('user-algo');
+  });
+
+  it('rejects an unregistered algorithm before starting any run', async () => {
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+
+    await expect(
+      scheduler.startSession({
+        algorithm: 'domain-guided',
+        searchSpace: defaultSearchSpace,
+        userId: 'user-rejected',
+      }),
+    ).rejects.toThrow('Unsupported search algorithm: domain-guided');
+
+    expect(fakeCoordinator.startRun).not.toHaveBeenCalled();
+    expect(scheduler.getSession('user-rejected')).toBeNull();
+  });
+
   it('retrieves historical runs with stop reasons', async () => {
     fakePrisma.searchRun.findMany.mockResolvedValue([
       {

@@ -583,16 +583,19 @@ describe('SearchCoordinator', () => {
     fakePrisma.searchRun.findMany = vi.fn(async () => [
       {
         acceptedCandidates: 3,
-        algorithm: 'random',
+        algorithm: 'random-v1',
         bestScore: 1.2,
         consecutiveFailures: 0,
         consecutiveNoImprovement: 1,
         id: 'run-existing',
+        nextGenerationOrdinal: 4,
         ownerId: 'user-1',
         searchConfig: {
           searchSpace: defaultSearchSpace,
-          stopPolicy: { maxCandidates: 10 },
+          // maxInFlight: 0 blocks the restored loop on backpressure before it generates further.
+          stopPolicy: { maxCandidates: 10, maxInFlight: 0 },
         },
+        seed: 777,
         startedAt: new Date(),
         status: 'RUNNING',
         stopReason: null,
@@ -629,6 +632,9 @@ describe('SearchCoordinator', () => {
 
     const state = coordinator.getRun('run-existing');
     expect(state).toBeDefined();
+    expect(state?.algorithmName).toBe('random-v1');
+    expect(state?.seed).toBe(777);
+    expect(state?.nextGenerationOrdinal).toBe(4);
     expect(state?.seenFingerprints.has('fp-1')).toBe(true);
     expect(state?.seenFingerprints.has('fp-2')).toBe(true);
     expect(state?.inFlightJobs).toBe(1);
@@ -774,5 +780,100 @@ describe('SearchCoordinator', () => {
     expect(lastProgress.bestCandidate?.score).toBe(1.8);
     expect(lastProgress.bestCandidate?.profit).toBe(2000);
     expect(lastProgress.bestCandidate?.winRate).toBe(0.6);
+  });
+
+  it('rejects an unsupported algorithm and creates no SearchRun, Experiment, or Backtest Job', async () => {
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    await expect(
+      coordinator.startRun({
+        algorithmName: 'domain-guided',
+        ownerId: 'user-1',
+        searchSpace: defaultSearchSpace,
+      }),
+    ).rejects.toThrow('Unsupported search algorithm: domain-guided');
+
+    expect(searchRunsDb.size).toBe(0);
+    expect(experimentsDb.size).toBe(0);
+    expect(enqueuedJobs.length).toBe(0);
+  });
+
+  it('resolves the registered random-v1 generator through the registry instead of an implicit fallback', async () => {
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    const runId = await coordinator.startRun({
+      ownerId: 'user-1',
+      searchSpace: defaultSearchSpace,
+      stopPolicy: { maxCandidates: 1, maxInFlight: 10 },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const persistedRun = searchRunsDb.get(runId);
+    expect(persistedRun?.algorithm).toBe('random-v1');
+    expect(typeof persistedRun?.seed).toBe('number');
+    expect(persistedRun?.nextGenerationOrdinal).toBeGreaterThanOrEqual(1);
+  });
+
+  it('marks a restored run FAILED instead of silently switching to a different generator when its algorithm is no longer registered', async () => {
+    searchRunsDb.set('run-legacy', {
+      acceptedCandidates: 1,
+      algorithm: 'legacy-unsupported-algorithm',
+      id: 'run-legacy',
+      nextGenerationOrdinal: 2,
+      ownerId: 'user-1',
+      seed: 1,
+      status: 'RUNNING',
+      stopReason: null,
+    });
+
+    fakePrisma.searchRun.findMany = vi.fn(async () => [
+      {
+        acceptedCandidates: 1,
+        algorithm: 'legacy-unsupported-algorithm',
+        bestScore: null,
+        consecutiveFailures: 0,
+        consecutiveNoImprovement: 0,
+        id: 'run-legacy',
+        nextGenerationOrdinal: 2,
+        ownerId: 'user-1',
+        searchConfig: {
+          searchSpace: defaultSearchSpace,
+          stopPolicy: { maxCandidates: 10 },
+        },
+        seed: 1,
+        startedAt: new Date(),
+        status: 'RUNNING',
+        stopReason: null,
+      },
+    ]);
+
+    const coordinator = new SearchCoordinator({
+      eventBus: fakeEventBus,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    expect(coordinator.getRun('run-legacy')).toBeUndefined();
+    expect(searchRunsDb.get('run-legacy')?.status).toBe('FAILED');
   });
 });

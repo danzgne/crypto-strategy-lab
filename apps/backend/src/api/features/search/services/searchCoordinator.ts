@@ -29,8 +29,12 @@ import type { BacktestHistoryProvider } from '../../backtests';
 import { fingerprintDataset } from '../../backtests';
 import type { DomainEventPublisher } from '../../marketData/application/interfaces/domainEventPublisher.interface';
 import type { AppLogger } from '../../../../utils/logger';
-import { RandomGenerator } from '../generators/randomGenerator';
-import { MathRandomSource } from '../generators/randomSource';
+import {
+  RANDOM_GENERATOR_ID,
+  StrategyGeneratorRegistry,
+  UnsupportedAlgorithmError,
+} from '../generators';
+import { createSearchRunSeed } from '../generators/randomSource';
 import { assertSearchSpaceBacktestable } from './searchSpaceBuilder';
 
 export type SearchEventBus = DomainEventPublisher & {
@@ -55,6 +59,7 @@ export interface StartSearchRunOptions {
   stopPolicy?: StopPolicy | undefined;
   generator?: StrategyGenerator | undefined;
   algorithmName?: string | undefined;
+  seed?: number | undefined;
 }
 
 export interface EnqueueJobInput {
@@ -90,6 +95,9 @@ interface ActiveRunState {
   searchSpace: SearchSpace;
   stopPolicy: ResolvedStopPolicy;
   generator: StrategyGenerator;
+  algorithmName: string;
+  seed: number;
+  nextGenerationOrdinal: number;
   status: SearchRunStatus;
   stopReason: StopReason | null;
   acceptedCandidates: number;
@@ -178,6 +186,11 @@ export class SearchCoordinator {
   }
 
   public async startRun(options: StartSearchRunOptions): Promise<string> {
+    const algorithmName = options.algorithmName ?? RANDOM_GENERATOR_ID;
+    if (!StrategyGeneratorRegistry.has(algorithmName)) {
+      throw new UnsupportedAlgorithmError(algorithmName);
+    }
+
     const stopPolicy: ResolvedStopPolicy = {
       maxCandidates:
         options.stopPolicy?.maxCandidates ?? DEFAULT_STOP_POLICY.maxCandidates,
@@ -195,7 +208,6 @@ export class SearchCoordinator {
         options.stopPolicy?.timeBudgetMs ?? DEFAULT_STOP_POLICY.timeBudgetMs,
     };
 
-    const algorithmName = options.algorithmName ?? 'random';
     const timeframe = options.searchSpace.timeframe as Timeframe;
     const interval = TIMEFRAME_INTERVAL_MS[timeframe] ?? 3_600_000;
     const rawEndTime = Number(options.searchSpace.endTime);
@@ -226,12 +238,14 @@ export class SearchCoordinator {
     };
     assertSearchSpaceBacktestable(alignedSearchSpace);
 
+    const seed = options.seed ?? createSearchRunSeed();
     const generator =
       options.generator ??
-      new RandomGenerator(
-        alignedSearchSpace,
-        new MathRandomSource(),
+      StrategyGeneratorRegistry.create(
         algorithmName,
+        alignedSearchSpace,
+        seed,
+        1,
       );
 
     let datasetSnapshotId: string | null = null;
@@ -297,11 +311,13 @@ export class SearchCoordinator {
     const searchRun = await this.prisma.searchRun.create({
       data: {
         algorithm: algorithmName,
+        nextGenerationOrdinal: 1,
         ownerId: options.ownerId,
         searchConfig: {
           searchSpace: alignedSearchSpace,
           stopPolicy,
         } as unknown as Prisma.InputJsonValue,
+        seed,
         status: 'RUNNING',
       },
     });
@@ -309,6 +325,7 @@ export class SearchCoordinator {
     const runState: ActiveRunState = {
       acceptedCandidates: 0,
       activeExperimentIds: new Set<string>(),
+      algorithmName,
       bestScore: null,
       consecutiveFailures: 0,
       consecutiveNoImprovement: 0,
@@ -318,9 +335,11 @@ export class SearchCoordinator {
       generator,
       inFlightJobs: 0,
       inFlightResolvers: [],
+      nextGenerationOrdinal: 1,
       ownerId: options.ownerId,
       searchRunId: searchRun.id,
       searchSpace: options.searchSpace,
+      seed,
       seenFingerprints: new Set<string>(),
       startedAt: Date.now(),
       status: 'RUNNING',
@@ -447,6 +466,16 @@ export class SearchCoordinator {
           await this.transitionToStopping(run, 'CONSECUTIVE_FAILURES');
           break;
         }
+
+        // The ordinal advances for every attempt, including candidates discarded below.
+        run.nextGenerationOrdinal = candidate.provenance.generationOrdinal + 1;
+        await this.prisma.searchRun.update({
+          data: {
+            nextGenerationOrdinal: run.nextGenerationOrdinal,
+            updatedAt: new Date(),
+          },
+          where: { id: run.searchRunId },
+        });
 
         // Discard candidate if applicability conflicts with run searchSpace
         if (this.hasApplicabilityConflict(candidate, run.searchSpace)) {
@@ -930,15 +959,33 @@ export class SearchCoordinator {
         }
       }
 
-      const generator = new RandomGenerator(
-        searchSpace,
-        new MathRandomSource(),
+      if (!StrategyGeneratorRegistry.has(record.algorithm)) {
+        this.logger?.error(
+          { algorithm: record.algorithm, searchRunId: record.id },
+          'Cannot restore SearchRun: algorithm is no longer registered',
+        );
+        await this.prisma.searchRun.update({
+          data: {
+            status: 'FAILED',
+            stoppedAt: new Date(),
+            updatedAt: new Date(),
+          },
+          where: { id: record.id },
+        });
+        continue;
+      }
+
+      const generator = StrategyGeneratorRegistry.create(
         record.algorithm,
+        searchSpace,
+        record.seed,
+        record.nextGenerationOrdinal,
       );
 
       const runState: ActiveRunState = {
         acceptedCandidates: record.acceptedCandidates,
         activeExperimentIds,
+        algorithmName: record.algorithm,
         bestScore: record.bestScore ? Number(record.bestScore) : null,
         consecutiveFailures: record.consecutiveFailures,
         consecutiveNoImprovement: record.consecutiveNoImprovement,
@@ -948,9 +995,11 @@ export class SearchCoordinator {
         generator,
         inFlightJobs: inFlight,
         inFlightResolvers: [],
+        nextGenerationOrdinal: record.nextGenerationOrdinal,
         ownerId: record.ownerId,
         searchRunId: record.id,
         searchSpace,
+        seed: record.seed,
         seenFingerprints,
         startedAt: record.startedAt.getTime(),
         status: record.status as SearchRunStatus,

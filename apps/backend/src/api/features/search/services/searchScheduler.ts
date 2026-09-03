@@ -10,9 +10,16 @@ import type {
   StopPolicy,
   StopReason,
 } from '@crypto-strategy-lab/shared';
-import { DEFAULT_STOP_POLICY } from '@crypto-strategy-lab/shared';
+import {
+  DEFAULT_STOP_POLICY,
+  RANDOM_SEARCH_ALGORITHM_ID,
+} from '@crypto-strategy-lab/shared';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
 import type { AppLogger } from '../../../../utils/logger';
+import {
+  StrategyGeneratorRegistry,
+  UnsupportedAlgorithmError,
+} from '../generators';
 import type {
   SearchCoordinator,
   SearchCoordinatorProgressEvent,
@@ -23,7 +30,7 @@ import { assertSearchSpaceBacktestable } from './searchSpaceBuilder';
 export interface StartSessionOptions {
   userId: string;
   searchSpace: SearchSpace;
-  algorithm?: 'random' | 'domain-guided' | 'genetic' | undefined;
+  algorithm?: string | undefined;
   stopPolicy?: StopPolicy | undefined;
 }
 
@@ -50,7 +57,7 @@ interface ActiveUserSession {
   sessionId: string;
   userId: string;
   status: DiscoverySessionStatus;
-  algorithm: 'random' | 'domain-guided' | 'genetic';
+  algorithm: string;
   searchSpace: SearchSpace;
   stopPolicy: StopPolicy;
   currentRunId?: string | undefined;
@@ -109,7 +116,10 @@ export class SearchScheduler {
   ): Promise<DiscoverySessionState> {
     const { userId, searchSpace } = options;
     assertSearchSpaceBacktestable(searchSpace);
-    const algorithm = options.algorithm ?? 'random';
+    const algorithm = options.algorithm ?? RANDOM_SEARCH_ALGORITHM_ID;
+    if (!StrategyGeneratorRegistry.has(algorithm)) {
+      throw new UnsupportedAlgorithmError(algorithm);
+    }
     const stopPolicy: StopPolicy = {
       ...options.stopPolicy,
       maxInFlight: Math.min(
@@ -234,6 +244,7 @@ export class SearchScheduler {
       while (this.isRunning && session.status === 'ACTIVE') {
         // Start an independent SearchRun sampled from scratch
         const runId = await this.coordinator.startRun({
+          algorithmName: session.algorithm,
           ownerId: session.userId,
           searchSpace: session.searchSpace,
           stopPolicy: session.stopPolicy,

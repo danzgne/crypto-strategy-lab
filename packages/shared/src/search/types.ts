@@ -119,11 +119,13 @@ export interface BestCandidateSummary {
   readonly returnPct?: number | undefined;
 }
 
+export const RANDOM_SEARCH_ALGORITHM_ID = 'random-v1';
+
 export interface DiscoverySessionState {
   readonly sessionId: string;
   readonly userId: string;
   readonly status: DiscoverySessionStatus;
-  readonly algorithm: 'random' | 'domain-guided' | 'genetic';
+  readonly algorithm: string;
   readonly searchSpace: SearchSpace;
   readonly stopPolicy: StopPolicy;
   readonly currentRunId?: string | undefined;
@@ -166,6 +168,6 @@ export interface DiscoveryProgressPayload {
 
 export interface StartDiscoverySessionInput {
   readonly searchSpace: SearchSpace;
-  readonly algorithm?: 'random' | 'domain-guided' | 'genetic' | undefined;
+  readonly algorithm?: string | undefined;
   readonly stopPolicy?: StopPolicy | undefined;
 }

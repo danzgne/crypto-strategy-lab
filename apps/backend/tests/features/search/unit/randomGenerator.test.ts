@@ -4,7 +4,6 @@ import {
   InvalidSearchSpaceError,
   RandomGenerator,
 } from '@/api/features/search/generators/randomGenerator';
-import { SeededRandomSource } from '@/api/features/search/generators/randomSource';
 
 describe('RandomGenerator', () => {
   const sampleSearchSpace: SearchSpace = {
@@ -53,19 +52,9 @@ describe('RandomGenerator', () => {
     timeframe: '1h',
   };
 
-  it('generates reproducible candidates with SeededRandomSource', () => {
-    const genA = new RandomGenerator(
-      sampleSearchSpace,
-      new SeededRandomSource(12345),
-      'random',
-      12345,
-    );
-    const genB = new RandomGenerator(
-      sampleSearchSpace,
-      new SeededRandomSource(12345),
-      'random',
-      12345,
-    );
+  it('generates reproducible candidates for the same searchSpace, seed, and ordinal', () => {
+    const genA = new RandomGenerator(sampleSearchSpace, 12345, 'random-v1');
+    const genB = new RandomGenerator(sampleSearchSpace, 12345, 'random-v1');
 
     const candA = genA.generate();
     const candB = genB.generate();
@@ -78,12 +67,7 @@ describe('RandomGenerator', () => {
   });
 
   it('increments generationOrdinal for consecutive candidates', () => {
-    const gen = new RandomGenerator(
-      sampleSearchSpace,
-      new SeededRandomSource(42),
-      'random',
-      42,
-    );
+    const gen = new RandomGenerator(sampleSearchSpace, 42, 'random-v1');
 
     const c1 = gen.generate();
     const c2 = gen.generate();
@@ -94,11 +78,42 @@ describe('RandomGenerator', () => {
     expect(c3.provenance.generationOrdinal).toBe(3);
   });
 
-  it('samples parameters within specified bounds', () => {
-    const gen = new RandomGenerator(
+  it('restoring from a persisted ordinal continues the exact same sequence', () => {
+    const continuous = new RandomGenerator(
       sampleSearchSpace,
-      new SeededRandomSource(999),
+      2024,
+      'random-v1',
     );
+    continuous.generate();
+    continuous.generate();
+    const third = continuous.generate();
+    const fourth = continuous.generate();
+
+    const restored = new RandomGenerator(
+      sampleSearchSpace,
+      2024,
+      'random-v1',
+      3,
+    );
+    const restoredThird = restored.generate();
+    const restoredFourth = restored.generate();
+
+    expect(restoredThird).toEqual(third);
+    expect(restoredFourth).toEqual(fourth);
+  });
+
+  it('produces a different sequence for a different seed', () => {
+    const genA = new RandomGenerator(sampleSearchSpace, 1, 'random-v1');
+    const genB = new RandomGenerator(sampleSearchSpace, 2, 'random-v1');
+
+    const candA = genA.generate();
+    const candB = genB.generate();
+
+    expect(candA.fingerprint).not.toBe(candB.fingerprint);
+  });
+
+  it('samples parameters within specified bounds', () => {
+    const gen = new RandomGenerator(sampleSearchSpace, 999);
 
     for (let i = 0; i < 20; i++) {
       const candidate = gen.generate();
@@ -127,10 +142,7 @@ describe('RandomGenerator', () => {
   });
 
   it('does not select duplicate strategies in a single candidate', () => {
-    const gen = new RandomGenerator(
-      sampleSearchSpace,
-      new SeededRandomSource(555),
-    );
+    const gen = new RandomGenerator(sampleSearchSpace, 555);
 
     for (let i = 0; i < 20; i++) {
       const candidate = gen.generate();
@@ -140,10 +152,7 @@ describe('RandomGenerator', () => {
   });
 
   it('configures combination only when subset size >= 2', () => {
-    const gen = new RandomGenerator(
-      sampleSearchSpace,
-      new SeededRandomSource(777),
-    );
+    const gen = new RandomGenerator(sampleSearchSpace, 777);
 
     for (let i = 0; i < 20; i++) {
       const candidate = gen.generate();
@@ -166,10 +175,7 @@ describe('RandomGenerator', () => {
   it('throws InvalidSearchSpaceError for empty strategy list', () => {
     expect(
       () =>
-        new RandomGenerator(
-          { ...sampleSearchSpace, enabledStrategies: [] },
-          new SeededRandomSource(),
-        ),
+        new RandomGenerator({ ...sampleSearchSpace, enabledStrategies: [] }, 1),
     ).toThrow(InvalidSearchSpaceError);
   });
 
@@ -186,8 +192,8 @@ describe('RandomGenerator', () => {
       ],
     };
 
-    expect(
-      () => new RandomGenerator(invalidSpace, new SeededRandomSource()),
-    ).toThrow(InvalidSearchSpaceError);
+    expect(() => new RandomGenerator(invalidSpace, 1)).toThrow(
+      InvalidSearchSpaceError,
+    );
   });
 });

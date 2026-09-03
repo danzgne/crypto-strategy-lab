@@ -2,6 +2,7 @@ import type { Request, Response } from 'express';
 import type { SearchScheduler } from '../services/searchScheduler';
 import type { TradeRetentionService } from '../services/tradeRetentionService';
 import type { StartDiscoverySessionInput } from '@crypto-strategy-lab/shared';
+import { UnsupportedAlgorithmError } from '../generators';
 
 function toErrorMessage(err: unknown): string {
   if (err instanceof Error) {
@@ -42,6 +43,14 @@ export class SearchController {
 
       res.status(201).json({ session });
     } catch (err) {
+      if (err instanceof UnsupportedAlgorithmError) {
+        res.status(400).json({
+          algorithm: err.algorithm,
+          code: 'UNSUPPORTED_ALGORITHM',
+          error: err.message,
+        });
+        return;
+      }
       res.status(400).json({ error: toErrorMessage(err) });
     }
   };

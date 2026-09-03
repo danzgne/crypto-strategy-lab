@@ -230,7 +230,9 @@ model SearchRun {
   ownerId                  String          @db.Uuid
   owner                    User            @relation(fields: [ownerId], references: [id])
   status                   SearchRunStatus @default(RUNNING)
-  algorithm                String          @default("random")
+  algorithm                String          @default("random-v1")
+  seed                     Int             @default(0)
+  nextGenerationOrdinal    Int             @default(1)
   searchConfig             Json
   stopReason               String?
   acceptedCandidates       Int             @default(0)
