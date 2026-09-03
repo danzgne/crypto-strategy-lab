@@ -6,10 +6,13 @@ export function NewsHeader() {
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+          Market intelligence
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
           News Crawler & Market Analysis
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <p className="mt-3 text-sm text-slate-500">
           Collects news, understands HTML with an LLM, saves extraction
           templates, and analyzes sentiment
         </p>

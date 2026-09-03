@@ -48,6 +48,9 @@ export function DiscoveryDashboard() {
 
   return (
     <div>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+        Research workspace
+      </p>
       <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
         Strategy Workbench
       </h1>

@@ -88,7 +88,10 @@ export default function StrategyEnginePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+          Research workspace
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
           Create a Strategy from a Prompt or URL
         </h1>
       </div>

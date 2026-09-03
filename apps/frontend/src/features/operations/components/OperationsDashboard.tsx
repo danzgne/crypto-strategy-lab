@@ -178,17 +178,20 @@ export function OperationsDashboard() {
   return (
     <div className="space-y-8" data-testid="operations-dashboard">
       {/* Top Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+            Admin console
+          </p>
+          <div className="mt-2 flex items-center gap-3">
+            <h1 className="text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
               Operations & Telemetry Dashboard
             </h1>
             <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
               Read-Only
             </span>
           </div>
-          <p className="mt-1 text-sm text-slate-500">
+          <p className="mt-3 text-sm text-slate-500">
             Real-time backtest job queue capacity, worker heartbeats, and
             transactional outbox metrics
           </p>
