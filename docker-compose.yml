@@ -85,7 +85,7 @@ services:
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-crypto_lab}:${POSTGRES_PASSWORD:-crypto_lab}@postgres:5432/${POSTGRES_DB:-crypto_strategy_lab}?schema=public
-      WORKER_ID: ${WORKER_ID:-backtest-worker-compose-1}
+      WORKER_ID: ${COMPOSE_WORKER_ID:-}
       WORKER_HEARTBEAT_INTERVAL_MS: ${WORKER_HEARTBEAT_INTERVAL_MS:-10000}
       WORKER_POLL_INTERVAL_MS: ${WORKER_POLL_INTERVAL_MS:-1000}
       WORKER_LEASE_DURATION_MS: ${WORKER_LEASE_DURATION_MS:-300000}

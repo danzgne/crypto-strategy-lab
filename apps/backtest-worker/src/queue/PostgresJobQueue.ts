@@ -1,4 +1,8 @@
-import type { IJobQueue, Job } from '@crypto-strategy-lab/shared';
+import type {
+  IJobQueue,
+  Job,
+  JobFailureCategory,
+} from '@crypto-strategy-lab/shared';
 import type { JobRepository } from '../repositories/interfaces/jobRepository.interface';
 import type {
   BacktestExecutionInput,
@@ -15,7 +19,11 @@ export interface BacktestJobQueue extends IJobQueue {
     job: ClaimedBacktestJob,
     outcome: PersistedBacktestOutcome,
   ): Promise<boolean>;
-  failClaim(job: ClaimedBacktestJob, error: Error): Promise<boolean>;
+  failClaim(
+    job: ClaimedBacktestJob,
+    error: Error,
+    category?: JobFailureCategory,
+  ): Promise<boolean>;
 }
 
 export class PostgresJobQueue implements BacktestJobQueue {
@@ -62,8 +70,12 @@ export class PostgresJobQueue implements BacktestJobQueue {
     return this.repository.completeJob(job, outcome);
   }
 
-  async failClaim(job: ClaimedBacktestJob, error: Error): Promise<boolean> {
-    return this.repository.failJob(job, error);
+  async failClaim(
+    job: ClaimedBacktestJob,
+    error: Error,
+    category?: JobFailureCategory,
+  ): Promise<boolean> {
+    return this.repository.failJob(job, error, category);
   }
 
   async complete(jobId: string, _result?: unknown): Promise<void> {

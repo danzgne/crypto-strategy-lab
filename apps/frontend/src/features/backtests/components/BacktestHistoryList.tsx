@@ -1,7 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import type { BacktestHistoryItem } from '@crypto-strategy-lab/shared';
-import { ArrowUpRight, History, RotateCw } from 'lucide-react';
+import {
+  ArrowUpRight,
+  ChevronLeft,
+  ChevronRight,
+  History,
+  RotateCw,
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
@@ -11,6 +18,7 @@ export interface BacktestHistoryListProperties {
   loading: boolean;
   error: string | null;
   onRetry?: () => void;
+  pageSize?: number;
 }
 
 export function BacktestHistoryList({
@@ -18,7 +26,17 @@ export function BacktestHistoryList({
   items,
   loading,
   onRetry,
+  pageSize = 10,
 }: BacktestHistoryListProperties) {
+  const [page, setPage] = useState(1);
+  const effectivePageSize = Math.max(1, pageSize);
+  const totalPages = Math.max(1, Math.ceil(items.length / effectivePageSize));
+  const currentPage = Math.min(Math.max(1, page), totalPages);
+
+  const startIndex = (currentPage - 1) * effectivePageSize;
+  const endIndex = Math.min(startIndex + effectivePageSize, items.length);
+  const visibleItems = items.slice(startIndex, endIndex);
+
   return (
     <section
       aria-labelledby="backtest-history-title"
@@ -75,11 +93,102 @@ export function BacktestHistoryList({
           No backtests yet. Run your first one using the form above.
         </p>
       ) : (
-        <div className="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100">
-          {items.map((item) => (
-            <HistoryLink item={item} key={item.experimentId} />
-          ))}
-        </div>
+        <>
+          <div className="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-100">
+            {visibleItems.map((item) => (
+              <HistoryLink item={item} key={item.experimentId} />
+            ))}
+          </div>
+
+          {totalPages > 1 ? (
+            <nav
+              aria-label="Backtest history pagination"
+              className="mt-5 flex flex-col items-center justify-between gap-3 border-t border-slate-100 pt-4 sm:flex-row"
+              data-testid="backtest-history-pagination"
+            >
+              <p className="text-xs text-slate-500">
+                Showing{' '}
+                <span className="font-semibold text-slate-700">
+                  {startIndex + 1}
+                </span>{' '}
+                to{' '}
+                <span className="font-semibold text-slate-700">{endIndex}</span>{' '}
+                of{' '}
+                <span className="font-semibold text-slate-700">
+                  {items.length}
+                </span>{' '}
+                runs
+              </p>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  aria-label="Previous page"
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                  disabled={currentPage <= 1}
+                  onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                  type="button"
+                >
+                  <ChevronLeft aria-hidden="true" className="size-4" />
+                </button>
+
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(
+                    (pageNum) => {
+                      if (
+                        totalPages > 7 &&
+                        pageNum !== 1 &&
+                        pageNum !== totalPages &&
+                        Math.abs(pageNum - currentPage) > 1
+                      ) {
+                        if (pageNum === 2 || pageNum === totalPages - 1) {
+                          return (
+                            <span
+                              className="px-1 text-xs text-slate-400"
+                              key={`ellipsis-${pageNum}`}
+                            >
+                              …
+                            </span>
+                          );
+                        }
+                        return null;
+                      }
+
+                      const isActive = pageNum === currentPage;
+                      return (
+                        <button
+                          aria-current={isActive ? 'page' : undefined}
+                          aria-label={`Page ${pageNum}`}
+                          className={`inline-flex size-8 items-center justify-center rounded-lg text-xs font-semibold transition ${
+                            isActive
+                              ? 'bg-indigo-600 text-white shadow-sm'
+                              : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                          key={pageNum}
+                          onClick={() => setPage(pageNum)}
+                          type="button"
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    },
+                  )}
+                </div>
+
+                <button
+                  aria-label="Next page"
+                  className="inline-flex size-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+                  disabled={currentPage >= totalPages}
+                  onClick={() =>
+                    setPage((prev) => Math.min(totalPages, prev + 1))
+                  }
+                  type="button"
+                >
+                  <ChevronRight aria-hidden="true" className="size-4" />
+                </button>
+              </div>
+            </nav>
+          ) : null}
+        </>
       )}
     </section>
   );

@@ -12,7 +12,9 @@
     "lint": "eslint src tests *.ts *.mjs",
     "start": "node dist/index.js",
     "test": "vitest run",
-    "typecheck": "tsc --project tsconfig.json --noEmit"
+    "typecheck": "tsc --project tsconfig.json --noEmit",
+    "benchmark": "tsx src/benchmark/runBenchmark.ts",
+    "benchmark:representative": "tsx src/benchmark/representativeRun.ts"
   },
   "dependencies": {
     "@crypto-strategy-lab/shared": "workspace:*",
