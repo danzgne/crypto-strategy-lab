@@ -1,5 +1,35 @@
 name: crypto-strategy-lab
 
+x-frontend-build: &frontend-build
+  context: .
+  dockerfile: apps/frontend/Dockerfile
+  target: runtime
+
+x-frontend-common: &frontend-common
+  build:
+    <<: *frontend-build
+  restart: unless-stopped
+  environment:
+    NODE_ENV: production
+    HOSTNAME: 0.0.0.0
+    PORT: 3000
+    BACKEND_INTERNAL_URL: http://backend:3100
+  depends_on:
+    backend:
+      condition: service_healthy
+  healthcheck:
+    test:
+      [
+        'CMD',
+        'node',
+        '-e',
+        "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+      ]
+    interval: 5s
+    timeout: 3s
+    retries: 12
+    start_period: 5s
+
 services:
   postgres:
     image: postgres:17-alpine
@@ -101,31 +131,37 @@ services:
       retries: 3
 
   frontend:
+    <<: *frontend-common
     build:
-      context: .
-      dockerfile: apps/frontend/Dockerfile
-      target: runtime
+      <<: *frontend-build
       args:
         NEXT_PUBLIC_BACKEND_URL: http://localhost:${BACKEND_PORT:-3100}
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      HOSTNAME: 0.0.0.0
-      PORT: 3000
-      BACKEND_INTERNAL_URL: http://backend:3100
     ports:
       - '${FRONTEND_PORT:-3000}:3000'
+
+  frontend-edge:
+    <<: *frontend-common
+    profiles: ['edge']
+    build:
+      <<: *frontend-build
+      args:
+        NEXT_PUBLIC_BACKEND_URL: ''
+
+  edge:
+    image: nginx:1.27-alpine
+    profiles: ['edge']
+    restart: unless-stopped
+    ports:
+      - '${EDGE_PORT:-8080}:80'
+    volumes:
+      - ./docker/nginx/edge.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       backend:
         condition: service_healthy
+      frontend-edge:
+        condition: service_healthy
     healthcheck:
-      test:
-        [
-          'CMD',
-          'node',
-          '-e',
-          "fetch('http://127.0.0.1:3000').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
-        ]
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/ || exit 1']
       interval: 5s
       timeout: 3s
       retries: 12

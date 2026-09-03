@@ -1,13 +1,11 @@
 import { ApiError } from './apiError';
-
-// Ensure NEXT_PUBLIC_BACKEND_URL is available for the browser client.
-const BASE_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3100';
+import { getPublicBackendUrl } from './publicBackendUrl';
 
 export async function browserHttpClient<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const url = `${BASE_URL}${endpoint}`;
+  const url = `${getPublicBackendUrl()}${endpoint}`;
 
   const response = await fetch(url, {
     ...options,

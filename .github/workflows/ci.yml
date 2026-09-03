@@ -46,5 +46,5 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm prisma:migrate:deploy
       - run: pnpm check
-      - run: docker compose config --quiet
+      - run: pnpm compose:config
       - run: docker compose build
