@@ -357,10 +357,15 @@ async function upcastStrategyEvaluated(
     experiment.strategyVersion.strategyDefinition.type === 'composite'
       ? 'composite'
       : 'singular';
+  const candidateMemberLabels =
+    experiment.strategyVersion.strategyDefinition.candidateMemberLabels;
   const display = formatStrategyDisplay(
     strategyKind,
     experiment.strategyVersion.params,
     experiment.strategyVersion.strategyDefinition.name,
+    Array.isArray(candidateMemberLabels)
+      ? (candidateMemberLabels as (string | null)[])
+      : null,
   );
   const event = createDomainEvent(
     'StrategyEvaluated',

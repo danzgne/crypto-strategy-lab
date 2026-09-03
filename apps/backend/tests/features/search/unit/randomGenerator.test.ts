@@ -196,4 +196,63 @@ describe('RandomGenerator', () => {
       InvalidSearchSpaceError,
     );
   });
+
+  describe('version members (ADR-0028)', () => {
+    const versionSpace: SearchSpace = {
+      ...sampleSearchSpace,
+      enabledStrategies: [
+        sampleSearchSpace.enabledStrategies[0]!,
+        {
+          displayName: 'My RSI Fade',
+          id: 'rule',
+          kind: 'version',
+          params: { conditions: { long: [], short: [] }, indicators: [] },
+          strategyVersionId: 'sv-123',
+          versionTag: 'rule@abc123',
+        },
+      ],
+    };
+
+    it('never samples a version member: its params always come back unchanged', () => {
+      const gen = new RandomGenerator(versionSpace, 314);
+
+      for (let i = 0; i < 20; i++) {
+        const candidate = gen.generate();
+        const ruleIndex = candidate.strategyIds.indexOf('rule');
+        if (ruleIndex === -1) continue;
+        expect(candidate.parameterSnapshots[ruleIndex]).toEqual({
+          conditions: { long: [], short: [] },
+          indicators: [],
+        });
+      }
+    });
+
+    it('carries the version member source through to memberSources, aligned by index', () => {
+      const gen = new RandomGenerator(versionSpace, 314);
+
+      let sawVersionMember = false;
+      for (let i = 0; i < 20; i++) {
+        const candidate = gen.generate();
+        const ruleIndex = candidate.strategyIds.indexOf('rule');
+        if (ruleIndex === -1) continue;
+        sawVersionMember = true;
+        expect(candidate.memberSources?.[ruleIndex]).toEqual({
+          displayName: 'My RSI Fade',
+          strategyVersionId: 'sv-123',
+          versionTag: 'rule@abc123',
+        });
+        const maIndex = candidate.strategyIds.indexOf('ma');
+        if (maIndex !== -1) {
+          expect(candidate.memberSources?.[maIndex]).toBeUndefined();
+        }
+      }
+      expect(sawVersionMember).toBe(true);
+    });
+
+    it('omits memberSources entirely when no candidate member is a version member', () => {
+      const gen = new RandomGenerator(sampleSearchSpace, 314);
+      const candidate = gen.generate();
+      expect(candidate.memberSources).toBeUndefined();
+    });
+  });
 });

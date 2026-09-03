@@ -1,6 +1,10 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { LibraryBuiltin } from '@crypto-strategy-lab/shared';
+import type {
+  CompositeLibraryEntry,
+  LibraryBuiltin,
+  SingularLibraryEntry,
+} from '@crypto-strategy-lab/shared';
 import { DiscoverySessionControl } from '../../../../src/features/search/components/DiscoverySessionControl';
 import { DiscoveryProgressCard } from '../../../../src/features/search/components/DiscoveryProgressCard';
 import { DiscoveryRunHistoryTable } from '../../../../src/features/search/components/DiscoveryRunHistoryTable';
@@ -12,6 +16,62 @@ const builtins: LibraryBuiltin[] = [
   { strategyId: 'bb', paramsSchema: { properties: {}, type: 'object' } },
   { strategyId: 'sr', paramsSchema: { properties: {}, type: 'object' } },
 ];
+
+function makeRuleEntry(
+  overrides: Partial<SingularLibraryEntry> = {},
+): SingularLibraryEntry {
+  return {
+    archivedAt: null,
+    createdAt: new Date().toISOString(),
+    description: null,
+    id: 'entry-1',
+    kind: 'singular',
+    latestVersion: {
+      createdAt: new Date().toISOString(),
+      id: 'version-1',
+      libraryVersion: '1.0.0',
+      params: {
+        applicability: { pairs: 'USDT_ALL' },
+        conditions: { long: [], short: [] },
+        indicators: [],
+        timeframe: '1h',
+      },
+      versionTag: 'rule@fixture',
+    },
+    name: 'SMA_BELOW_30',
+    source: 'MANUAL',
+    sourceInput: null,
+    strategyId: 'rule',
+    tags: [],
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeCompositeEntry(
+  overrides: Partial<CompositeLibraryEntry> = {},
+): CompositeLibraryEntry {
+  return {
+    archivedAt: null,
+    createdAt: new Date().toISOString(),
+    description: null,
+    id: 'composite-entry-1',
+    kind: 'composite',
+    latestVersion: {
+      createdAt: new Date().toISOString(),
+      id: 'composite-version-1',
+      libraryVersion: '1.0.0',
+      versionTag: 'composite@fixture',
+    },
+    name: 'MA + RSI Composite',
+    source: 'MANUAL',
+    sourceInput: null,
+    strategyId: 'composite',
+    tags: [],
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
 
 function createMockDiscovery(
   overrides?: Partial<UseDiscoverySessionResult>,
@@ -40,6 +100,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -59,6 +121,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -105,6 +169,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -152,6 +218,8 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
@@ -170,17 +238,101 @@ describe('Discovery UI Components', () => {
       expect(timeBudgetInput).toHaveValue(30);
     });
 
-    it('restores draft settings from localStorage when no active session exists', () => {
+    it('never marks a USDT_ALL Library entry unavailable, for any of the four market pairs (issue #103 follow-up)', () => {
+      const mockDiscovery = createMockDiscovery();
+      render(
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+          entries={[makeRuleEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      for (const pair of ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT']) {
+        fireEvent.change(pairSelect, { target: { value: pair } });
+        const row = screen.getByText('SMA_BELOW_30').closest('button');
+        expect(row).not.toBeDisabled();
+        expect(row).not.toHaveTextContent(/not available/i);
+      }
+    });
+
+    it('hides live-only builtins and composite Library entries from the pool instead of showing them disabled', () => {
+      const builtinsWithSentiment: LibraryBuiltin[] = [
+        ...builtins,
+        {
+          liveOnly: true,
+          paramsSchema: { properties: {}, type: 'object' },
+          strategyId: 'news-sentiment',
+        },
+      ];
+      const mockDiscovery = createMockDiscovery();
+      render(
+        <DiscoverySessionControl
+          builtins={builtinsWithSentiment}
+          discovery={mockDiscovery}
+          entries={[makeRuleEntry(), makeCompositeEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      expect(screen.queryByText('NEWS-SENTIMENT')).not.toBeInTheDocument();
+      expect(screen.queryByText('MA + RSI Composite')).not.toBeInTheDocument();
+      expect(screen.getByText('SMA_BELOW_30')).toBeInTheDocument();
+      expect(screen.getByText('MA')).toBeInTheDocument();
+    });
+
+    it('drops a stored selection referencing a now-hidden composite or live-only id on restore', async () => {
+      const builtinsWithSentiment: LibraryBuiltin[] = [
+        ...builtins,
+        {
+          liveOnly: true,
+          paramsSchema: { properties: {}, type: 'object' },
+          strategyId: 'news-sentiment',
+        },
+      ];
+      const storedConfig = {
+        strategies: [
+          'builtin:ma',
+          'builtin:news-sentiment',
+          'entry:composite-entry-1',
+        ],
+      };
+      localStorage.setItem(
+        'crypto-strategy-lab:discovery-form-config:v2',
+        JSON.stringify(storedConfig),
+      );
+
+      const mockDiscovery = createMockDiscovery({ session: null });
+      render(
+        <DiscoverySessionControl
+          builtins={builtinsWithSentiment}
+          discovery={mockDiscovery}
+          entries={[makeCompositeEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      const maCheckbox = await screen.findByRole('button', { name: /^MA$/i });
+      expect(maCheckbox.querySelector('input')).toBeChecked();
+      expect(screen.queryByText('MA + RSI Composite')).not.toBeInTheDocument();
+      expect(screen.queryByText('NEWS-SENTIMENT')).not.toBeInTheDocument();
+
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
+    });
+
+    it('restores draft settings from localStorage when no active session exists', async () => {
       const storedConfig = {
         maxCandidates: 80,
         modes: ['majority'],
         pair: 'SOLUSDT',
-        strategies: ['bb', 'sr'],
+        strategies: ['builtin:bb', 'builtin:sr'],
         timeBudgetMinutes: 45,
         timeframe: '4h',
       };
       localStorage.setItem(
-        'crypto-strategy-lab:discovery-form-config',
+        'crypto-strategy-lab:discovery-form-config:v2',
         JSON.stringify(storedConfig),
       );
 
@@ -189,10 +341,14 @@ describe('Discovery UI Components', () => {
         <DiscoverySessionControl
           builtins={builtins}
           discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
         />,
       );
 
-      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      const pairSelect = await screen.findByRole('combobox', {
+        name: /Market Pair/i,
+      });
       const timeframeSelect = screen.getByRole('combobox', {
         name: /Timeframe/i,
       });
@@ -206,7 +362,32 @@ describe('Discovery UI Components', () => {
       expect(maxCandidatesInput).toHaveValue(80);
       expect(timeBudgetInput).toHaveValue(45);
 
-      localStorage.removeItem('crypto-strategy-lab:discovery-form-config');
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
+    });
+
+    it('ignores an unknown stored strategy id and falls back to nothing selected for it', async () => {
+      const storedConfig = {
+        strategies: ['builtin:ma', 'entry:deleted-entry-id'],
+      };
+      localStorage.setItem(
+        'crypto-strategy-lab:discovery-form-config:v2',
+        JSON.stringify(storedConfig),
+      );
+
+      const mockDiscovery = createMockDiscovery({ session: null });
+      render(
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+          entries={[]}
+          libraryLoading={false}
+        />,
+      );
+
+      const maCheckbox = await screen.findByRole('button', { name: /^MA$/i });
+      expect(maCheckbox.querySelector('input')).toBeChecked();
+
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
     });
   });
 
@@ -296,6 +477,35 @@ describe('Discovery UI Components', () => {
 
       const tradesLink = screen.getByTestId('view-best-backtest-link');
       expect(tradesLink).toHaveAttribute('href', '/backtests/exp-best-123');
+    });
+
+    it('renders distinct member badges when two members share a registry id, using memberLabels', () => {
+      const mockDiscovery = createMockDiscovery({
+        progress: {
+          acceptedCandidates: 5,
+          bestScore: null,
+          inFlightJobs: 1,
+          latestCandidate: {
+            memberLabels: ['My Rule A', 'My Rule B'],
+            mode: 'majority',
+            name: 'Composite (majority)',
+            pair: 'BTCUSDT',
+            strategyIds: ['rule', 'rule'],
+            timeframe: '1h',
+          },
+          maxCandidates: 100,
+          sessionId: 's-live-2',
+          sessionStatus: 'ACTIVE',
+          totalRunsCompleted: 0,
+          userId: 'u-1',
+        },
+      });
+
+      render(<DiscoveryProgressCard discovery={mockDiscovery} />);
+
+      const banner = screen.getByTestId('evaluating-candidate-banner');
+      expect(banner).toHaveTextContent('MY RULE A');
+      expect(banner).toHaveTextContent('MY RULE B');
     });
   });
 

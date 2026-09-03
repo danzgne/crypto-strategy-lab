@@ -18,6 +18,9 @@ describe('SearchScheduler', () => {
     searchRun: {
       findMany: ReturnType<typeof vi.fn>;
     };
+    strategyVersion: {
+      findFirst: ReturnType<typeof vi.fn>;
+    };
   };
   let fakeCoordinator: {
     getRun: ReturnType<typeof vi.fn>;
@@ -35,6 +38,9 @@ describe('SearchScheduler', () => {
     fakePrisma = {
       searchRun: {
         findMany: vi.fn(async () => []),
+      },
+      strategyVersion: {
+        findFirst: vi.fn(async () => null),
       },
     };
 
@@ -401,5 +407,143 @@ describe('SearchScheduler', () => {
     await new Promise((r) => setTimeout(r, 60));
 
     expect(mockTradeRetention.pruneTrades).toHaveBeenCalled();
+  });
+
+  describe('version members (ADR-0028)', () => {
+    it("re-resolves a version member to the owner's current latest version, ignoring whatever the client sent", async () => {
+      fakePrisma.strategyVersion.findFirst.mockResolvedValue({
+        strategyDefinition: {
+          name: 'My RSI Fade',
+          type: 'rule',
+          versions: [
+            {
+              id: 'sv-latest',
+              params: { conditions: { long: [], short: [] } },
+              versionTag: 'rule@latest',
+            },
+          ],
+        },
+      });
+      fakeCoordinator.startRun.mockResolvedValue('run-version-1');
+      fakeCoordinator.waitForRunCompletion.mockReturnValue(
+        new Promise(() => {}),
+      );
+
+      const scheduler = new SearchScheduler({
+        coordinator: fakeCoordinator as unknown as SearchCoordinator,
+        prisma: fakePrisma as unknown as AppPrismaClient,
+      });
+      await scheduler.start();
+
+      await scheduler.startSession({
+        searchSpace: {
+          ...defaultSearchSpace,
+          enabledStrategies: [
+            {
+              // A stale/untrusted client-sent snapshot: none of this should survive resolution.
+              displayName: 'Stale name',
+              id: 'rule',
+              kind: 'version',
+              params: { indicators: ['should be discarded'] },
+              strategyVersionId: 'sv-client-known',
+              versionTag: 'rule@stale',
+            },
+          ],
+        },
+        userId: 'user-version',
+      });
+
+      expect(fakePrisma.strategyVersion.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: 'sv-client-known',
+            ownerId: 'user-version',
+          }),
+        }),
+      );
+
+      const startRunArgs = fakeCoordinator.startRun.mock.calls[0]?.[0];
+      const resolvedMember = startRunArgs.searchSpace.enabledStrategies[0];
+      expect(resolvedMember).toEqual({
+        applicability: undefined,
+        displayName: 'My RSI Fade',
+        id: 'rule',
+        kind: 'version',
+        params: { conditions: { long: [], short: [] } },
+        strategyVersionId: 'sv-latest',
+        timeframe: undefined,
+        versionTag: 'rule@latest',
+      });
+
+      await scheduler.stopSession('user-version');
+    });
+
+    it('rejects a composite Strategy Library entry before a run can start', async () => {
+      fakePrisma.strategyVersion.findFirst.mockResolvedValue({
+        strategyDefinition: {
+          name: 'My Composite',
+          type: 'composite',
+          versions: [{ id: 'sv-1', params: {}, versionTag: 'composite@1' }],
+        },
+      });
+
+      const scheduler = new SearchScheduler({
+        coordinator: fakeCoordinator as unknown as SearchCoordinator,
+        prisma: fakePrisma as unknown as AppPrismaClient,
+      });
+      await scheduler.start();
+
+      await expect(
+        scheduler.startSession({
+          searchSpace: {
+            ...defaultSearchSpace,
+            enabledStrategies: [
+              {
+                displayName: 'x',
+                id: 'composite',
+                kind: 'version',
+                params: {},
+                strategyVersionId: 'sv-composite',
+                versionTag: 'x',
+              },
+            ],
+          },
+          userId: 'user-composite',
+        }),
+      ).rejects.toThrow(/composite/i);
+
+      expect(fakeCoordinator.startRun).not.toHaveBeenCalled();
+    });
+
+    it('rejects a version member that is missing, archived, or owned by someone else', async () => {
+      fakePrisma.strategyVersion.findFirst.mockResolvedValue(null);
+
+      const scheduler = new SearchScheduler({
+        coordinator: fakeCoordinator as unknown as SearchCoordinator,
+        prisma: fakePrisma as unknown as AppPrismaClient,
+      });
+      await scheduler.start();
+
+      await expect(
+        scheduler.startSession({
+          searchSpace: {
+            ...defaultSearchSpace,
+            enabledStrategies: [
+              {
+                displayName: 'x',
+                id: 'rule',
+                kind: 'version',
+                params: {},
+                strategyVersionId: 'sv-missing',
+                versionTag: 'x',
+              },
+            ],
+          },
+          userId: 'user-missing',
+        }),
+      ).rejects.toThrow(/not found, is archived, or does not belong/i);
+
+      expect(fakeCoordinator.startRun).not.toHaveBeenCalled();
+    });
   });
 });

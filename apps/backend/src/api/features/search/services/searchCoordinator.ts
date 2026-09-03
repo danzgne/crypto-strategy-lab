@@ -18,10 +18,16 @@ import {
   CURRENT_EVALUATOR_VERSION,
   CURRENT_SIMULATION_RULES_VERSION,
   DEFAULT_STOP_POLICY,
+  isVersionMember,
   resolveBuildRevision,
+  searchSpaceMemberKey,
   TIMEFRAME_INTERVAL_MS,
 } from '@crypto-strategy-lab/shared';
-import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
+import {
+  canonicalizeValue,
+  pairMatchesRuleApplicability,
+} from '@crypto-strategy-lab/shared/strategy';
+import type { RuleApplicability } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import {
   resolveStrategyImplementationVersion,
@@ -133,7 +139,12 @@ interface ActiveRunState {
   activeExperimentIds: Set<string>;
   experimentCandidateMap: Map<
     string,
-    { name: string; strategyIds: string[]; mode?: 'majority' | 'weighted' }
+    {
+      name: string;
+      strategyIds: string[];
+      memberLabels?: readonly (string | null)[] | undefined;
+      mode?: 'majority' | 'weighted';
+    }
   >;
   latestCandidate?: EvaluatingCandidateSummary | undefined;
   bestCandidate?: BestCandidateSummary | undefined;
@@ -255,13 +266,26 @@ export class SearchCoordinator {
       alignedStartTime = alignedEndTime - 30 * 24 * 60 * 60 * 1000;
       alignedStartTime = Math.floor(alignedStartTime / interval) * interval;
     }
-    const seenCanonicalIds = new Set<string>();
+    // Version members are distinct by Strategy Version, not by the registry id they dispatch
+    // through, so two Library entries backed by the same registered Strategy (e.g. two RuleStrategy
+    // entries) must not collapse into one (ADR-0028).
+    const seenKeys = new Set<string>();
     const deduplicatedEnabledStrategies = (
       options.searchSpace.enabledStrategies ?? []
     ).reduce<EnabledStrategyDescriptor[]>((acc, descriptor) => {
+      if (isVersionMember(descriptor)) {
+        const key = searchSpaceMemberKey(descriptor);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          acc.push(descriptor);
+        }
+        return acc;
+      }
+
       const canonicalId = StrategyRegistry.canonicalId(descriptor.id);
-      if (!seenCanonicalIds.has(canonicalId)) {
-        seenCanonicalIds.add(canonicalId);
+      const key = `registry:${canonicalId}`;
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
         acc.push({ ...descriptor, id: canonicalId });
       }
       return acc;
@@ -520,15 +544,10 @@ export class SearchCoordinator {
         ) {
           return true;
         }
-        const app = (params as Record<string, unknown>).applicability;
-        if (app && typeof app === 'object') {
-          const pairs = (app as Record<string, unknown>).pairs;
-          if (Array.isArray(pairs) && !pairs.includes(searchSpace.pair)) {
-            return true;
-          }
-          if (typeof pairs === 'string' && pairs !== searchSpace.pair) {
-            return true;
-          }
+        const applicability = (params as Record<string, unknown>)
+          .applicability as RuleApplicability | undefined;
+        if (!pairMatchesRuleApplicability(searchSpace.pair, applicability)) {
+          return true;
         }
       }
     }
@@ -673,14 +692,23 @@ export class SearchCoordinator {
       run.activeExperimentIds.add(experimentId);
 
       const isComposite = candidate.strategyIds.length > 1;
-      const candidateName = isComposite
-        ? `Composite (${candidate.combinationConfig?.mode ?? 'majority'})`
-        : (candidate.strategyIds[0]?.toUpperCase() ?? 'UNKNOWN');
+      const singleMemberLabel = !isComposite
+        ? candidate.memberSources?.[0]?.displayName
+        : undefined;
+      const candidateName =
+        singleMemberLabel ??
+        (isComposite
+          ? `Composite (${candidate.combinationConfig?.mode ?? 'majority'})`
+          : (candidate.strategyIds[0]?.toUpperCase() ?? 'UNKNOWN'));
+      const memberLabels = candidate.memberSources?.map(
+        (source) => source?.displayName ?? null,
+      );
 
       const evaluatingSummary: EvaluatingCandidateSummary = {
         ...(candidate.combinationConfig?.mode
           ? { mode: candidate.combinationConfig.mode }
           : {}),
+        ...(memberLabels ? { memberLabels } : {}),
         name: candidateName,
         pair: run.searchSpace.pair,
         strategyIds: [...candidate.strategyIds],
@@ -691,6 +719,7 @@ export class SearchCoordinator {
         ...(candidate.combinationConfig?.mode
           ? { mode: candidate.combinationConfig.mode }
           : {}),
+        ...(memberLabels ? { memberLabels } : {}),
         name: candidateName,
         strategyIds: [...candidate.strategyIds],
       });
@@ -758,15 +787,28 @@ export class SearchCoordinator {
       return existing;
     }
 
+    // Display names sourced from Strategy Library entries (ADR-0028): captured now, at candidate
+    // generation, never derived later from `params`, so they can never influence the version tag.
+    const memberLabels = candidate.memberSources?.map(
+      (source) => source?.displayName ?? null,
+    );
+    const hasMemberLabel = memberLabels?.some((label) => label !== null);
+    const singleMemberLabel = !isComposite
+      ? candidate.memberSources?.[0]?.displayName
+      : undefined;
+
     const definition = await transaction.strategyDefinition.create({
       data: {
-        name: `${strategyId} search candidate`,
+        name: singleMemberLabel ?? `${strategyId} search candidate`,
         ownerId,
         recordKind: 'SEARCH_CANDIDATE',
         source: 'USER_PROMPT',
         sourceInput: `Generated search candidate (${candidate.provenance.algorithm})`,
         tags: ['search-generated'],
         type: strategyId,
+        ...(isComposite && hasMemberLabel
+          ? { candidateMemberLabels: memberLabels as Prisma.InputJsonValue }
+          : {}),
       },
     });
 
@@ -809,6 +851,7 @@ export class SearchCoordinator {
               payload.maxDrawdown !== undefined
                 ? Number(payload.maxDrawdown)
                 : undefined,
+            memberLabels: candidateInfo?.memberLabels,
             mode: candidateInfo?.mode,
             name: candidateInfo?.name ?? 'Best Strategy',
             profit:

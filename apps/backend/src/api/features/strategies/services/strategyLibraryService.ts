@@ -344,6 +344,9 @@ function listBuiltins(): LibraryBuiltin[] {
     .map((strategyId) => ({
       strategyId,
       paramsSchema: StrategyRegistry.get(strategyId)!.paramsSchema,
+      ...(StrategyRegistry.get(strategyId)!.liveOnly === true
+        ? { liveOnly: true as const }
+        : {}),
     }))
     .filter((builtin) => (builtin.paramsSchema.required?.length ?? 0) === 0);
 }

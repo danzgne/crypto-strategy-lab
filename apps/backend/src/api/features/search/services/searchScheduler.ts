@@ -3,6 +3,7 @@ import type {
   DiscoveryProgressPayload,
   DiscoverySessionState,
   DiscoverySessionStatus,
+  EnabledStrategyDescriptor,
   EvaluatingCandidateSummary,
   SearchRunStatus,
   SearchRunSummary,
@@ -12,11 +13,13 @@ import type {
 } from '@crypto-strategy-lab/shared';
 import {
   DEFAULT_STOP_POLICY,
+  isVersionMember,
   RANDOM_SEARCH_ALGORITHM_ID,
 } from '@crypto-strategy-lab/shared';
 import type { AppPrismaClient } from '../../../../database/prismaClient';
 import type { AppLogger } from '../../../../utils/logger';
 import {
+  InvalidSearchSpaceError,
   StrategyGeneratorRegistry,
   UnsupportedAlgorithmError,
 } from '../generators';
@@ -114,7 +117,14 @@ export class SearchScheduler {
   public async startSession(
     options: StartSessionOptions,
   ): Promise<DiscoverySessionState> {
-    const { userId, searchSpace } = options;
+    const { userId } = options;
+    const searchSpace: SearchSpace = {
+      ...options.searchSpace,
+      enabledStrategies: await this.resolveEnabledStrategies(
+        userId,
+        options.searchSpace.enabledStrategies,
+      ),
+    };
     assertSearchSpaceBacktestable(searchSpace);
     const algorithm = options.algorithm ?? RANDOM_SEARCH_ALGORITHM_ID;
     if (!StrategyGeneratorRegistry.has(algorithm)) {
@@ -157,6 +167,72 @@ export class SearchScheduler {
     void this.runUserLoop(session);
 
     return this.toSessionState(session);
+  }
+
+  // Re-resolves every version member to its owner's *current* latest Strategy Version (ADR-0028):
+  // whatever the client sent for a version member is a pointer only, never trusted params or a
+  // trusted versionTag. The result is pinned into this session's searchSpace for its whole
+  // lifetime, reseeds included, so a run in flight never has its members change under it.
+  private async resolveEnabledStrategies(
+    ownerId: string,
+    enabledStrategies: SearchSpace['enabledStrategies'],
+  ): Promise<SearchSpace['enabledStrategies']> {
+    const resolved: EnabledStrategyDescriptor[] = [];
+
+    for (const descriptor of enabledStrategies) {
+      if (!isVersionMember(descriptor)) {
+        resolved.push(descriptor);
+        continue;
+      }
+
+      const version = await this.prisma.strategyVersion.findFirst({
+        include: {
+          strategyDefinition: {
+            include: { versions: { orderBy: { createdAt: 'desc' }, take: 1 } },
+          },
+        },
+        where: {
+          id: descriptor.strategyVersionId,
+          ownerId,
+          strategyDefinition: { archivedAt: null, recordKind: 'LIBRARY_ENTRY' },
+        },
+      });
+
+      if (!version) {
+        throw new InvalidSearchSpaceError(
+          `Strategy Library entry for version "${descriptor.strategyVersionId}" was not found, is archived, or does not belong to this user`,
+        );
+      }
+
+      const { strategyDefinition: definition } = version;
+      if (definition.type === 'composite') {
+        throw new InvalidSearchSpaceError(
+          `Composite Strategy Library entries cannot be added to a Search Space: "${definition.name}"`,
+        );
+      }
+
+      const latest = definition.versions[0];
+      if (!latest) {
+        throw new InvalidSearchSpaceError(
+          `Strategy Library entry "${definition.name}" has no versions`,
+        );
+      }
+
+      const latestParams = latest.params as Record<string, unknown> | null;
+
+      resolved.push({
+        applicability: latestParams?.applicability,
+        displayName: definition.name,
+        id: definition.type,
+        kind: 'version',
+        params: { ...latestParams },
+        strategyVersionId: latest.id,
+        timeframe: latestParams?.timeframe as string | undefined,
+        versionTag: latest.versionTag,
+      });
+    }
+
+    return resolved;
   }
 
   public async pauseSession(userId: string): Promise<boolean> {

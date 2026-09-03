@@ -13,26 +13,32 @@ export function formatStrategyDisplay(
   strategyKind: 'singular' | 'composite',
   params: unknown,
   fallback: string,
+  // Per-member display labels captured at candidate generation for members sourced from a Strategy
+  // Library entry (ADR-0028), aligned by index to `params.members`. `null` at an index means that
+  // member has no Library-sourced label and falls back to its registry-id label as before.
+  memberLabels?: readonly (string | null)[] | null,
 ): StrategyDisplay {
   if (strategyKind === 'singular') {
     return { members: [], name: fallback };
   }
-  return formatCompositeStrategyDisplay(params, fallback);
+  return formatCompositeStrategyDisplay(params, fallback, memberLabels);
 }
 
 export function formatCompositeStrategyDisplay(
   params: unknown,
   fallback = 'Composite Strategy',
+  memberLabels?: readonly (string | null)[] | null,
 ): StrategyDisplay {
   const members =
     isRecord(params) && Array.isArray(params.members)
-      ? params.members.flatMap((member) => {
+      ? params.members.flatMap((member, index) => {
           if (!isRecord(member) || typeof member.strategyId !== 'string') {
             return [];
           }
           return [
             {
-              label: formatStrategyType(member.strategyId),
+              label:
+                memberLabels?.[index] ?? formatStrategyType(member.strategyId),
               strategyId: member.strategyId,
             },
           ];

@@ -7,7 +7,10 @@ import type {
   StrategyGenerator,
   StrategySearchParamDomain,
 } from '@crypto-strategy-lab/shared';
-import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared';
+import {
+  isVersionMember,
+  RANDOM_SEARCH_ALGORITHM_ID,
+} from '@crypto-strategy-lab/shared';
 import { computeCandidateFingerprint } from '../services/fingerprint';
 import { deriveOrdinalSeed, SeededRandomSource } from './randomSource';
 import { StrategyGeneratorRegistry } from './registry';
@@ -54,6 +57,18 @@ export class RandomGenerator implements StrategyGenerator {
     const parameterSnapshots = selectedStrategies.map((strategy) =>
       this.sampleParameters(strategy, randomSource),
     );
+    const memberSources = selectedStrategies.map((strategy) =>
+      isVersionMember(strategy)
+        ? {
+            displayName: strategy.displayName,
+            strategyVersionId: strategy.strategyVersionId,
+            versionTag: strategy.versionTag,
+          }
+        : undefined,
+    );
+    const hasMemberSource = memberSources.some(
+      (source) => source !== undefined,
+    );
 
     let combinationConfig: CombinationConfig | undefined;
     if (subsetSize >= 2) {
@@ -78,6 +93,15 @@ export class RandomGenerator implements StrategyGenerator {
     return Object.freeze({
       combinationConfig,
       fingerprint,
+      ...(hasMemberSource
+        ? {
+            memberSources: Object.freeze(
+              memberSources.map((source) =>
+                source ? Object.freeze({ ...source }) : undefined,
+              ),
+            ),
+          }
+        : {}),
       parameterSnapshots: parameterSnapshots.map((snapshot) =>
         Object.freeze({ ...snapshot }),
       ),
@@ -94,6 +118,9 @@ export class RandomGenerator implements StrategyGenerator {
     }
 
     for (const descriptor of space.enabledStrategies) {
+      if (isVersionMember(descriptor)) {
+        continue; // fixed params, nothing to validate a domain against
+      }
       if (descriptor.paramDomains) {
         for (const [paramName, domain] of Object.entries(
           descriptor.paramDomains,
@@ -161,6 +188,11 @@ export class RandomGenerator implements StrategyGenerator {
     descriptor: EnabledStrategyDescriptor,
     randomSource: RandomSource,
   ): Record<string, unknown> {
+    if (isVersionMember(descriptor)) {
+      // Fixed by definition (see ADR-0028): a version member's params are never sampled.
+      return { ...descriptor.params };
+    }
+
     const params: Record<string, unknown> = {};
     const domains = descriptor.paramDomains ?? {};
     const schemaProps = descriptor.paramsSchema?.properties ?? {};

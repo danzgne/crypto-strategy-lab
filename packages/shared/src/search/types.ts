@@ -19,9 +19,22 @@ export interface CandidateProvenance {
   generationOrdinal: number;
 }
 
+// Display-only facts about a member sourced from a version member (see VersionSearchSpaceMember).
+// Never influences the candidate fingerprint or a persisted Strategy Version's params: it exists so
+// a Leaderboard entry can show "MyRule 1.2.0" instead of a bare registry id.
+export interface CandidateMemberSource {
+  readonly strategyVersionId: string;
+  readonly versionTag: string;
+  readonly displayName: string;
+}
+
 export interface CandidateStrategy {
   readonly strategyIds: readonly string[];
   readonly parameterSnapshots: readonly Readonly<Record<string, unknown>>[];
+  // Parallel to strategyIds/parameterSnapshots; an entry is present only for members sourced from a
+  // version member, undefined elsewhere.
+  readonly memberSources?:
+    readonly (Readonly<CandidateMemberSource> | undefined)[] | undefined;
   readonly combinationConfig?: Readonly<CombinationConfig> | undefined;
   readonly fingerprint: string;
   readonly provenance: Readonly<CandidateProvenance>;
@@ -36,13 +49,44 @@ export interface StrategySearchParamDomain {
   options?: readonly unknown[] | undefined;
 }
 
-export interface EnabledStrategyDescriptor {
+export interface RegistrySearchSpaceMember {
+  readonly kind?: 'registry' | undefined;
   readonly id: string;
   readonly paramsSchema?: StrategyParamsSchema | undefined;
   readonly paramDomains?:
     Readonly<Record<string, StrategySearchParamDomain>> | undefined;
   readonly timeframe?: string | undefined;
   readonly applicability?: unknown | undefined;
+}
+
+export interface VersionSearchSpaceMember {
+  readonly kind: 'version';
+  readonly id: string;
+  readonly strategyVersionId: string;
+  readonly versionTag: string;
+  readonly displayName: string;
+  readonly params: Readonly<Record<string, unknown>>;
+  readonly timeframe?: string | undefined;
+  readonly applicability?: unknown | undefined;
+}
+
+export type EnabledStrategyDescriptor =
+  RegistrySearchSpaceMember | VersionSearchSpaceMember;
+
+export function isVersionMember(
+  descriptor: EnabledStrategyDescriptor,
+): descriptor is VersionSearchSpaceMember {
+  return descriptor.kind === 'version';
+}
+
+// A run's own member identity: two Library entries can share one registry id, so version members
+// are distinct by version rather than by the Strategy they execute on.
+export function searchSpaceMemberKey(
+  descriptor: EnabledStrategyDescriptor,
+): string {
+  return isVersionMember(descriptor)
+    ? `version:${descriptor.strategyVersionId}`
+    : `registry:${descriptor.id}`;
 }
 
 export interface SearchSpace {
@@ -102,6 +146,10 @@ export type DiscoverySessionStatus = 'ACTIVE' | 'PAUSED' | 'STOPPED';
 export interface EvaluatingCandidateSummary {
   readonly name: string;
   readonly strategyIds: string[];
+  // Parallel to strategyIds; an entry is the Library entry's display name where a member is
+  // version-sourced, null elsewhere. Two members can share a registry id (e.g. two "rule" Library
+  // entries), so the UI needs this to tell them apart instead of rendering the bare id twice.
+  readonly memberLabels?: readonly (string | null)[] | undefined;
   readonly mode?: 'majority' | 'weighted' | undefined;
   readonly pair: string;
   readonly timeframe: string;
@@ -111,6 +159,7 @@ export interface BestCandidateSummary {
   readonly experimentId: string;
   readonly name: string;
   readonly strategyIds: string[];
+  readonly memberLabels?: readonly (string | null)[] | undefined;
   readonly mode?: 'majority' | 'weighted' | undefined;
   readonly score: number;
   readonly profit?: number | undefined;

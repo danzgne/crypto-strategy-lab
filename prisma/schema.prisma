@@ -101,6 +101,12 @@ model StrategyDefinition {
   recordKind  RecordKind @default(LIBRARY_ENTRY)
   archivedAt  DateTime?  @db.Timestamptz(3)
 
+  /// Per-member display labels for a SEARCH_CANDIDATE composite sourced (in whole or in part) from
+  /// Strategy Library entries, captured when the candidate was generated. Display-only: never read
+  /// by params-driven dispatch, never hashed into a Strategy Version tag. Absent for candidates with
+  /// no Library-sourced member, since `formatStrategyDisplay`'s registry-id labels cover that case.
+  candidateMemberLabels Json?
+
   versions  StrategyVersion[]
   createdAt DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt DateTime          @updatedAt @db.Timestamptz(3)

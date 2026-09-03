@@ -98,6 +98,39 @@ class RetryOnceGenerator implements StrategyGenerator {
   }
 }
 
+// Emits two composite candidates with identical strategy content (same strategyIds,
+// parameterSnapshots, combinationConfig) but different memberSources display metadata, to prove
+// that metadata is display-only and never affects Strategy Version identity (ADR-0028 / Q11).
+class MemberSourceGenerator implements StrategyGenerator {
+  private count = 0;
+  public constructor(private readonly fingerprintPrefix: string) {}
+
+  public generate(): CandidateStrategy {
+    this.count += 1;
+    return {
+      combinationConfig: { mode: 'majority' },
+      fingerprint: `${this.fingerprintPrefix}-${this.count}`,
+      memberSources: [
+        undefined,
+        {
+          displayName: this.count === 1 ? 'My RSI Fade' : 'A Renamed Copy',
+          strategyVersionId: this.count === 1 ? 'sv-a' : 'sv-b',
+          versionTag: this.count === 1 ? 'rule@a' : 'rule@b',
+        },
+      ],
+      parameterSnapshots: [
+        { period: 20 },
+        { conditions: { long: [], short: [] }, indicators: [] },
+      ],
+      provenance: {
+        algorithm: this.fingerprintPrefix,
+        generationOrdinal: this.count,
+      },
+      strategyIds: ['ma', 'rule'],
+    };
+  }
+}
+
 function makeCandles(pair: string): Candle[] {
   return [
     {
@@ -531,5 +564,50 @@ describe('SearchRun use-case seam: atomic and fail-fast candidate submission', (
     expect(persisted.inFlightJobs).toBe(0);
 
     restoredCoordinator.stop();
+  });
+
+  it("captures a version member's display name as StrategyDefinition metadata, never inside params or the Strategy Version identity (ADR-0028)", async () => {
+    const historyProvider = workingHistoryProvider('ISSUE103MEMBERLABEL');
+    const coordinator = new SearchCoordinator({
+      eventBus: new TestEventBus(),
+      historyProvider,
+      prisma,
+    });
+    await coordinator.start();
+
+    const runId = await coordinator.startRun({
+      generator: new MemberSourceGenerator('issue103-memberlabel'),
+      ownerId,
+      searchSpace: { ...defaultSearchSpace, pair: 'ISSUE103MEMBERLABEL' },
+      stopPolicy: { maxCandidates: 2, maxInFlight: 10 },
+    });
+    searchRunIds.push(runId);
+
+    await waitUntil(
+      () => (coordinator.getRun(runId)?.acceptedCandidates ?? 0) >= 2,
+    );
+    coordinator.stop();
+
+    const experiments = await prisma.experiment.findMany({
+      include: { strategyVersion: { include: { strategyDefinition: true } } },
+      orderBy: { createdAt: 'asc' },
+      where: { ownerId, searchRunId: runId },
+    });
+    expect(experiments).toHaveLength(2);
+    experimentIds.push(...experiments.map((e) => e.id));
+
+    const [first, second] = experiments;
+
+    // Both candidates share the same strategy content, so despite different member-source
+    // display names, they resolve to the exact same Strategy Version.
+    expect(first!.strategyVersionId).toBe(second!.strategyVersionId);
+
+    const definition = first!.strategyVersion.strategyDefinition;
+    expect(definition.candidateMemberLabels).toEqual([null, 'My RSI Fade']);
+
+    const paramsJson = JSON.stringify(first!.strategyVersion.params);
+    expect(paramsJson).not.toContain('My RSI Fade');
+    expect(paramsJson).not.toContain('A Renamed Copy');
+    expect(paramsJson).not.toContain('displayName');
   });
 });

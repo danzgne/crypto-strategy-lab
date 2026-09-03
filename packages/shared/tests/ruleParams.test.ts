@@ -64,6 +64,12 @@ describe('pairMatchesRuleApplicability', () => {
   it('treats an empty pair list as unrestricted', () => {
     expect(pairMatchesRuleApplicability('ETHUSDT', { pairs: [] })).toBe(true);
   });
+
+  it('matches a lowercase-stored pair list against an uppercase pair', () => {
+    expect(
+      pairMatchesRuleApplicability('BTCUSDT', { pairs: ['btcusdt'] }),
+    ).toBe(true);
+  });
 });
 
 describe('paneForIndicatorReference', () => {

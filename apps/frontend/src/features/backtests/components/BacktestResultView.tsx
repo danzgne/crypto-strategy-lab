@@ -176,8 +176,8 @@ function BacktestResultContent({
               Trade history
             </h2>
             <p className="mt-1 text-xs text-slate-500">
-              Mỗi dòng là một vị thế đã đóng, bao gồm cả phí và slippage của hai
-              lần fill.
+              Each row is a closed position, including fees and slippage from
+              both fills.
             </p>
           </div>
           <p className="text-xs font-medium text-slate-400">
@@ -215,21 +215,6 @@ function BacktestResultContent({
       </section>
 
       <ProvenanceSection provenance={result.provenance} />
-
-      <section className="mt-5 grid gap-5 lg:grid-cols-2">
-        <Explainer title="Cách tính Profit">
-          Profit của mỗi trade = P&amp;L theo hướng vị thế − transaction cost −
-          slippage. Phí được tính ở cả entry và exit; LONG chịu slippage bất lợi
-          khi mua cao/bán thấp, SHORT chịu slippage bất lợi khi bán thấp/mua
-          cao.
-        </Explainer>
-        <Explainer title="Giả định Backtest">
-          Tín hiệu chỉ được tính một lần trên mỗi nến đóng và khớp ở open của
-          nến kế tiếp. Chỉ có một vị thế full-equity tại một thời điểm; nếu cùng
-          nến chạm SL và TP thì SL được ưu tiên. Vị thế còn lại sẽ đóng ở close
-          của nến cuối vùng chọn.
-        </Explainer>
-      </section>
     </>
   );
 }
@@ -460,21 +445,6 @@ function TradeTable({ trades }: { trades: BacktestResultResponse['trades'] }) {
         </tbody>
       </table>
     </div>
-  );
-}
-
-function Explainer({
-  children,
-  title,
-}: {
-  children: ReactNode;
-  title: string;
-}) {
-  return (
-    <section className="rounded-2xl border border-indigo-100 bg-indigo-50/55 p-5">
-      <h2 className="text-sm font-bold text-indigo-950">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-slate-600">{children}</p>
-    </section>
   );
 }
 
