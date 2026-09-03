@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import {
   NewsHeader,
@@ -47,6 +47,19 @@ export default function NewsPage() {
 
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [isHtmlModalOpen, setIsHtmlModalOpen] = useState(false);
+
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+  const [rightColumnHeight, setRightColumnHeight] = useState(780);
+
+  useEffect(() => {
+    const element = rightColumnRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setRightColumnHeight(entry.contentRect.height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -128,9 +141,9 @@ export default function NewsPage() {
       />
 
       {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch">
-        {/* Left Column: Incoming News (News Feed) — stretches to match the right column's height */}
-        <div className="lg:col-span-4">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+        {/* Left Column: Incoming News (News Feed) — scrolls within the right column's rendered height */}
+        <div className="lg:col-span-4" style={{ height: rightColumnHeight }}>
           <NewsFeedList
             items={items}
             total={total}
@@ -144,31 +157,29 @@ export default function NewsPage() {
         </div>
 
         {/* Right Column: Extraction Template health & Analytics Output */}
-        <div className="flex flex-col gap-6 lg:col-span-8">
+        <div className="space-y-6 lg:col-span-8" ref={rightColumnRef}>
           <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
-          <div className="flex-1">
-            <ExtractionTemplatePanel
-              isAdmin={isAdmin}
-              selectedTab={selectedTab}
-              websiteSources={extraction.websiteSources}
-              selectedSourceId={extraction.selectedSourceId}
-              onSelectSource={extraction.setSelectedSourceId}
-              panel={extraction.panel}
-              isLoading={extraction.isLoading}
-              candidate={extraction.candidate}
-              actionState={extraction.actionState}
-              pastedHtml={extraction.pastedHtml}
-              onPastedHtmlChange={extraction.setPastedHtml}
-              previewResult={extraction.previewResult}
-              isPreviewing={extraction.isPreviewing}
-              onGenerate={extraction.handleGenerate}
-              onPreview={extraction.handlePreview}
-              onSaveProposal={extraction.handleSaveProposal}
-              onActivate={extraction.handleActivate}
-              onReject={extraction.handleReject}
-              onUpdateSettings={extraction.handleUpdateSettings}
-            />
-          </div>
+          <ExtractionTemplatePanel
+            isAdmin={isAdmin}
+            selectedTab={selectedTab}
+            websiteSources={extraction.websiteSources}
+            selectedSourceId={extraction.selectedSourceId}
+            onSelectSource={extraction.setSelectedSourceId}
+            panel={extraction.panel}
+            isLoading={extraction.isLoading}
+            candidate={extraction.candidate}
+            actionState={extraction.actionState}
+            pastedHtml={extraction.pastedHtml}
+            onPastedHtmlChange={extraction.setPastedHtml}
+            previewResult={extraction.previewResult}
+            isPreviewing={extraction.isPreviewing}
+            onGenerate={extraction.handleGenerate}
+            onPreview={extraction.handlePreview}
+            onSaveProposal={extraction.handleSaveProposal}
+            onActivate={extraction.handleActivate}
+            onReject={extraction.handleReject}
+            onUpdateSettings={extraction.handleUpdateSettings}
+          />
         </div>
       </div>
 
