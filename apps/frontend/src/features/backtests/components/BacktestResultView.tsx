@@ -1,6 +1,9 @@
 'use client';
 
-import type { BacktestResultResponse } from '@crypto-strategy-lab/shared';
+import type {
+  BacktestProvenanceResponse,
+  BacktestResultResponse,
+} from '@crypto-strategy-lab/shared';
 import { ArrowLeft, ChevronLeft, ChevronRight, CircleHelp } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -211,6 +214,8 @@ function BacktestResultContent({
         </div>
       </section>
 
+      <ProvenanceSection provenance={result.provenance} />
+
       <section className="mt-5 grid gap-5 lg:grid-cols-2">
         <Explainer title="Cách tính Profit">
           Profit của mỗi trade = P&amp;L theo hướng vị thế − transaction cost −
@@ -255,6 +260,105 @@ function ResultHeader({ result }: { result: BacktestResultResponse }) {
         </p>
       </div>
       <StatusBadge tone={statusTone}>{result.status}</StatusBadge>
+    </div>
+  );
+}
+
+function ProvenanceSection({
+  provenance,
+}: {
+  provenance: BacktestProvenanceResponse;
+}) {
+  return (
+    <section
+      aria-label="Provenance"
+      className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold tracking-tight text-slate-950">
+          Provenance
+        </h2>
+        <StatusBadge tone={provenance.reproducible ? 'positive' : 'neutral'}>
+          {provenance.reproducible ? 'Reproducible' : 'Legacy (partial)'}
+        </StatusBadge>
+      </div>
+      <p className="mt-1 text-xs text-slate-500">
+        The exact Strategy Version, data, and code that produced this result.
+      </p>
+      <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ProvenanceField
+          label="Strategy Version"
+          value={provenance.strategyVersionId}
+        />
+        <ProvenanceField
+          label="Strategy implementation"
+          value={provenance.strategyImplementationVersion}
+        />
+        <ProvenanceField
+          label="Dataset Snapshot"
+          value={provenance.datasetSnapshotFingerprint}
+        />
+        <ProvenanceField
+          label="Simulation Rules"
+          value={provenance.simulationRulesVersion}
+        />
+        <ProvenanceField
+          label="Evaluator"
+          value={provenance.evaluatorVersion}
+        />
+        <ProvenanceField
+          label="Application build"
+          value={provenance.buildRevision}
+        />
+      </dl>
+      {provenance.generator ? (
+        <div className="mt-4 border-t border-slate-100 pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+            Search provenance
+          </p>
+          <dl className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <ProvenanceField
+              label="Algorithm"
+              value={provenance.generator.algorithm}
+            />
+            <ProvenanceField
+              label="Generator version"
+              value={provenance.generator.version}
+            />
+            <ProvenanceField
+              label="Seed"
+              value={String(provenance.generator.seed)}
+            />
+            <ProvenanceField
+              label="Generation ordinal"
+              value={String(provenance.generator.generationOrdinal)}
+            />
+          </dl>
+        </div>
+      ) : (
+        <p className="mt-4 border-t border-slate-100 pt-4 text-xs text-slate-500">
+          Manual backtest: no search generator produced this candidate.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function ProvenanceField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | null;
+}) {
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-slate-400">
+        {label}
+      </dt>
+      <dd className="mt-1 truncate font-mono text-xs text-slate-700">
+        {value ?? '—'}
+      </dd>
     </div>
   );
 }

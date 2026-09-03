@@ -6,6 +6,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -173,3 +174,4 @@ const createSRStrategy: StrategyFactory = Object.assign(
 
 StrategyRegistry.register(SR_STRATEGY_ID, createSRStrategy);
 StrategyRegistry.registerAlias(SUPPORT_RESISTANCE_STRATEGY_ID, SR_STRATEGY_ID);
+StrategyImplementationRegistry.register(SR_STRATEGY_ID, 'sr-v1');

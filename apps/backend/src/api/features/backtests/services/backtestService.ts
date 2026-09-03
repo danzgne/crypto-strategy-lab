@@ -2,18 +2,25 @@ import { createHash } from 'node:crypto';
 
 import type {
   BacktestHistoryResponse,
+  BacktestProvenanceResponse,
   BacktestResultResponse,
   BacktestSubmissionResponse,
   Candle,
   CompositeStrategyRequest,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
-import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared';
+import {
+  CURRENT_EVALUATOR_VERSION,
+  CURRENT_SIMULATION_RULES_VERSION,
+  resolveBuildRevision,
+  TIMEFRAME_INTERVAL_MS,
+} from '@crypto-strategy-lab/shared';
 import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
 import {
   assertStrategyApplicable,
   assertStrategyBacktestable,
   CombinationEngine,
+  resolveStrategyImplementationVersion,
   StrategyRegistry,
   strategyVersionIdentity,
   type CompositeStrategy,
@@ -28,6 +35,7 @@ import type {
   PendingBacktestSubmission,
   PreparedDataset,
   ResolvedBacktestTarget,
+  StoredBacktestResource,
   StoredStrategyVersion,
 } from '../types';
 import type { BacktestServiceInterface } from './interfaces/backtestService.interface';
@@ -124,12 +132,35 @@ export class BacktestService implements BacktestServiceInterface {
       );
     }
 
+    let strategyImplementationVersion: string;
+    try {
+      strategyImplementationVersion = resolveStrategyImplementationVersion(
+        target.strategyId,
+        target.strategyId === 'composite'
+          ? (target.strategy as CompositeStrategy).members.map(
+              (member) => member.strategyId,
+            )
+          : undefined,
+      );
+    } catch (error) {
+      throw new BacktestValidationError(
+        error instanceof Error
+          ? error.message
+          : 'Strategy implementation is not registered',
+        'STRATEGY_IMPLEMENTATION_UNAVAILABLE',
+      );
+    }
+
     const input: BacktestSubmissionInput = {
+      buildRevision: resolveBuildRevision(),
       endTime: normalized.endTime,
+      evaluatorVersion: CURRENT_EVALUATOR_VERSION,
       initialInvestment: normalized.initialInvestment,
       pair: normalized.pair,
+      simulationRulesVersion: CURRENT_SIMULATION_RULES_VERSION,
       slippage: normalized.slippage,
       startTime: normalized.startTime,
+      strategyImplementationVersion,
       target,
       timeframe: normalized.timeframe,
       transactionCost: normalized.transactionCost,
@@ -196,6 +227,7 @@ export class BacktestService implements BacktestServiceInterface {
               losses: resource.metrics.losses,
             },
       pair: resource.pair,
+      provenance: toProvenance(resource),
       simulationRulesVersion: resource.simulationRulesVersion,
       slippage: resource.slippage,
       startTime: resource.startTime,
@@ -749,6 +781,42 @@ function toPreparationError(error: unknown): Error {
       : 'Historical candles could not be prepared',
     'BACKTEST_DATASET_INVALID',
   );
+}
+
+function toProvenance(
+  resource: StoredBacktestResource,
+): BacktestProvenanceResponse {
+  const generator =
+    resource.generatorAlgorithm !== null &&
+    resource.generatorVersion !== null &&
+    resource.generatorSeed !== null &&
+    resource.generationOrdinal !== null
+      ? {
+          algorithm: resource.generatorAlgorithm,
+          generationOrdinal: resource.generationOrdinal,
+          seed: resource.generatorSeed,
+          version: resource.generatorVersion,
+        }
+      : null;
+
+  // A legacy Experiment (created before provenance tracking) is never fully reproducible,
+  // even once its terminal job completes; that fact must never be papered over.
+  const reproducible =
+    resource.strategyImplementationVersion !== null &&
+    resource.buildRevision !== null &&
+    (resource.searchRunId === null || generator !== null);
+
+  return {
+    buildRevision: resource.buildRevision,
+    datasetSnapshotFingerprint: resource.datasetFingerprint,
+    evaluatorVersion: resource.evaluatorVersion,
+    generator,
+    reproducible,
+    simulationRulesVersion: resource.simulationRulesVersion,
+    strategyImplementationVersion: resource.strategyImplementationVersion,
+    strategyParams: resource.strategyParams,
+    strategyVersionId: resource.strategyVersionId,
+  };
 }
 
 function toCandleResponse(candle: Candle) {

@@ -6,6 +6,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 
 export const NEWS_SENTIMENT_STRATEGY_ID = 'news-sentiment';
@@ -116,4 +117,8 @@ const createNewsSentimentStrategy: StrategyFactory = Object.assign(
 StrategyRegistry.register(
   NEWS_SENTIMENT_STRATEGY_ID,
   createNewsSentimentStrategy,
+);
+StrategyImplementationRegistry.register(
+  NEWS_SENTIMENT_STRATEGY_ID,
+  'news-sentiment-v1',
 );

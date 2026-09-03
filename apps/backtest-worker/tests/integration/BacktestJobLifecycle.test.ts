@@ -7,6 +7,8 @@ import {
 } from '../../src/database/prismaClient';
 import { PostgresJobQueue } from '../../src/queue/PostgresJobQueue';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
+import { createAppLogger } from '../../src/utils/logger';
+import { BacktestWorker } from '../../src/worker/BacktestWorker';
 import { getTestDatabaseUrl } from '../helpers/testDatabaseUrl';
 import type { PersistedBacktestOutcome } from '../../src/worker/types';
 
@@ -193,7 +195,51 @@ describe('backtest job lifecycle integration', () => {
     ).toBe(0);
   });
 
-  async function createExperiment(suffix: string) {
+  it('refuses to execute an Experiment recording an unavailable Strategy implementation version', async () => {
+    const queue = new PostgresJobQueue(new PrismaJobRepository(prisma));
+    const experiment = await createExperiment('unsupported-version', {
+      strategyImplementationVersion: 'ma-v99',
+    });
+    const jobId = await queue.enqueue(experiment.id, ownerId);
+
+    const worker = new BacktestWorker(
+      'worker-unsupported-version',
+      queue,
+      createAppLogger({ enabled: false, service: 'worker-test' }),
+      { pollIntervalMs: 20 },
+    );
+    worker.start();
+
+    const deadline = Date.now() + 2_000;
+    let job = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    while (job.status !== 'FAILED' && Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      job = await prisma.backtestJob.findUniqueOrThrow({
+        where: { id: jobId },
+      });
+    }
+    await worker.stop();
+
+    expect(job.status).toBe('FAILED');
+    expect(job.failureCategory).toBe('PERMANENT');
+    expect(job.error).toContain('UNSUPPORTED_VERSION');
+    expect(job.error).toContain('ma-v99');
+
+    const untouchedExperiment = await prisma.experiment.findUniqueOrThrow({
+      where: { id: experiment.id },
+    });
+    expect(untouchedExperiment.totalTrades).toBeNull();
+  });
+
+  async function createExperiment(
+    suffix: string,
+    overrides: {
+      strategyImplementationVersion?: string;
+      buildRevision?: string;
+    } = {},
+  ) {
     const snapshot = await prisma.datasetSnapshot.create({
       data: {
         candles: [
@@ -221,6 +267,7 @@ describe('backtest job lifecycle integration', () => {
     snapshotIds.push(snapshot.id);
     const experiment = await prisma.experiment.create({
       data: {
+        buildRevision: overrides.buildRevision ?? null,
         datasetSnapshotId: snapshot.id,
         endTime: 60_000,
         initialInvestment: 100,
@@ -228,6 +275,8 @@ describe('backtest job lifecycle integration', () => {
         pair: 'BTCUSDT',
         slippage: 0,
         startTime: 0,
+        strategyImplementationVersion:
+          overrides.strategyImplementationVersion ?? null,
         strategyVersionId,
         timeframe: '1m',
         transactionCost: 0,

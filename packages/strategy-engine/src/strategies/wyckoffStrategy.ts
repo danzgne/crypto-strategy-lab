@@ -6,6 +6,7 @@ import {
   type StrategyParamsSchema,
 } from '@crypto-strategy-lab/shared';
 
+import { StrategyImplementationRegistry } from '../implementationVersion';
 import { StrategyRegistry } from '../registry';
 import { resolveRiskParams } from './utils';
 
@@ -158,3 +159,4 @@ const createWyckoffStrategy: StrategyFactory = Object.assign(
 );
 
 StrategyRegistry.register(WYCKOFF_STRATEGY_ID, createWyckoffStrategy);
+StrategyImplementationRegistry.register(WYCKOFF_STRATEGY_ID, 'wyckoff-v1');

@@ -38,6 +38,10 @@ export interface BacktestSubmissionInput {
   initialInvestment: string;
   transactionCost: string;
   slippage: number;
+  strategyImplementationVersion: string;
+  simulationRulesVersion: string;
+  evaluatorVersion: string;
+  buildRevision: string;
 }
 
 export interface BacktestSubmissionResult {
@@ -79,6 +83,13 @@ export interface StoredBacktestResource {
   slippage: string;
   simulationRulesVersion: string;
   evaluatorVersion: string;
+  strategyImplementationVersion: string | null;
+  buildRevision: string | null;
+  searchRunId: string | null;
+  generatorAlgorithm: string | null;
+  generatorVersion: string | null;
+  generatorSeed: number | null;
+  generationOrdinal: number | null;
   failureReason: string | null;
   metrics: StoredBacktestMetrics | null;
   candles: Candle[];

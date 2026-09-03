@@ -49,6 +49,7 @@ const PERMANENT_ERROR_NAMES = new Set([
   'InvalidConfigError',
   'InvalidDatasetSnapshotError',
   'UnsupportedExecutionInputError',
+  'UnsupportedVersionError',
 ]);
 
 const PERMANENT_PATTERNS = [
@@ -56,6 +57,7 @@ const PERMANENT_PATTERNS = [
   /stored composite strategy definition is invalid/i,
   /strategy .* not (found|registered|applicable|backtestable)/i,
   /unsupported execution input/i,
+  /unsupported_version/i,
   /invalid configuration/i,
   /invalid strategy/i,
   /backtest range/i,

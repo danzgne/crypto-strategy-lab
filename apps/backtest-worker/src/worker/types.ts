@@ -25,6 +25,10 @@ export interface BacktestExecutionInput {
   transactionCost: number;
   slippage: number;
   candles: Candle[];
+  strategyImplementationVersion: string | null;
+  simulationRulesVersion: string;
+  evaluatorVersion: string;
+  buildRevision: string | null;
 }
 
 export interface PersistedBacktestOutcome {

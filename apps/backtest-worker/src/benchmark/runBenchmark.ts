@@ -228,17 +228,10 @@ export async function executeBenchmark(
 
         const jobRepo = new PrismaJobRepository(prisma);
         const queue = new PostgresJobQueue(jobRepo);
-        const worker = new BacktestWorker(
-          wId,
-          queue,
-          logger,
-          undefined,
-          undefined,
-          {
-            pollIntervalMs: 50,
-            maxPollIntervalMs: 500,
-          },
-        );
+        const worker = new BacktestWorker(wId, queue, logger, {
+          pollIntervalMs: 50,
+          maxPollIntervalMs: 500,
+        });
         worker.start();
         workers.push(worker);
       }

@@ -114,6 +114,31 @@ export interface BacktestMetricsResponse {
   score: string;
 }
 
+export interface BacktestGeneratorProvenance {
+  algorithm: string;
+  version: string;
+  seed: number;
+  generationOrdinal: number;
+}
+
+/**
+ * Complete, typed provenance for one Experiment: the exact data, Strategy,
+ * generator, simulation, evaluation, and build versions that produced it.
+ * `reproducible` is false whenever any of these facts predates provenance
+ * tracking and was never recorded (a "legacy" Experiment).
+ */
+export interface BacktestProvenanceResponse {
+  strategyVersionId: string;
+  strategyParams: unknown;
+  datasetSnapshotFingerprint: string | null;
+  strategyImplementationVersion: string | null;
+  simulationRulesVersion: string;
+  evaluatorVersion: string;
+  buildRevision: string | null;
+  generator: BacktestGeneratorProvenance | null;
+  reproducible: boolean;
+}
+
 export interface BacktestResultResponse {
   experimentId: string;
   jobId: string;
@@ -135,6 +160,7 @@ export interface BacktestResultResponse {
   candles: BacktestCandleResponse[];
   trades: BacktestTradeResponse[];
   datasetFingerprint: string | null;
+  provenance: BacktestProvenanceResponse;
 }
 
 export interface BacktestHistoryMetricsResponse {
