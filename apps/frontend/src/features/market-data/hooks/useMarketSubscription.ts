@@ -188,13 +188,20 @@ export function useMarketSubscription({
       updateState((current) => ({
         ...current,
         candles: nextCandles,
+        // A candle tick is direct proof of a live stream, overriding any stale status.
+        phase: 'live',
         detail: update.candle.isClosed
           ? 'Latest candle closed'
           : 'Forming candle updating live',
       }));
     };
     const handleStatus = (status: MarketSubscriptionStatus): void => {
-      if (!active || status.pair !== pair || status.timeframe !== timeframe) {
+      if (
+        !active ||
+        status.pair !== pair ||
+        status.timeframe !== timeframe ||
+        (status.chartId !== undefined && status.chartId !== activeChartId)
+      ) {
         return;
       }
       updateState((current) => ({

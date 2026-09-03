@@ -5,7 +5,6 @@ import {
   BarChart3,
   BookOpenText,
   FlaskConical,
-  LayoutDashboard,
   Search,
   Server,
   Settings,
@@ -13,6 +12,7 @@ import {
 import type { ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 import { ProductLogoMark } from './ProductLogoMark';
 import { UserMenu } from '../../auth/components/UserMenu';
@@ -34,7 +34,12 @@ const navigation: NavItem[] = [
     href: '/strategy-engine',
     implemented: true,
   },
-  { label: 'Discovery', icon: Search, href: '/discovery', implemented: true },
+  {
+    label: 'Strategy Workbench',
+    icon: Search,
+    href: '/discovery',
+    implemented: true,
+  },
   { label: 'Backtest', icon: BarChart3, href: '/backtests', implemented: true },
   {
     label: 'News Crawler',
@@ -42,7 +47,7 @@ const navigation: NavItem[] = [
     href: '/news',
     implemented: true,
   },
-  { label: 'Settings', icon: Settings, href: '#settings', implemented: false },
+  { label: 'Settings', icon: Settings, href: '#settings', implemented: true },
 ];
 
 export function DashboardShell({
@@ -53,6 +58,8 @@ export function DashboardShell({
   user?: User;
 }) {
   const pathname = usePathname();
+  const [hovering, setHovering] = useState(false);
+  const expanded = hovering;
 
   const navItems: NavItem[] = [
     ...navigation.slice(0, 5),
@@ -71,21 +78,34 @@ export function DashboardShell({
 
   return (
     <AuthProvider initialUser={user}>
-      <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[248px_1fr]">
-        <aside className="hidden min-h-screen border-r border-slate-200 bg-white px-5 py-6 lg:flex lg:flex-col">
-          <div className="flex items-center gap-3 px-2">
+      <div className="min-h-screen bg-slate-50 text-slate-950 lg:grid lg:grid-cols-[84px_1fr]">
+        <div aria-hidden="true" className="hidden lg:block" />
+
+        <aside
+          onMouseEnter={() => setHovering(true)}
+          onMouseLeave={() => setHovering(false)}
+          className={`hidden border-r border-slate-200 bg-white px-3 py-6 shadow-xl shadow-slate-900/5 transition-[width] duration-200 ease-out lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:flex-col ${
+            expanded ? 'lg:w-[248px] lg:px-5' : 'lg:w-[84px]'
+          }`}
+        >
+          <div
+            className={`flex items-center gap-3 px-2 ${expanded ? '' : 'justify-center px-0'}`}
+          >
             <ProductLogoMark />
-            <div>
-              <p className="text-sm font-bold tracking-tight">
+            <div className={`min-w-0 ${expanded ? '' : 'sr-only'}`}>
+              <p className="truncate text-sm font-bold tracking-tight">
                 Crypto Strategy
               </p>
-              <p className="text-sm font-bold tracking-tight text-indigo-600">
+              <p className="truncate text-sm font-bold tracking-tight text-indigo-600">
                 Lab
               </p>
             </div>
           </div>
 
-          <nav aria-label="Primary navigation" className="mt-10 space-y-1.5">
+          <nav
+            aria-label="Primary navigation"
+            className="mt-10 flex-1 space-y-1.5 overflow-y-auto overflow-x-hidden"
+          >
             {navItems.map(({ label, icon: Icon, href, implemented }) => {
               const isActive =
                 implemented &&
@@ -99,13 +119,17 @@ export function DashboardShell({
                     prefetch={false}
                     aria-current={isActive ? 'page' : undefined}
                     className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium transition ${
+                      expanded ? '' : 'justify-center px-0'
+                    } ${
                       isActive
                         ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-100'
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
-                    <Icon aria-hidden="true" className="size-5" />
-                    {label}
+                    <Icon aria-hidden="true" className="size-5 shrink-0" />
+                    <span className={expanded ? 'truncate' : 'sr-only'}>
+                      {label}
+                    </span>
                   </Link>
                 );
               }
@@ -114,11 +138,19 @@ export function DashboardShell({
                 <a
                   key={label}
                   href={href}
-                  className="flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 hover:bg-slate-50 hover:text-slate-600 transition"
+                  className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm font-medium text-slate-400 transition hover:bg-slate-50 hover:text-slate-600 ${
+                    expanded ? '' : 'justify-center px-0'
+                  }`}
                 >
-                  <Icon aria-hidden="true" className="size-5" />
-                  <span>{label}</span>
-                  <span className="ml-auto text-[10px] rounded bg-slate-100 px-1.5 py-0.5 text-slate-400 font-normal">
+                  <Icon aria-hidden="true" className="size-5 shrink-0" />
+                  <span className={expanded ? 'truncate' : 'sr-only'}>
+                    {label}
+                  </span>
+                  <span
+                    className={`ml-auto rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-400 ${
+                      expanded ? '' : 'sr-only'
+                    }`}
+                  >
                     Soon
                   </span>
                 </a>
@@ -126,18 +158,7 @@ export function DashboardShell({
             })}
           </nav>
 
-          <div className="mt-auto rounded-2xl border border-indigo-100 bg-indigo-50/70 p-4">
-            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-700">
-              <LayoutDashboard aria-hidden="true" className="size-4" />
-              Foundation milestone
-            </div>
-            <p className="mt-2 text-xs leading-5 text-slate-600">
-              Transport status is measured here. Worker and database readiness
-              remain visible through Compose health checks.
-            </p>
-          </div>
-
-          {user && <UserMenu user={user} />}
+          {user && <UserMenu expanded={expanded} user={user} />}
         </aside>
 
         <div className="min-w-0">

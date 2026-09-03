@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, AlertTriangle, X } from 'lucide-react';
 import {
   NewsHeader,
@@ -8,7 +8,6 @@ import {
   NewsFeedList,
   ExtractionTemplatePanel,
   AnalysisOutputPanel,
-  StrategyIntegrationPanel,
   AdminSourceModal,
   AdminHtmlPasteModal,
   useNews,
@@ -48,6 +47,19 @@ export default function NewsPage() {
 
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [isHtmlModalOpen, setIsHtmlModalOpen] = useState(false);
+
+  const rightColumnRef = useRef<HTMLDivElement>(null);
+  const [rightColumnHeight, setRightColumnHeight] = useState(780);
+
+  useEffect(() => {
+    const element = rightColumnRef.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setRightColumnHeight(entry.contentRect.height);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -128,10 +140,10 @@ export default function NewsPage() {
         isAdmin={isAdmin}
       />
 
-      {/* Main 3-Column Grid */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Incoming News (News Feed) */}
-        <div className="lg:col-span-4 h-[780px]">
+      {/* Main Two-Column Layout */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-start">
+        {/* Left Column: Incoming News (News Feed) — scrolls within the right column's rendered height */}
+        <div className="lg:col-span-4" style={{ height: rightColumnHeight }}>
           <NewsFeedList
             items={items}
             total={total}
@@ -144,8 +156,9 @@ export default function NewsPage() {
           />
         </div>
 
-        {/* Middle Column: Extraction Template health */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Right Column: Extraction Template health & Analytics Output */}
+        <div className="space-y-6 lg:col-span-8" ref={rightColumnRef}>
+          <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
           <ExtractionTemplatePanel
             isAdmin={isAdmin}
             selectedTab={selectedTab}
@@ -167,12 +180,6 @@ export default function NewsPage() {
             onReject={extraction.handleReject}
             onUpdateSettings={extraction.handleUpdateSettings}
           />
-        </div>
-
-        {/* Right Column: Analytics Output & Strategy Integration */}
-        <div className="lg:col-span-3 space-y-6">
-          <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
-          <StrategyIntegrationPanel />
         </div>
       </div>
 

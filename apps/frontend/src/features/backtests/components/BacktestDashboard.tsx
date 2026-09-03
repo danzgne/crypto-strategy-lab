@@ -5,7 +5,7 @@ import type {
   LibraryBuiltin,
 } from '@crypto-strategy-lab/shared';
 import { formatStrategyType } from '@crypto-strategy-lab/shared/strategy';
-import { ArrowRight, BarChart3, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BarChart3 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import type { FormEvent, ReactNode } from 'react';
@@ -127,23 +127,13 @@ export function BacktestDashboard({
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-indigo-500">
-            Research workspace
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-            Backtest &amp; Results
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Simulate a strategy version on a fixed snapshot of historical
-            candles, then review trades and evaluation metrics.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700">
-          <ShieldCheck aria-hidden="true" className="size-4" />
-          Closed candles only
-        </div>
+      <div>
+        <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+          Research workspace
+        </p>
+        <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+          Backtest &amp; Results
+        </h1>
       </div>
 
       {error !== null && (
@@ -344,12 +334,7 @@ export function BacktestDashboard({
           </div>
         ) : null}
 
-        <div className="mt-7 flex flex-col gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-xl text-xs leading-5 text-slate-500">
-            The backend loads data through the Market Data Service, validates
-            closed and contiguous candles, and queues the job for the Backtest
-            Worker.
-          </p>
+        <div className="mt-7 flex justify-end border-t border-slate-100 pt-5">
           <button
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-indigo-100 transition hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
             disabled={
@@ -389,21 +374,6 @@ export function BacktestDashboard({
         loading={history.loading}
         onRetry={history.refresh}
       />
-
-      <div className="mt-5 grid gap-4 md:grid-cols-3">
-        <InfoTile
-          title="Signal timing"
-          text="Signal at candle close, fill at the next candle open."
-        />
-        <InfoTile
-          title="Position model"
-          text="One full-equity LONG or SHORT position at a time."
-        />
-        <InfoTile
-          title="Data boundary"
-          text="The selected range uses UTC start-inclusive, end-exclusive timestamps."
-        />
-      </div>
     </div>
   );
 }
@@ -427,15 +397,6 @@ function Field({
       </span>
       {children}
     </label>
-  );
-}
-
-function InfoTile({ title, text }: { title: string; text: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-      <p className="text-xs font-semibold text-slate-800">{title}</p>
-      <p className="mt-1 text-xs leading-5 text-slate-500">{text}</p>
-    </div>
   );
 }
 

@@ -6,16 +6,18 @@ import {
   Archive,
   ArchiveRestore,
   BookMarked,
+  Compass,
   Copy,
+  Layers,
   MoreVertical,
   Play,
   Plus,
-  RadioTower,
   TestTubeDiagonal,
+  Trophy,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useState } from 'react';
 
-import { StatusBadge } from '../../../shared/ui/StatusBadge';
 import { LeaderboardPanel } from '../../leaderboard';
 import {
   DiscoveryProgressCard,
@@ -26,36 +28,32 @@ import {
 import { strategyLibraryClient, useStrategyLibrary } from '../../strategies';
 import { ManualCompositeBuilder } from './ManualCompositeBuilder';
 
+type DashboardTab = 'discover' | 'manual' | 'library' | 'leaderboard';
+
+const TABS: ReadonlyArray<{
+  id: DashboardTab;
+  label: string;
+  icon: typeof Compass;
+}> = [
+  { id: 'discover', label: 'Auto Discovery', icon: Compass },
+  { id: 'manual', label: 'Manual Build', icon: Layers },
+  { id: 'library', label: 'Library', icon: BookMarked },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Trophy },
+];
+
 export function DiscoveryDashboard() {
   const library = useStrategyLibrary();
   const discovery = useDiscoverySession();
+  const [activeTab, setActiveTab] = useState<DashboardTab>('discover');
 
   return (
     <div>
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-            Strategy Library
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-600 sm:text-base">
-            Browse the built-in strategies, author or fork your own, combine
-            them into a composite, and run any saved version on the chart or in
-            a backtest.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <StatusBadge tone="positive">
-            <RadioTower aria-hidden="true" className="size-3.5" />
-            Market data service
-          </StatusBadge>
-          <Link
-            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
-            href="/strategies/new"
-          >
-            <Plus aria-hidden="true" className="size-3.5" /> New strategy
-          </Link>
-        </div>
-      </div>
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+        Composition workspace
+      </p>
+      <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+        Strategy Workbench
+      </h1>
 
       {library.error !== null && (
         <div
@@ -75,38 +73,76 @@ export function DiscoveryDashboard() {
         </div>
       )}
 
-      <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
-        <DiscoverySessionControl
-          builtins={library.builtins}
-          discovery={discovery}
-        />
-        <DiscoveryProgressCard discovery={discovery} />
+      <div
+        aria-label="Strategy Workbench sections"
+        className="mt-7 inline-flex flex-wrap gap-1.5 rounded-2xl border border-slate-200 bg-white p-1.5 shadow-sm"
+        role="tablist"
+      >
+        {TABS.map(({ id, label, icon: Icon }) => (
+          <button
+            aria-selected={activeTab === id}
+            className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+              activeTab === id
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-100'
+                : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
+            }`}
+            key={id}
+            onClick={() => setActiveTab(id)}
+            role="tab"
+            type="button"
+          >
+            <Icon aria-hidden="true" className="size-4" />
+            {label}
+          </button>
+        ))}
       </div>
 
-      <DiscoveryRunHistoryTable discovery={discovery} />
+      {activeTab === 'discover' && (
+        <div role="tabpanel">
+          <div className="mt-7 grid gap-5 xl:grid-cols-[minmax(320px,0.9fr)_minmax(0,1.1fr)]">
+            <DiscoverySessionControl
+              builtins={library.builtins}
+              discovery={discovery}
+            />
+            <DiscoveryProgressCard discovery={discovery} />
+          </div>
 
-      <div className="mt-8">
-        <ManualCompositeBuilder
-          builtins={library.builtins}
-          entries={library.entries}
-          onSaved={library.refresh}
-        />
-      </div>
+          <DiscoveryRunHistoryTable discovery={discovery} />
+        </div>
+      )}
 
-      <BuiltinsSection builtins={library.builtins} />
+      {activeTab === 'manual' && (
+        <div className="mt-7" role="tabpanel">
+          <ManualCompositeBuilder
+            builtins={library.builtins}
+            entries={library.entries}
+            onSaved={library.refresh}
+          />
+        </div>
+      )}
 
-      <EntriesSection
-        entries={library.entries}
-        hasMore={library.hasMore}
-        loading={library.loading}
-        loadingMore={library.loadingMore}
-        onArchiveChanged={library.refresh}
-        onLoadMore={library.loadMore}
-        setShowArchived={library.setShowArchived}
-        showArchived={library.showArchived}
-      />
+      {activeTab === 'library' && (
+        <div role="tabpanel">
+          <BuiltinsSection builtins={library.builtins} />
 
-      <LeaderboardPanel />
+          <EntriesSection
+            entries={library.entries}
+            hasMore={library.hasMore}
+            loading={library.loading}
+            loadingMore={library.loadingMore}
+            onArchiveChanged={library.refresh}
+            onLoadMore={library.loadMore}
+            setShowArchived={library.setShowArchived}
+            showArchived={library.showArchived}
+          />
+        </div>
+      )}
+
+      {activeTab === 'leaderboard' && (
+        <div role="tabpanel">
+          <LeaderboardPanel />
+        </div>
+      )}
     </div>
   );
 }
@@ -205,14 +241,22 @@ function EntriesSection({
             My strategies
           </h2>
         </div>
-        <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
-          <input
-            checked={showArchived}
-            onChange={(event) => setShowArchived(event.target.checked)}
-            type="checkbox"
-          />
-          Show archived
-        </label>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <input
+              checked={showArchived}
+              onChange={(event) => setShowArchived(event.target.checked)}
+              type="checkbox"
+            />
+            Show archived
+          </label>
+          <Link
+            className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-indigo-700"
+            href="/strategies/new"
+          >
+            <Plus aria-hidden="true" className="size-3.5" /> New strategy
+          </Link>
+        </div>
       </div>
 
       {loading ? (

@@ -228,7 +228,7 @@ describe('Discovery UI Components', () => {
 
       render(<DiscoveryProgressCard discovery={mockDiscovery} />);
 
-      expect(screen.getByText('Tiến trình Discovery')).toBeInTheDocument();
+      expect(screen.getByText('Discovery Progress')).toBeInTheDocument();
       expect(screen.getByText('47')).toBeInTheDocument();
       expect(screen.getByText('/ 100')).toBeInTheDocument();
       expect(screen.getByText('1.8421')).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe('Discovery UI Components', () => {
       // Evaluating banner assertions
       const banner = screen.getByTestId('evaluating-candidate-banner');
       expect(banner).toBeInTheDocument();
-      expect(banner).toHaveTextContent('Đang đánh giá (Evaluating):');
+      expect(banner).toHaveTextContent('Evaluating:');
       expect(banner).toHaveTextContent('Composite (majority)');
       expect(banner).toHaveTextContent('BTCUSDT • 1h');
       expect(banner).toHaveTextContent('Majority Vote');

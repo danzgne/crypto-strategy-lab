@@ -178,41 +178,24 @@ export function OperationsDashboard() {
   return (
     <div className="space-y-8" data-testid="operations-dashboard">
       {/* Top Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              Operations & Telemetry Dashboard
-            </h1>
-            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-              Read-Only
-            </span>
-          </div>
-          <p className="mt-1 text-sm text-slate-500">
-            Real-time backtest job queue capacity, worker heartbeats, and
-            transactional outbox metrics
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
+            Admin console
           </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+            Operations & Telemetry Dashboard
+          </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          {isStale ? (
+          {isStale && (
             <span
               className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-300"
               data-testid="stale-data-badge"
             >
               <AlertTriangle className="size-3.5" />
               Stale Telemetry
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-300"
-              data-testid="live-status-badge"
-            >
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-              Live (5s Refresh)
             </span>
           )}
 
