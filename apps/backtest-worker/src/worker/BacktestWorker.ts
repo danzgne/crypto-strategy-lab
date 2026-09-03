@@ -9,10 +9,15 @@ import {
   type Strategy,
 } from '@crypto-strategy-lab/strategy-engine';
 
-import { HistoricalBacktester, type Backtester } from '../backtesting';
+import {
+  HistoricalBacktester,
+  type Backtester,
+  type BacktestSimulation,
+} from '../backtesting';
 import { DefaultEvaluator, type Evaluator } from '../evaluation';
 import {
   InvalidConfigError,
+  InvalidDatasetSnapshotError,
   JobLeaseLostError,
   UnsupportedExecutionInputError,
 } from '../errors';
@@ -158,7 +163,10 @@ export class BacktestWorker {
       const input = await this.queue.loadInput(job);
       const strategy = safelyCreateStrategy(input);
       safelyAssertStrategy(strategy, input.pair, input.timeframe);
-      const simulation = this.backtester.run({ ...input, strategy });
+      const simulation = safelyRunBacktester(this.backtester, {
+        ...input,
+        strategy,
+      });
       if (leaseLost) throw new JobLeaseLostError(job.id);
 
       const metrics = this.evaluator.evaluate(
@@ -266,6 +274,31 @@ function safelyAssertStrategy(
     throw new UnsupportedExecutionInputError(
       error instanceof Error ? error.message : String(error),
     );
+  }
+}
+
+function safelyRunBacktester(
+  backtester: Backtester,
+  input: BacktestExecutionInput & { strategy: Strategy },
+): BacktestSimulation {
+  try {
+    return backtester.run(input);
+  } catch (error) {
+    if (
+      error instanceof InvalidConfigError ||
+      error instanceof InvalidDatasetSnapshotError ||
+      error instanceof UnsupportedExecutionInputError
+    ) {
+      throw error;
+    }
+    const message = error instanceof Error ? error.message : String(error);
+    if (/candle|snapshot|range/i.test(message)) {
+      throw new InvalidDatasetSnapshotError(message);
+    }
+    if (/investment|transaction cost|slippage/i.test(message)) {
+      throw new InvalidConfigError(message);
+    }
+    throw error;
   }
 }
 

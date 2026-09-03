@@ -22,4 +22,17 @@ describe('benchmark smoke test', () => {
     expect(metrics.machineContext.cpuCores).toBeGreaterThan(0);
     expect(metrics.machineContext.hostname.length).toBeGreaterThan(0);
   });
+
+  it('aborts and cleans up when benchmark times out', async () => {
+    await expect(
+      executeBenchmark({
+        jobs: 10,
+        batchSize: 5,
+        workers: 0, // No workers processing jobs
+        silent: true,
+        cleanup: true,
+        timeoutMs: 150,
+      }),
+    ).rejects.toThrow(/timed out/i);
+  });
 });

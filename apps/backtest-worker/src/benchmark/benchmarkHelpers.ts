@@ -6,6 +6,8 @@ export interface WaitForBenchmarkCompletionOptions {
   totalJobs: number;
   pollIntervalMs?: number;
   silent?: boolean;
+  timeoutMs?: number;
+  signal?: AbortSignal;
 }
 
 export interface BenchmarkCompletionResult {
@@ -21,11 +23,28 @@ export async function waitForBenchmarkCompletion(
   prisma: WorkerPrismaClient,
   options: WaitForBenchmarkCompletionOptions,
 ): Promise<BenchmarkCompletionResult> {
-  const { ownerId, totalJobs, pollIntervalMs = 500, silent = false } = options;
+  const {
+    ownerId,
+    totalJobs,
+    pollIntervalMs = 500,
+    silent = false,
+    timeoutMs,
+    signal,
+  } = options;
   const startTime = Date.now();
   let peakConnections = 1;
 
   while (true) {
+    const elapsedMs = Date.now() - startTime;
+    if (timeoutMs !== undefined && elapsedMs > timeoutMs) {
+      throw new Error(
+        `Benchmark timed out after ${(elapsedMs / 1000).toFixed(1)}s waiting for ${totalJobs} jobs`,
+      );
+    }
+    if (signal?.aborted) {
+      throw new Error('Benchmark wait cancelled');
+    }
+
     const counts = await prisma.$queryRaw<
       Array<{ status: string; count: bigint | number }>
     >`
@@ -138,15 +157,20 @@ export async function gatherBenchmarkMetrics(
   const duplicatesResult = await prisma.$queryRaw<Array<{ count: number }>>`
     SELECT count(*)::int AS count
     FROM (
-      SELECT "experimentId"
-      FROM backtest_jobs
-      WHERE "ownerId" = ${ownerId}
-      GROUP BY "experimentId"
+      SELECT payload->>'jobId' AS "jobId"
+      FROM event_outbox
+      WHERE name = 'BacktestCompleted'
+        AND payload->>'experimentId' IN (
+          SELECT id::text FROM experiments WHERE "ownerId" = ${ownerId}
+        )
+      GROUP BY payload->>'jobId'
       HAVING count(*) > 1
     ) d;
   `;
 
-  const lostJobsResult = await prisma.$queryRaw<Array<{ count: number }>>`
+  const uncompletedCountResult = await prisma.$queryRaw<
+    Array<{ count: number }>
+  >`
     SELECT count(*)::int AS count
     FROM backtest_jobs
     WHERE "ownerId" = ${ownerId} AND status NOT IN ('COMPLETED', 'FAILED');
@@ -179,7 +203,11 @@ export async function gatherBenchmarkMetrics(
   const completedJobs = Number(completedCountResult[0]?.count ?? 0);
   const failedJobs = Number(failedCountResult[0]?.count ?? 0);
   const duplicates = Number(duplicatesResult[0]?.count ?? 0);
-  const lostJobs = Number(lostJobsResult[0]?.count ?? 0);
+  const uncompletedJobs = Number(uncompletedCountResult[0]?.count ?? 0);
+  const lostJobs = Math.max(
+    uncompletedJobs,
+    Math.max(0, totalJobs - (completedJobs + failedJobs)),
+  );
   const totalRetries = Number(retriesResult[0]?.count ?? 0);
   const recordedWorkerCount = Number(workerCountResult[0]?.count ?? 0);
   const p95QueueWaitMs = Number(p95WaitResult[0]?.p95Wait ?? 0);
@@ -268,37 +296,16 @@ export async function cleanupBenchmarkCampaign(
     }),
   );
 
-  const experiments = await prisma.experiment.findMany({
-    select: { id: true },
-    where: { ownerId },
-  });
-  const expIds = experiments.map((e) => e.id);
-
-  if (expIds.length > 0) {
-    const outbox = await prisma.outboxEvent.findMany({
-      where: {
-        name: {
-          in: ['BacktestStarted', 'BacktestCompleted', 'StrategyEvaluated'],
-        },
-      },
-    });
-    const toDelete = outbox
-      .filter((e) => {
-        const payload = e.payload as { experimentId?: unknown };
-        return (
-          typeof payload?.experimentId === 'string' &&
-          expIds.includes(payload.experimentId)
+  await withDeadlockRetry(
+    () =>
+      prisma.$executeRaw`
+      DELETE FROM event_outbox
+      WHERE name IN ('BacktestStarted', 'BacktestCompleted', 'StrategyEvaluated')
+        AND payload->>'experimentId' IN (
+          SELECT id::text FROM experiments WHERE "ownerId" = ${ownerId}
         );
-      })
-      .map((e) => e.id);
-    if (toDelete.length > 0) {
-      await withDeadlockRetry(() =>
-        prisma.outboxEvent.deleteMany({
-          where: { id: { in: toDelete } },
-        }),
-      );
-    }
-  }
+    `,
+  );
 
   await withDeadlockRetry(() =>
     prisma.experiment.deleteMany({

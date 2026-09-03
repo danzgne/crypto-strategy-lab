@@ -24,6 +24,7 @@ import type {
 } from '../../worker/types';
 import { JobLeaseLostError } from '../../errors/JobLeaseLostError';
 import { InvalidDatasetSnapshotError } from '../../errors/InvalidDatasetSnapshotError';
+import { InvalidConfigError } from '../../errors/InvalidConfigError';
 
 const DEFAULT_LEASE_DURATION_MS = 5 * 60 * 1000;
 const MAX_RETRIES = 4;
@@ -117,7 +118,6 @@ export class PrismaJobRepository implements JobRepository {
                 SELECT 1
                 FROM experiments
                 WHERE experiments.id = backtest_jobs."experimentId"
-                  AND experiments."datasetSnapshotId" IS NOT NULL
               )
             )
             OR (
@@ -213,27 +213,70 @@ export class PrismaJobRepository implements JobRepository {
       },
       where: leaseWhere(job),
     });
-    if (record === null || record.experiment.datasetSnapshot === null) {
+    if (record === null) {
+      throw new JobLeaseLostError(job.id);
+    }
+    if (record.experiment.datasetSnapshot === null) {
       throw new InvalidDatasetSnapshotError(
         'Backtest job has no immutable dataset snapshot',
       );
     }
 
+    const initialInvestment = validateExecutionNumber(
+      record.experiment.initialInvestment,
+      'Initial investment',
+      (n) => n > 0,
+      'Initial investment must be a finite positive number',
+    );
+    const slippage = validateExecutionInteger(
+      record.experiment.slippage,
+      'Slippage',
+      (n) => n >= 0 && n < 10_000,
+      'Slippage must be an integer number of basis points in [0, 10000)',
+    );
+    const transactionCost = validateExecutionNumber(
+      record.experiment.transactionCost,
+      'Transaction cost',
+      (n) => n >= 0 && n < 1,
+      'Transaction cost must be a finite ratio in [0, 1)',
+    );
+    const startTime = Number(record.experiment.startTime);
+    const endTime = Number(record.experiment.endTime);
+    if (
+      !Number.isSafeInteger(startTime) ||
+      !Number.isSafeInteger(endTime) ||
+      startTime < 0 ||
+      endTime <= startTime
+    ) {
+      throw new InvalidConfigError(
+        'Backtest range must have a finite end after its start',
+      );
+    }
+
+    const pair = record.experiment.pair;
+    const timeframe = record.experiment
+      .timeframe as BacktestExecutionInput['timeframe'];
+
+    const candles = parseSnapshotCandles(
+      record.experiment.datasetSnapshot.candles,
+      pair,
+      timeframe,
+    );
+
     return {
-      candles: parseSnapshotCandles(record.experiment.datasetSnapshot.candles),
-      endTime: Number(record.experiment.endTime),
+      candles,
+      endTime,
       experimentId: record.experiment.id,
-      initialInvestment: toNumber(record.experiment.initialInvestment),
+      initialInvestment,
       jobId: record.id,
-      pair: record.experiment.pair,
-      slippage: toNumber(record.experiment.slippage),
-      startTime: Number(record.experiment.startTime),
+      pair,
+      slippage,
+      startTime,
       strategyId: record.experiment.strategyVersion.strategyDefinition.type,
       strategyParams: record.experiment.strategyVersion.params,
       strategyVersionId: record.experiment.strategyVersionId,
-      timeframe: record.experiment
-        .timeframe as BacktestExecutionInput['timeframe'],
-      transactionCost: toNumber(record.experiment.transactionCost),
+      timeframe,
+      transactionCost,
     };
   }
 
@@ -404,6 +447,8 @@ export class PrismaJobRepository implements JobRepository {
         where: leaseWhere(job),
       });
 
+      if (updated.count !== 1) return false;
+
       if (status === 'FAILED') {
         await createOutboxEvent(
           transaction,
@@ -414,7 +459,7 @@ export class PrismaJobRepository implements JobRepository {
         );
       }
 
-      return updated.count === 1;
+      return true;
     });
   }
 }
@@ -480,20 +525,43 @@ async function createOutboxEvent(
   });
 }
 
-function parseSnapshotCandles(value: unknown): Candle[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isSnapshotCandle).map((candle) => ({
-    close: Number(candle.close),
-    closeTime: Number(candle.closeTime),
-    high: Number(candle.high),
-    isClosed: candle.isClosed,
-    low: Number(candle.low),
-    open: Number(candle.open),
-    openTime: Number(candle.openTime),
-    pair: candle.pair,
-    timeframe: candle.timeframe as Candle['timeframe'],
-    volume: Number(candle.volume),
-  }));
+function parseSnapshotCandles(
+  value: unknown,
+  expectedPair: string,
+  expectedTimeframe: string,
+): Candle[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new InvalidDatasetSnapshotError(
+      'Dataset snapshot must contain a non-empty array of candles',
+    );
+  }
+  return value.map((candle, index) => {
+    if (!isSnapshotCandle(candle)) {
+      throw new InvalidDatasetSnapshotError(
+        `Dataset snapshot contains malformed candle data at index ${index}`,
+      );
+    }
+    if (
+      candle.pair !== expectedPair ||
+      candle.timeframe !== expectedTimeframe
+    ) {
+      throw new InvalidDatasetSnapshotError(
+        `Dataset snapshot candle market mismatch: expected ${expectedPair}/${expectedTimeframe}, got ${candle.pair}/${candle.timeframe}`,
+      );
+    }
+    return {
+      close: Number(candle.close),
+      closeTime: Number(candle.closeTime),
+      high: Number(candle.high),
+      isClosed: candle.isClosed,
+      low: Number(candle.low),
+      open: Number(candle.open),
+      openTime: Number(candle.openTime),
+      pair: candle.pair,
+      timeframe: candle.timeframe as Candle['timeframe'],
+      volume: Number(candle.volume),
+    };
+  });
 }
 
 function isSnapshotCandle(value: unknown): value is Record<string, unknown> & {
@@ -512,17 +580,33 @@ function isSnapshotCandle(value: unknown): value is Record<string, unknown> & {
     return false;
   }
   const candle = value as Record<string, unknown>;
+  const openTime = numberValue(candle.openTime);
+  const closeTime = numberValue(candle.closeTime);
+  const open = numberValue(candle.open);
+  const high = numberValue(candle.high);
+  const low = numberValue(candle.low);
+  const close = numberValue(candle.close);
+  const volume = numberValue(candle.volume);
+
   return (
     typeof candle.pair === 'string' &&
+    candle.pair.length > 0 &&
     typeof candle.timeframe === 'string' &&
-    numberValue(candle.openTime) !== null &&
-    numberValue(candle.closeTime) !== null &&
-    numberValue(candle.open) !== null &&
-    numberValue(candle.high) !== null &&
-    numberValue(candle.low) !== null &&
-    numberValue(candle.close) !== null &&
-    numberValue(candle.volume) !== null &&
-    typeof candle.isClosed === 'boolean'
+    candle.timeframe.length > 0 &&
+    openTime !== null &&
+    closeTime !== null &&
+    openTime < closeTime &&
+    open !== null &&
+    open > 0 &&
+    high !== null &&
+    high > 0 &&
+    low !== null &&
+    low > 0 &&
+    close !== null &&
+    close > 0 &&
+    volume !== null &&
+    volume >= 0 &&
+    candle.isClosed === true
   );
 }
 
@@ -531,9 +615,36 @@ function numberValue(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function toNumber(value: unknown): number {
+function validateExecutionNumber(
+  value: unknown,
+  field: string,
+  predicate: (num: number) => boolean,
+  errorMessage: string,
+): number {
+  if (value === null || value === undefined) {
+    throw new InvalidConfigError(`${field} is required`);
+  }
   const parsed = typeof value === 'number' ? value : Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+  if (!Number.isFinite(parsed) || !predicate(parsed)) {
+    throw new InvalidConfigError(errorMessage);
+  }
+  return parsed;
+}
+
+function validateExecutionInteger(
+  value: unknown,
+  field: string,
+  predicate: (num: number) => boolean,
+  errorMessage: string,
+): number {
+  if (value === null || value === undefined) {
+    throw new InvalidConfigError(`${field} is required`);
+  }
+  const parsed = typeof value === 'number' ? value : Number(value);
+  if (!Number.isInteger(parsed) || !predicate(parsed)) {
+    throw new InvalidConfigError(errorMessage);
+  }
+  return parsed;
 }
 
 function decimalString(value: number): string {

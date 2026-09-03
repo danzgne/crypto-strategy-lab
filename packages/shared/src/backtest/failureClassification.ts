@@ -58,6 +58,12 @@ const PERMANENT_PATTERNS = [
   /unsupported execution input/i,
   /invalid configuration/i,
   /invalid strategy/i,
+  /backtest range/i,
+  /historical candles/i,
+  /backtest candles/i,
+  /initial investment/i,
+  /transaction cost/i,
+  /slippage/i,
 ];
 
 /**

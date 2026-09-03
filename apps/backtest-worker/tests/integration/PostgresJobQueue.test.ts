@@ -5,7 +5,10 @@ import {
   type WorkerPrismaClient,
 } from '../../src/database/prismaClient';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
-import { InvalidConfigError } from '../../src/errors';
+import {
+  InvalidConfigError,
+  InvalidDatasetSnapshotError,
+} from '../../src/errors';
 
 describe('PostgresJobQueue Integration', () => {
   let prisma: WorkerPrismaClient;
@@ -142,7 +145,7 @@ describe('PostgresJobQueue Integration', () => {
     expect(claimed!.status).toBe('CLAIMED');
   });
 
-  it('does not claim a job until the backend attaches a dataset snapshot', async () => {
+  it('claims a job even without dataset snapshot, failing permanently on loadInput', async () => {
     const experiment = await prisma.experiment.create({
       data: {
         ownerId,
@@ -156,9 +159,31 @@ describe('PostgresJobQueue Integration', () => {
       },
     });
     experimentIds.push(experiment.id);
-    await queue.enqueue(experiment.id, ownerId);
+    const jobId = await queue.enqueue(experiment.id, ownerId);
 
-    await expect(queue.claim('worker-1')).resolves.toBeNull();
+    const claimed = await queue.claim('worker-1');
+    expect(claimed).not.toBeNull();
+    expect(claimed!.id).toBe(jobId);
+
+    await expect(queue.loadInput(claimed!)).rejects.toThrow(
+      'Backtest job has no immutable dataset snapshot',
+    );
+
+    const failed = await queue.failClaim(
+      claimed!,
+      new InvalidDatasetSnapshotError(
+        'Backtest job has no immutable dataset snapshot',
+      ),
+      'PERMANENT',
+    );
+    expect(failed).toBe(true);
+
+    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    expect(jobInDb.status).toBe('FAILED');
+    expect(jobInDb.failureCategory).toBe('PERMANENT');
+    expect(jobInDb.retryCount).toBe(1);
   });
 
   it('should not allow concurrent claims of the same job (SKIP LOCKED)', async () => {
@@ -385,5 +410,131 @@ describe('PostgresJobQueue Integration', () => {
     expect(jobInDb.status).toBe('CLAIMED');
     expect(jobInDb.workerId).toBe('worker-2');
     expect(jobInDb.error).toBeNull();
+  });
+
+  it('enforces stale fencing: stale worker cannot emit BacktestCompleted terminal event on failure', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    // Worker 1 claims
+    const staleClaim = await queue.claim('worker-1');
+    expect(staleClaim).not.toBeNull();
+
+    // Expire lease
+    const past = new Date(Date.now() - 10_000);
+    await prisma.backtestJob.update({
+      where: { id: jobId },
+      data: { leaseExpiresAt: past },
+    });
+
+    // Worker 2 reclaims
+    const activeClaim = await queue.claim('worker-2');
+    expect(activeClaim).not.toBeNull();
+
+    // Stale worker 1 tries to fail terminal with PERMANENT
+    const failedAttempt = await queue.failClaim(
+      staleClaim!,
+      new InvalidConfigError('stale bad config'),
+      'PERMANENT',
+    );
+    expect(failedAttempt).toBe(false);
+
+    // Verify NO BacktestCompleted was emitted for this job
+    const outbox = await prisma.outboxEvent.findMany({
+      where: { name: 'BacktestCompleted' },
+    });
+    const terminalEvent = outbox.find(
+      (e) => (e.payload as { jobId?: string }).jobId === jobId,
+    );
+    expect(terminalEvent).toBeUndefined();
+  });
+
+  it('fails permanently when snapshot candles are invalid or empty', async () => {
+    const snapshot = await prisma.datasetSnapshot.create({
+      data: {
+        candles: [{ invalid: 'candle' }],
+        endTime: 1_000,
+        fingerprint: `malformed-snap-${Date.now()}`,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        timeframe: '1m',
+        warmupCandleCount: 0,
+      },
+    });
+    snapshotIds.push(snapshot.id);
+    const experiment = await prisma.experiment.create({
+      data: {
+        datasetSnapshotId: snapshot.id,
+        ownerId,
+        strategyVersionId: strategyVerId,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        endTime: 1000,
+        initialInvestment: 100,
+        transactionCost: 0,
+        slippage: 0,
+      },
+    });
+    experimentIds.push(experiment.id);
+    const jobId = await queue.enqueue(experiment.id, ownerId);
+
+    const claimed = await queue.claim('worker-1');
+    expect(claimed).not.toBeNull();
+    expect(claimed!.id).toBe(jobId);
+
+    await expect(queue.loadInput(claimed!)).rejects.toThrow(
+      'Dataset snapshot contains malformed candle data',
+    );
+  });
+
+  it('fails permanently when execution parameters are invalid', async () => {
+    const snapshot = await prisma.datasetSnapshot.create({
+      data: {
+        candles: [
+          {
+            close: 100,
+            closeTime: 59_999,
+            high: 101,
+            isClosed: true,
+            low: 99,
+            open: 100,
+            openTime: 0,
+            pair: 'BTCUSDT',
+            timeframe: '1m',
+            volume: 10,
+          },
+        ],
+        endTime: 60_000,
+        fingerprint: `valid-snap-${Date.now()}`,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        timeframe: '1m',
+        warmupCandleCount: 0,
+      },
+    });
+    snapshotIds.push(snapshot.id);
+    const experiment = await prisma.experiment.create({
+      data: {
+        datasetSnapshotId: snapshot.id,
+        ownerId,
+        strategyVersionId: strategyVerId,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        endTime: 60_000,
+        initialInvestment: -500,
+        transactionCost: 0,
+        slippage: 0,
+      },
+    });
+    experimentIds.push(experiment.id);
+    const jobId = await queue.enqueue(experiment.id, ownerId);
+
+    const claimed = await queue.claim('worker-1');
+    expect(claimed).not.toBeNull();
+    expect(claimed!.id).toBe(jobId);
+
+    await expect(queue.loadInput(claimed!)).rejects.toThrow(
+      'Initial investment must be a finite positive number',
+    );
   });
 });
