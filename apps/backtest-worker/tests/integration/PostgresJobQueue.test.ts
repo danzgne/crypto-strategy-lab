@@ -2,9 +2,10 @@ import { describe, it, expect, beforeEach, beforeAll, afterAll } from 'vitest';
 import { PostgresJobQueue } from '../../src/queue/PostgresJobQueue';
 import {
   createPrismaClient,
-  WorkerPrismaClient,
+  type WorkerPrismaClient,
 } from '../../src/database/prismaClient';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
+import { InvalidConfigError } from '../../src/errors';
 
 describe('PostgresJobQueue Integration', () => {
   let prisma: WorkerPrismaClient;
@@ -23,7 +24,6 @@ describe('PostgresJobQueue Integration', () => {
     const repo = new PrismaJobRepository(prisma);
     queue = new PostgresJobQueue(repo);
 
-    // Create a dedicated test user
     const user = await prisma.user.upsert({
       where: { email: 'test-queue@example.com' },
       update: {},
@@ -41,7 +41,6 @@ describe('PostgresJobQueue Integration', () => {
     await prisma.strategyVersion.deleteMany({ where: { ownerId } });
     await prisma.strategyDefinition.deleteMany({ where: { ownerId } });
 
-    // create def
     const def = await prisma.strategyDefinition.create({
       data: {
         ownerId,
@@ -53,7 +52,6 @@ describe('PostgresJobQueue Integration', () => {
     });
     strategyDefId = def.id;
 
-    // create version
     const ver = await prisma.strategyVersion.create({
       data: {
         ownerId,
@@ -67,7 +65,6 @@ describe('PostgresJobQueue Integration', () => {
   });
 
   afterAll(async () => {
-    // clean up
     await prisma.trade.deleteMany({
       where: { experimentId: { in: experimentIds } },
     });
@@ -110,7 +107,7 @@ describe('PostgresJobQueue Integration', () => {
       data: {
         candles: [],
         endTime: 1_000,
-        fingerprint: `queue-test-${Date.now()}-${snapshotIds.length}`,
+        fingerprint: `queue-test-${Date.now()}-${snapshotIds.length}-${Math.random()}`,
         pair: 'BTCUSDT',
         startTime: 0,
         timeframe: '1m',
@@ -177,57 +174,216 @@ describe('PostgresJobQueue Integration', () => {
     expect(successfulClaims.length).toBe(1);
   });
 
-  it('should transition to FAILED after 3 retries', async () => {
+  it('handles delayed eligibility: cannot be claimed before nextEligibleAt, claimable after', async () => {
     const exp = await createExperiment();
     const jobId = await queue.enqueue(exp.id, ownerId);
 
-    // 1st fail
-    const c1 = await queue.claim('worker-1');
-    await queue.fail(c1!.id, new Error('error 1'));
+    const claimed = await queue.claim('worker-1');
+    expect(claimed).not.toBeNull();
 
-    // 2nd fail
-    const c2 = await queue.claim('worker-1');
-    expect(c2!.retryCount).toBe(1);
-    await queue.fail(c2!.id, new Error('error 2'));
+    // Transient failure schedules nextEligibleAt in future (~1s + jitter)
+    await queue.failClaim(claimed!, new Error('database timeout'), 'TRANSIENT');
 
-    // 3rd fail
-    const c3 = await queue.claim('worker-1');
-    expect(c3!.retryCount).toBe(2);
-    await queue.fail(c3!.id, new Error('error 3'));
+    // Immediate claim should return null (delayed eligibility enforced)
+    const tooEarly = await queue.claim('worker-1');
+    expect(tooEarly).toBeNull();
 
-    // 4th fail
-    const c4 = await queue.claim('worker-1');
-    expect(c4!.retryCount).toBe(3);
-    await queue.fail(c4!.id, new Error('error 4'));
-
-    // 5th claim should be null (failed)
-    const c5 = await queue.claim('worker-1');
-    expect(c5).toBeNull();
-
-    const jobInDb = await prisma.backtestJob.findUnique({
-      where: { id: jobId },
-    });
-    expect(jobInDb!.status).toBe('FAILED');
-    expect(jobInDb!.retryCount).toBe(4);
-  });
-
-  it('should reclaim a job that has been stuck in CLAIMED for >5 mins', async () => {
-    const exp = await createExperiment();
-    const jobId = await queue.enqueue(exp.id, ownerId);
-
-    // Claim it
-    await queue.claim('worker-1');
-
-    // Manually push claimedAt back by 6 minutes
-    const sixMinutesAgo = new Date(Date.now() - 6 * 60 * 1000);
+    // Fast-forward nextEligibleAt to the past
     await prisma.backtestJob.update({
       where: { id: jobId },
-      data: { claimedAt: sixMinutesAgo, leaseExpiresAt: sixMinutesAgo },
+      data: { nextEligibleAt: new Date(Date.now() - 1_000) },
     });
 
-    // Should be able to claim again
+    // Now it should be claimable
+    const eligibleClaim = await queue.claim('worker-1');
+    expect(eligibleClaim).not.toBeNull();
+    expect(eligibleClaim!.id).toBe(jobId);
+    expect(eligibleClaim!.retryCount).toBe(1);
+  });
+
+  it('handles both failure classes: permanent failure transitions immediately to FAILED', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    const claimed = await queue.claim('worker-1');
+    expect(claimed).not.toBeNull();
+
+    // Permanent failure
+    const failed = await queue.failClaim(
+      claimed!,
+      new InvalidConfigError('unsupported parameters'),
+    );
+    expect(failed).toBe(true);
+
+    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    expect(jobInDb.status).toBe('FAILED');
+    expect(jobInDb.failureCategory).toBe('PERMANENT');
+    expect(jobInDb.failedAt).not.toBeNull();
+    expect(jobInDb.error).toBe('unsupported parameters');
+
+    // Job cannot be claimed again
+    const nextClaim = await queue.claim('worker-1');
+    expect(nextClaim).toBeNull();
+
+    // Terminal BacktestCompleted event created
+    const outbox = await prisma.outboxEvent.findMany({
+      where: {
+        name: 'BacktestCompleted',
+      },
+    });
+    const jobEvent = outbox.find(
+      (e) => (e.payload as { jobId?: string }).jobId === jobId,
+    );
+    expect(jobEvent).toBeDefined();
+  });
+
+  it('handles lease expiry: reclaim consumes the attempt (bumps retryCount)', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    // Initial claim (attempt 1, retryCount 0)
+    const claimed1 = await queue.claim('worker-1');
+    expect(claimed1).not.toBeNull();
+    expect(claimed1!.retryCount).toBe(0);
+
+    // Stale lease: worker-1 crashed, lease expired
+    const past = new Date(Date.now() - 10_000);
+    await prisma.backtestJob.update({
+      where: { id: jobId },
+      data: { claimedAt: past, leaseExpiresAt: past },
+    });
+
+    // Worker 2 reclaims: expired-lease reclaim consumes the attempt!
     const reclaimed = await queue.claim('worker-2');
     expect(reclaimed).not.toBeNull();
     expect(reclaimed!.id).toBe(jobId);
+    expect(reclaimed!.workerId).toBe('worker-2');
+    expect(reclaimed!.retryCount).toBe(1);
+  });
+
+  it('reaches FAILED after retry exhaustion (4 total attempts)', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    // Helper to fast-forward nextEligibleAt
+    const makeEligible = async () => {
+      await prisma.backtestJob.update({
+        where: { id: jobId },
+        data: { nextEligibleAt: new Date(Date.now() - 1_000) },
+      });
+    };
+
+    // Attempt 1 (retryCount 0)
+    const c1 = await queue.claim('worker-1');
+    expect(c1!.retryCount).toBe(0);
+    await queue.failClaim(c1!, new Error('error 1'), 'TRANSIENT');
+    await makeEligible();
+
+    // Attempt 2 (retryCount 1)
+    const c2 = await queue.claim('worker-1');
+    expect(c2!.retryCount).toBe(1);
+    await queue.failClaim(c2!, new Error('error 2'), 'TRANSIENT');
+    await makeEligible();
+
+    // Attempt 3 (retryCount 2)
+    const c3 = await queue.claim('worker-1');
+    expect(c3!.retryCount).toBe(2);
+    await queue.failClaim(c3!, new Error('error 3'), 'TRANSIENT');
+    await makeEligible();
+
+    // Attempt 4 (retryCount 3)
+    const c4 = await queue.claim('worker-1');
+    expect(c4!.retryCount).toBe(3);
+    await queue.failClaim(c4!, new Error('error 4'), 'TRANSIENT');
+
+    // 5th claim should be null: job exhausted 4 attempts
+    const c5 = await queue.claim('worker-1');
+    expect(c5).toBeNull();
+
+    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    expect(jobInDb.status).toBe('FAILED');
+    expect(jobInDb.retryCount).toBe(4);
+    expect(jobInDb.failedAt).not.toBeNull();
+    expect(jobInDb.failureCategory).toBe('TRANSIENT');
+  });
+
+  it('reaps terminal expired leases: 4th attempt lease expiry transitions to FAILED', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    // Simulate a job on its 4th attempt (retryCount: 3) whose lease expired
+    const past = new Date(Date.now() - 10_000);
+    await prisma.backtestJob.update({
+      where: { id: jobId },
+      data: {
+        status: 'CLAIMED',
+        workerId: 'worker-crashed',
+        leaseToken: '00000000-0000-0000-0000-000000000001',
+        claimedAt: past,
+        leaseExpiresAt: past,
+        retryCount: 3,
+      },
+    });
+
+    // Claim next job will reap the terminal expired lease
+    const claimed = await queue.claim('worker-active');
+    expect(claimed).toBeNull(); // No other pending jobs
+
+    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    expect(jobInDb.status).toBe('FAILED');
+    expect(jobInDb.retryCount).toBe(4);
+    expect(jobInDb.failedAt).not.toBeNull();
+    expect(jobInDb.failureCategory).toBe('TRANSIENT');
+
+    // Emitted BacktestCompleted
+    const outbox = await prisma.outboxEvent.findMany({
+      where: { name: 'BacktestCompleted' },
+    });
+    const terminalEvent = outbox.find(
+      (e) => (e.payload as { jobId?: string }).jobId === jobId,
+    );
+    expect(terminalEvent).toBeDefined();
+  });
+
+  it('enforces stale fencing: stale worker cannot fail or complete a reclaimed job', async () => {
+    const exp = await createExperiment();
+    const jobId = await queue.enqueue(exp.id, ownerId);
+
+    // Worker 1 claims
+    const staleClaim = await queue.claim('worker-1');
+    expect(staleClaim).not.toBeNull();
+
+    // Expire lease
+    const past = new Date(Date.now() - 10_000);
+    await prisma.backtestJob.update({
+      where: { id: jobId },
+      data: { leaseExpiresAt: past },
+    });
+
+    // Worker 2 reclaims
+    const activeClaim = await queue.claim('worker-2');
+    expect(activeClaim).not.toBeNull();
+    expect(activeClaim!.workerId).toBe('worker-2');
+
+    // Stale Worker 1 tries to record failure -> fenced!
+    const failedAttempt = await queue.failClaim(
+      staleClaim!,
+      new Error('stale error'),
+    );
+    expect(failedAttempt).toBe(false);
+
+    // Job in DB is still in Worker 2's active claim
+    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
+      where: { id: jobId },
+    });
+    expect(jobInDb.status).toBe('CLAIMED');
+    expect(jobInDb.workerId).toBe('worker-2');
+    expect(jobInDb.error).toBeNull();
   });
 });

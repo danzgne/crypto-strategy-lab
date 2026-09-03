@@ -1,3 +1,5 @@
+export type JobFailureCategory = 'TRANSIENT' | 'PERMANENT';
+
 export interface Job {
   id: string;
   experimentId: string;
@@ -8,6 +10,11 @@ export interface Job {
   leaseExpiresAt: Date | null;
   retryCount: number;
   error: string | null;
+  failureCategory?: JobFailureCategory | null | undefined;
+  nextEligibleAt?: Date | null | undefined;
+  failedAt?: Date | null | undefined;
+  createdAt?: Date | undefined;
+  updatedAt?: Date | undefined;
 }
 
 export interface IJobQueue {

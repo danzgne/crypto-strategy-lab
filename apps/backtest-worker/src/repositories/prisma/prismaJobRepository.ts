@@ -4,9 +4,12 @@ import type {
   AnyDomainEvent,
   Candle,
   Job,
+  JobFailureCategory,
   Timeframe,
 } from '@crypto-strategy-lab/shared';
 import {
+  classifyError,
+  computeNextEligibleAt,
   createDomainEvent,
   formatStrategyDisplay,
 } from '@crypto-strategy-lab/shared';
@@ -20,6 +23,7 @@ import type {
   PersistedBacktestOutcome,
 } from '../../worker/types';
 import { JobLeaseLostError } from '../../errors/JobLeaseLostError';
+import { InvalidDatasetSnapshotError } from '../../errors/InvalidDatasetSnapshotError';
 
 const DEFAULT_LEASE_DURATION_MS = 5 * 60 * 1000;
 const MAX_RETRIES = 4;
@@ -46,29 +50,26 @@ export class PrismaJobRepository implements JobRepository {
 
   public async claimNextJob(workerId: string): Promise<Job | null> {
     const leaseToken = randomUUID();
-    const jobs = await this.prisma.$queryRaw<RawClaimedJob[]>`
-      UPDATE backtest_jobs
-      SET status = 'CLAIMED',
-          "claimedAt" = NOW(),
-          "workerId" = ${workerId},
-          "leaseToken" = ${leaseToken},
-          "leaseExpiresAt" = NOW() + (${this.leaseDurationMs} * INTERVAL '1 millisecond'),
-          "updatedAt" = NOW()
-      WHERE id = (
-        SELECT id
-        FROM backtest_jobs
-        WHERE (
-          (
-            status = 'PENDING'
-            AND EXISTS (
-              SELECT 1
-              FROM experiments
-              WHERE experiments.id = backtest_jobs."experimentId"
-                AND experiments."datasetSnapshotId" IS NOT NULL
-            )
-          )
-          OR (
-            status = 'CLAIMED'
+
+    return this.prisma.$transaction(async (transaction) => {
+      // 1. Reap terminal expired leases (attempt 4 timed out)
+      const terminalExpired = await transaction.$queryRaw<
+        Array<{ id: string; experimentId: string }>
+      >`
+        UPDATE backtest_jobs
+        SET status = 'FAILED',
+            "failedAt" = NOW(),
+            "failureCategory" = 'TRANSIENT',
+            error = 'Job lease expired after maximum attempts',
+            "leaseExpiresAt" = NULL,
+            "leaseToken" = NULL,
+            "workerId" = NULL,
+            "retryCount" = "retryCount" + 1,
+            "updatedAt" = NOW()
+        WHERE id IN (
+          SELECT id
+          FROM backtest_jobs
+          WHERE status = 'CLAIMED'
             AND (
               "leaseExpiresAt" < NOW()
               OR (
@@ -76,25 +77,96 @@ export class PrismaJobRepository implements JobRepository {
                 AND "claimedAt" < NOW() - (${this.leaseDurationMs} * INTERVAL '1 millisecond')
               )
             )
-          )
+            AND "retryCount" >= ${MAX_RETRIES - 1}
+          FOR UPDATE SKIP LOCKED
         )
-        ORDER BY "createdAt", id
-        FOR UPDATE SKIP LOCKED
-        LIMIT 1
-      )
-      RETURNING id, "experimentId", status, "claimedAt", "workerId",
-        "leaseToken", "leaseExpiresAt", "retryCount", error;
-    `;
+        RETURNING id, "experimentId";
+      `;
 
-    const job = jobs[0];
-    return job === undefined ? null : normalizeClaimedJob(job);
+      for (const reaped of terminalExpired) {
+        await createOutboxEvent(
+          transaction,
+          createDomainEvent('BacktestCompleted', {
+            experimentId: reaped.experimentId,
+            jobId: reaped.id,
+          }),
+        );
+      }
+
+      // 2. Claim next eligible job with deterministic schedule/creation ordering
+      const jobs = await transaction.$queryRaw<RawClaimedJob[]>`
+        UPDATE backtest_jobs
+        SET status = 'CLAIMED',
+            "claimedAt" = NOW(),
+            "workerId" = ${workerId},
+            "leaseToken" = ${leaseToken},
+            "leaseExpiresAt" = NOW() + (${this.leaseDurationMs} * INTERVAL '1 millisecond'),
+            "retryCount" = CASE
+              WHEN backtest_jobs.status = 'CLAIMED' THEN backtest_jobs."retryCount" + 1
+              ELSE backtest_jobs."retryCount"
+            END,
+            "updatedAt" = NOW()
+        WHERE id = (
+          SELECT id
+          FROM backtest_jobs
+          WHERE (
+            (
+              status = 'PENDING'
+              AND ("nextEligibleAt" IS NULL OR "nextEligibleAt" <= NOW())
+              AND EXISTS (
+                SELECT 1
+                FROM experiments
+                WHERE experiments.id = backtest_jobs."experimentId"
+                  AND experiments."datasetSnapshotId" IS NOT NULL
+              )
+            )
+            OR (
+              status = 'CLAIMED'
+              AND (
+                "leaseExpiresAt" < NOW()
+                OR (
+                  "leaseExpiresAt" IS NULL
+                  AND "claimedAt" < NOW() - (${this.leaseDurationMs} * INTERVAL '1 millisecond')
+                )
+              )
+              AND "retryCount" < ${MAX_RETRIES - 1}
+            )
+          )
+          ORDER BY COALESCE("nextEligibleAt", "createdAt") ASC, "createdAt" ASC, id ASC
+          FOR UPDATE SKIP LOCKED
+          LIMIT 1
+        )
+        RETURNING id, "experimentId", status, "claimedAt", "workerId",
+          "leaseToken", "leaseExpiresAt", "retryCount", error, "failureCategory",
+          "nextEligibleAt", "failedAt", "createdAt", "updatedAt";
+      `;
+
+      const job = jobs[0];
+      return job === undefined ? null : normalizeClaimedJob(job);
+    });
   }
 
   public async findById(jobId: string): Promise<Job | null> {
     const job = await this.prisma.backtestJob.findUnique({
       where: { id: jobId },
     });
-    return job as unknown as Job | null;
+    if (job === null) return null;
+    return {
+      claimedAt: job.claimedAt,
+      createdAt: job.createdAt,
+      error: job.error,
+      experimentId: job.experimentId,
+      failureCategory: job.failureCategory as Job['failureCategory'],
+      failedAt: job.failedAt,
+      id: job.id,
+      leaseExpiresAt: job.leaseExpiresAt,
+      leaseToken: job.leaseToken,
+      nextEligibleAt: job.nextEligibleAt,
+      retryCount: job.retryCount,
+      status: job.status as Job['status'],
+      updatedAt: job.updatedAt,
+      workerId: job.workerId,
+    };
   }
 
   public async startJob(job: ClaimedBacktestJob): Promise<void> {
@@ -142,7 +214,9 @@ export class PrismaJobRepository implements JobRepository {
       where: leaseWhere(job),
     });
     if (record === null || record.experiment.datasetSnapshot === null) {
-      throw new Error('Backtest job has no immutable dataset snapshot');
+      throw new InvalidDatasetSnapshotError(
+        'Backtest job has no immutable dataset snapshot',
+      );
     }
 
     return {
@@ -202,7 +276,7 @@ export class PrismaJobRepository implements JobRepository {
           leaseToken: null,
           status: 'COMPLETED',
           updatedAt: new Date(),
-          workerId: null,
+          workerId: job.workerId,
         },
         where: leaseWhere(job),
       });
@@ -286,7 +360,10 @@ export class PrismaJobRepository implements JobRepository {
   public async failJob(
     job: ClaimedBacktestJob,
     error: Error,
+    category?: JobFailureCategory,
   ): Promise<boolean> {
+    const failureCategory = category ?? classifyError(error);
+
     return this.prisma.$transaction(async (transaction) => {
       const current = await transaction.backtestJob.findFirst({
         select: { retryCount: true },
@@ -295,17 +372,34 @@ export class PrismaJobRepository implements JobRepository {
       if (current === null) return false;
 
       const retryCount = current.retryCount + 1;
-      const status = retryCount >= MAX_RETRIES ? 'FAILED' : 'PENDING';
+      let status: 'PENDING' | 'FAILED';
+      let nextEligibleAt: Date | null = null;
+      let failedAt: Date | null = null;
+
+      if (failureCategory === 'PERMANENT') {
+        status = 'FAILED';
+        failedAt = new Date();
+      } else if (retryCount >= MAX_RETRIES) {
+        status = 'FAILED';
+        failedAt = new Date();
+      } else {
+        status = 'PENDING';
+        nextEligibleAt = computeNextEligibleAt(retryCount);
+      }
+
       const updated = await transaction.backtestJob.updateMany({
         data: {
           claimedAt: status === 'PENDING' ? null : job.claimedAt,
           error: error.message,
+          failedAt,
+          failureCategory,
           leaseExpiresAt: null,
           leaseToken: null,
+          nextEligibleAt,
           retryCount,
           status,
           updatedAt: new Date(),
-          workerId: null,
+          workerId: status === 'PENDING' ? null : job.workerId,
         },
         where: leaseWhere(job),
       });
@@ -335,18 +429,28 @@ interface RawClaimedJob {
   leaseExpiresAt: Date | null;
   retryCount: number;
   error: string | null;
+  failureCategory: string | null;
+  nextEligibleAt: Date | null;
+  failedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 function normalizeClaimedJob(job: RawClaimedJob): Job {
   return {
     claimedAt: job.claimedAt,
+    createdAt: job.createdAt,
     error: job.error,
     experimentId: job.experimentId,
+    failureCategory: job.failureCategory as Job['failureCategory'],
+    failedAt: job.failedAt,
     id: job.id,
     leaseExpiresAt: job.leaseExpiresAt,
     leaseToken: job.leaseToken,
+    nextEligibleAt: job.nextEligibleAt,
     retryCount: job.retryCount,
     status: job.status as Job['status'],
+    updatedAt: job.updatedAt,
     workerId: job.workerId,
   };
 }

@@ -1,4 +1,4 @@
-import type { Job } from '@crypto-strategy-lab/shared';
+import type { Job, JobFailureCategory } from '@crypto-strategy-lab/shared';
 import type {
   BacktestExecutionInput,
   ClaimedBacktestJob,
@@ -16,5 +16,9 @@ export interface JobRepository {
     job: ClaimedBacktestJob,
     outcome: PersistedBacktestOutcome,
   ): Promise<boolean>;
-  failJob(job: ClaimedBacktestJob, error: Error): Promise<boolean>;
+  failJob(
+    job: ClaimedBacktestJob,
+    error: Error,
+    category?: JobFailureCategory,
+  ): Promise<boolean>;
 }

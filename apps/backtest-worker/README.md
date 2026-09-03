@@ -327,3 +327,58 @@ All worker tests live in the central `tests/` directory outside `src/`:
 - fixtures preserve exact candles, strategy versions, parameters, costs, and expected deterministic outcomes.
 
 Production readiness requires structured logs containing the worker ID, job ID, candidate ID, attempt number, duration, and final state. Tests must verify behavior, while logs and heartbeat state make long-running jobs observable in production.
+
+## Bounded failure contract (Issue #84)
+
+The backtest job queue strictly bounds job attempts and classifies failures:
+
+1. **Max 4 attempts**: A job receives at most four attempts across explicit transient failures and expired-lease reclaims.
+2. **Failure classification**:
+   - `PERMANENT`: Invalid configuration, invalid or missing Dataset Snapshot, and unsupported execution inputs transition immediately to `FAILED` without additional claims.
+   - `TRANSIENT`: Network timeouts, database contention, process interruption, and lease losses schedule retries with exponential backoff and jitter.
+3. **Exponential backoff with jitter**:
+   - Begins at 1 second, doubles exponentially, capped at 5 minutes (`min(300_000, 1000 * 2^(retryCount-1)) + jitter`).
+   - `nextEligibleAt` is persisted on the `BacktestJob` row.
+4. **Deterministic atomic claims**:
+   - Claims order by `COALESCE("nextEligibleAt", "createdAt") ASC, "createdAt" ASC, id ASC` with `FOR UPDATE SKIP LOCKED`.
+5. **Lease fencing & terminal events**:
+   - A fourth failure or expired lease reaches `FAILED` and records `BacktestCompleted` in `event_outbox` inside the fenced transaction.
+   - Stale workers whose leases expired or were reclaimed cannot mutate job state or persist results.
+
+## Scaling & benchmark procedure (Issue #89)
+
+Workers are horizontally scalable without changes to strategy, backtest, evaluation, ranking, or search code. Each process auto-generates a unique identity (`backtest-worker-<hostname>-<pid>-<random>`) and writes an independent `ServiceHeartbeat` row.
+
+### Scaling via Docker Compose
+
+```bash
+# Scale backtest workers to 1, 2, or 4 replicas:
+docker compose up --scale backtest-worker=4 -d
+```
+
+Every container replica writes an independent heartbeat in `service_heartbeats` and claims jobs concurrently via `FOR UPDATE SKIP LOCKED` without collision.
+
+### Running the benchmark
+
+The benchmark command creates a disposable synthetic campaign outside CI and measures throughput, latency percentiles, retries, and database load:
+
+```bash
+# In-process scaling benchmark (1, 2, or 4 workers):
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=1
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=2
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4
+
+# Against external workers (e.g. running in Docker Compose or separate terminals):
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000
+
+# JSON output for machine parsing:
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4 --json
+```
+
+### Representative strategy benchmark
+
+To exercise real strategy logic (MA, RSI, Bollinger Bands, and Composite strategies) against an immutable 100-candle dataset snapshot under queue execution:
+
+```bash
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark:representative
+```

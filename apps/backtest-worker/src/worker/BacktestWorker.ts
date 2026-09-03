@@ -1,4 +1,5 @@
 import type { CompositeStrategyRequest } from '@crypto-strategy-lab/shared';
+import { classifyError } from '@crypto-strategy-lab/shared';
 import '@crypto-strategy-lab/strategy-engine/strategies';
 import {
   assertStrategyApplicable,
@@ -10,7 +11,11 @@ import {
 
 import { HistoricalBacktester, type Backtester } from '../backtesting';
 import { DefaultEvaluator, type Evaluator } from '../evaluation';
-import { JobLeaseLostError } from '../errors/JobLeaseLostError';
+import {
+  InvalidConfigError,
+  JobLeaseLostError,
+  UnsupportedExecutionInputError,
+} from '../errors';
 import type { AppLogger } from '../utils/logger';
 import type { BacktestJobQueue } from '../queue/PostgresJobQueue';
 import type { ClaimedBacktestJob, BacktestExecutionInput } from './types';
@@ -118,6 +123,15 @@ export class BacktestWorker {
   private async processJob(job: ClaimedBacktestJob): Promise<void> {
     let leaseLost = false;
     let leaseTimer: ReturnType<typeof setInterval> | undefined;
+    const executionStartTime = Date.now();
+    const queueWaitMs = job.createdAt
+      ? Math.max(
+          0,
+          (job.claimedAt?.getTime() ?? executionStartTime) -
+            job.createdAt.getTime(),
+        )
+      : null;
+
     try {
       await this.queue.start(job);
       leaseTimer = setInterval(() => {
@@ -129,7 +143,12 @@ export class BacktestWorker {
           .catch((error: unknown) => {
             leaseLost = true;
             this.logger.error(
-              { err: error, jobId: job.id, workerId: this.workerId },
+              {
+                err: error,
+                jobId: job.id,
+                workerId: this.workerId,
+                leaseLost: true,
+              },
               'Backtest job lease renewal failed',
             );
           });
@@ -137,9 +156,8 @@ export class BacktestWorker {
       leaseTimer.unref();
 
       const input = await this.queue.loadInput(job);
-      const strategy = createStrategy(input);
-      assertStrategyBacktestable(strategy);
-      assertStrategyApplicable(strategy, input.pair, input.timeframe);
+      const strategy = safelyCreateStrategy(input);
+      safelyAssertStrategy(strategy, input.pair, input.timeframe);
       const simulation = this.backtester.run({ ...input, strategy });
       if (leaseLost) throw new JobLeaseLostError(job.id);
 
@@ -152,29 +170,66 @@ export class BacktestWorker {
         trades: simulation.trades,
       });
       if (!persisted) throw new JobLeaseLostError(job.id);
+
+      const executionDurationMs = Date.now() - executionStartTime;
       this.logger.info(
-        { experimentId: job.experimentId, jobId: job.id },
+        {
+          attempt: job.retryCount,
+          executionDurationMs,
+          experimentId: job.experimentId,
+          jobId: job.id,
+          queueWaitMs,
+          workerId: this.workerId,
+        },
         'Backtest job completed',
       );
     } catch (error) {
+      const executionDurationMs = Date.now() - executionStartTime;
+      const normalizedError =
+        error instanceof Error ? error : new Error(String(error));
+      const failureCategory = classifyError(normalizedError);
+
       this.logger.error(
-        { err: error, experimentId: job.experimentId, jobId: job.id },
+        {
+          attempt: job.retryCount,
+          err: normalizedError,
+          executionDurationMs,
+          experimentId: job.experimentId,
+          failureCategory,
+          jobId: job.id,
+          leaseLost,
+          queueWaitMs,
+          workerId: this.workerId,
+        },
         'Backtest job failed',
       );
       try {
         const failed = await this.queue.failClaim(
           job,
-          error instanceof Error ? error : new Error(String(error)),
+          normalizedError,
+          failureCategory,
         );
         if (!failed) {
           this.logger.warn(
-            { jobId: job.id, workerId: this.workerId },
+            {
+              attempt: job.retryCount,
+              failureCategory,
+              jobId: job.id,
+              leaseLost: true,
+              workerId: this.workerId,
+            },
             'Backtest failure could not be recorded because the lease was lost',
           );
         }
       } catch (failureError) {
         this.logger.error(
-          { err: failureError, jobId: job.id, workerId: this.workerId },
+          {
+            attempt: job.retryCount,
+            err: failureError,
+            failureCategory,
+            jobId: job.id,
+            workerId: this.workerId,
+          },
           'Backtest failure persistence failed',
         );
       }
@@ -188,12 +243,40 @@ export class BacktestWorker {
   }
 }
 
+function safelyCreateStrategy(input: BacktestExecutionInput): Strategy {
+  try {
+    return createStrategy(input);
+  } catch (error) {
+    if (error instanceof InvalidConfigError) throw error;
+    throw new InvalidConfigError(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
+function safelyAssertStrategy(
+  strategy: Strategy,
+  pair: BacktestExecutionInput['pair'],
+  timeframe: BacktestExecutionInput['timeframe'],
+): void {
+  try {
+    assertStrategyBacktestable(strategy);
+    assertStrategyApplicable(strategy, pair, timeframe);
+  } catch (error) {
+    throw new UnsupportedExecutionInputError(
+      error instanceof Error ? error.message : String(error),
+    );
+  }
+}
+
 function createStrategy(input: BacktestExecutionInput): Strategy {
   if (input.strategyId !== 'composite') {
     return StrategyRegistry.create(input.strategyId, input.strategyParams);
   }
   if (!isCompositeRequest(input.strategyParams)) {
-    throw new Error('Stored composite strategy definition is invalid');
+    throw new InvalidConfigError(
+      'Stored composite strategy definition is invalid',
+    );
   }
   const engine = new CombinationEngine();
   const members = input.strategyParams.members.map((member) => {
