@@ -722,6 +722,49 @@ describe('SearchCoordinator', () => {
     expect(state?.stopReason).toBe('TIME_BUDGET');
   });
 
+  it('does not discard a candidate whose applicability is the USDT_ALL wildcard (issue #103 follow-up)', async () => {
+    class WildcardApplicabilityGenerator implements StrategyGenerator {
+      private count = 0;
+      public generate(): CandidateStrategy {
+        this.count++;
+        return {
+          fingerprint: `fp-wildcard-${this.count}`,
+          parameterSnapshots: [
+            { applicability: { pairs: 'USDT_ALL' }, timeframe: '1h' },
+          ],
+          provenance: { algorithm: 'fake', generationOrdinal: this.count },
+          strategyIds: ['rule'],
+        };
+      }
+    }
+
+    const coordinator = new SearchCoordinator({
+      enqueueJob: async (_transaction, input) => {
+        enqueuedJobs.push(input);
+        return `job-${enqueuedJobs.length}`;
+      },
+      eventBus: fakeEventBus,
+      historyProvider: defaultHistoryProvider,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await coordinator.start();
+
+    // defaultSearchSpace.pair is 'BTCUSDT', which the USDT_ALL wildcard should cover.
+    const runId = await coordinator.startRun({
+      generator: new WildcardApplicabilityGenerator(),
+      ownerId: 'user-1',
+      searchSpace: defaultSearchSpace,
+      stopPolicy: { maxCandidates: 2, maxInFlight: 10 },
+    });
+
+    await new Promise((r) => setTimeout(r, 50));
+
+    const state = coordinator.getRun(runId);
+    expect(enqueuedJobs.length).toBe(2);
+    expect(state?.acceptedCandidates).toBe(2);
+  });
+
   it('restores running search runs and seen fingerprints from database', async () => {
     fakePrisma.searchRun.findMany = vi.fn(async () => [
       {

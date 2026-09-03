@@ -23,7 +23,11 @@ import {
   searchSpaceMemberKey,
   TIMEFRAME_INTERVAL_MS,
 } from '@crypto-strategy-lab/shared';
-import { canonicalizeValue } from '@crypto-strategy-lab/shared/strategy';
+import {
+  canonicalizeValue,
+  pairMatchesRuleApplicability,
+} from '@crypto-strategy-lab/shared/strategy';
+import type { RuleApplicability } from '@crypto-strategy-lab/shared/strategy';
 import { computeStrategyVersionTag } from '@crypto-strategy-lab/shared/strategy-version';
 import {
   resolveStrategyImplementationVersion,
@@ -535,15 +539,10 @@ export class SearchCoordinator {
         ) {
           return true;
         }
-        const app = (params as Record<string, unknown>).applicability;
-        if (app && typeof app === 'object') {
-          const pairs = (app as Record<string, unknown>).pairs;
-          if (Array.isArray(pairs) && !pairs.includes(searchSpace.pair)) {
-            return true;
-          }
-          if (typeof pairs === 'string' && pairs !== searchSpace.pair) {
-            return true;
-          }
+        const applicability = (params as Record<string, unknown>)
+          .applicability as RuleApplicability | undefined;
+        if (!pairMatchesRuleApplicability(searchSpace.pair, applicability)) {
+          return true;
         }
       }
     }

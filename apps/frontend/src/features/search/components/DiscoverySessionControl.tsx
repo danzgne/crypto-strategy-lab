@@ -3,6 +3,8 @@
 import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
 import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared/search';
 import { isVersionMember } from '@crypto-strategy-lab/shared';
+import { pairMatchesRuleApplicability } from '@crypto-strategy-lab/shared/strategy';
+import type { RuleApplicability } from '@crypto-strategy-lab/shared/strategy';
 import type {
   EnabledStrategyDescriptor,
   LibraryBuiltin,
@@ -85,8 +87,6 @@ function builtinDisabledReason(builtin: LibraryBuiltin): string | null {
     : null;
 }
 
-// Mirrors the backend's own applicability check (searchCoordinator.hasApplicabilityConflict), so a
-// selection the UI shows as available never gets silently rejected once a session actually starts.
 function entryApplicabilityReason(
   entry: LibraryEntry,
   pair: Pair,
@@ -103,18 +103,10 @@ function entryApplicabilityReason(
     return `Only applies to ${declaredTimeframe}`;
   }
 
-  const applicability = params.applicability;
-  if (applicability && typeof applicability === 'object') {
-    const pairs = (applicability as Record<string, unknown>).pairs;
-    if (Array.isArray(pairs) && !pairs.includes(pair)) {
-      return `Not available for ${pair}`;
-    }
-    if (typeof pairs === 'string' && pairs !== pair) {
-      return `Not available for ${pair}`;
-    }
-  }
-
-  return null;
+  const applicability = params.applicability as RuleApplicability | undefined;
+  return pairMatchesRuleApplicability(pair, applicability)
+    ? null
+    : `Not available for ${pair}`;
 }
 
 function libraryEntryDisabledReason(

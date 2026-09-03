@@ -105,5 +105,8 @@ export function pairMatchesRuleApplicability(
   if (pairs === undefined) return true;
   const upperPair = pair.toUpperCase();
   if (pairs === 'USDT_ALL') return upperPair.endsWith('USDT');
-  return pairs.length === 0 || pairs.includes(upperPair);
+  return (
+    pairs.length === 0 ||
+    pairs.some((candidate) => candidate.toUpperCase() === upperPair)
+  );
 }

@@ -6,7 +6,11 @@ import type {
   StrategyContext,
 } from '@crypto-strategy-lab/shared';
 
-import { CombinationEngine, CombinationValidationError } from '../src';
+import {
+  assertStrategyApplicable,
+  CombinationEngine,
+  CombinationValidationError,
+} from '../src';
 
 const context: StrategyContext = {
   candles: [],
@@ -347,6 +351,35 @@ describe('CombinationEngine', () => {
         ],
         mode: 'majority',
       }),
+    ).not.toThrow();
+  });
+
+  it('never rejects a pair on the USDT_ALL wildcard, regardless of which USDT pair (issue #103 follow-up)', () => {
+    const strategy = makeStrategy(
+      'rule',
+      { action: 'HOLD' },
+      { applicability: { pairs: 'USDT_ALL' }, timeframe: '1h' },
+    );
+
+    for (const pair of ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT'] as const) {
+      expect(() =>
+        assertStrategyApplicable(strategy, pair, '1h'),
+      ).not.toThrow();
+    }
+    expect(() => assertStrategyApplicable(strategy, 'BTCBUSD', '1h')).toThrow(
+      /not applicable/i,
+    );
+  });
+
+  it('matches a lowercase-stored applicable pair against an uppercase pair', () => {
+    const strategy = makeStrategy(
+      'rule',
+      { action: 'HOLD' },
+      { applicability: { pairs: ['btcusdt'] }, timeframe: '1h' },
+    );
+
+    expect(() =>
+      assertStrategyApplicable(strategy, 'BTCUSDT', '1h'),
     ).not.toThrow();
   });
 

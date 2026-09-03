@@ -462,7 +462,7 @@ describe('SearchScheduler', () => {
         }),
       );
 
-      const [[startRunArgs]] = fakeCoordinator.startRun.mock.calls;
+      const startRunArgs = fakeCoordinator.startRun.mock.calls[0]?.[0];
       const resolvedMember = startRunArgs.searchSpace.enabledStrategies[0];
       expect(resolvedMember).toEqual({
         applicability: undefined,

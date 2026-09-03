@@ -10,7 +10,9 @@ import {
   canonicalStrategyVersionId,
   canonicalizeValue,
   formatStrategyType,
+  pairMatchesRuleApplicability,
 } from '@crypto-strategy-lab/shared/strategy';
+import type { RuleApplicabilityPairs } from '@crypto-strategy-lab/shared/strategy';
 
 import {
   COMPOSITE_STRATEGY_IMPLEMENTATION_ID,
@@ -65,7 +67,7 @@ interface NormalizedCompositeAssembly {
 export interface RuleApplicabilityDeclaration {
   readonly timeframe?: string;
   readonly applicability?: unknown;
-  readonly pairs?: string | readonly string[];
+  readonly pairs?: RuleApplicabilityPairs;
 }
 
 export type CombinationValidationCode =
@@ -580,12 +582,14 @@ export function readRuleApplicability(
       ? strategy.params['timeframe']
       : undefined;
   const applicability = strategy.params['applicability'];
-  const pairs =
-    isRecord(applicability) &&
-    (typeof applicability['pairs'] === 'string' ||
-      Array.isArray(applicability['pairs']))
-      ? applicability['pairs']
-      : undefined;
+  const rawPairs = isRecord(applicability) ? applicability['pairs'] : undefined;
+  const pairs: RuleApplicabilityPairs | undefined =
+    rawPairs === 'USDT_ALL'
+      ? 'USDT_ALL'
+      : Array.isArray(rawPairs) &&
+          rawPairs.every((p): p is string => typeof p === 'string')
+        ? rawPairs
+        : undefined;
   if (timeframe !== undefined || applicability !== undefined) {
     return {
       ...(timeframe === undefined ? {} : { timeframe }),
@@ -612,10 +616,9 @@ export function assertStrategyApplicable(
       `Strategy ${strategy.id} only applies to timeframe ${declaration.timeframe}, not ${timeframe}`,
     );
   }
-  if (
-    declaration.pairs !== undefined &&
-    !pairMatchesApplicability(pair, declaration.pairs)
-  ) {
+  const applicability =
+    declaration.pairs === undefined ? {} : { pairs: declaration.pairs };
+  if (!pairMatchesRuleApplicability(pair, applicability)) {
     throw new Error(
       `Strategy ${strategy.id} is not applicable to pair ${pair}`,
     );
@@ -628,26 +631,6 @@ export function assertStrategyBacktestable(strategy: Strategy): void {
       `Strategy ${strategy.id} is live-only and requires a sentiment snapshot for backtesting`,
     );
   }
-}
-
-function pairMatchesApplicability(
-  pair: Pair,
-  pairs: string | readonly string[],
-): boolean {
-  const upperPair = pair.toUpperCase();
-  if (pairs === 'USDT_ALL') return upperPair.endsWith('USDT');
-  if (!Array.isArray(pairs)) return false;
-  if (
-    !pairs.every(
-      (candidate): candidate is string => typeof candidate === 'string',
-    )
-  ) {
-    return false;
-  }
-  return (
-    pairs.length === 0 ||
-    pairs.some((candidate) => candidate.toUpperCase() === upperPair)
-  );
 }
 
 function formatStrategyName(strategy: Strategy): string {

@@ -1,6 +1,9 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import type { LibraryBuiltin } from '@crypto-strategy-lab/shared';
+import type {
+  LibraryBuiltin,
+  SingularLibraryEntry,
+} from '@crypto-strategy-lab/shared';
 import { DiscoverySessionControl } from '../../../../src/features/search/components/DiscoverySessionControl';
 import { DiscoveryProgressCard } from '../../../../src/features/search/components/DiscoveryProgressCard';
 import { DiscoveryRunHistoryTable } from '../../../../src/features/search/components/DiscoveryRunHistoryTable';
@@ -12,6 +15,37 @@ const builtins: LibraryBuiltin[] = [
   { strategyId: 'bb', paramsSchema: { properties: {}, type: 'object' } },
   { strategyId: 'sr', paramsSchema: { properties: {}, type: 'object' } },
 ];
+
+function makeRuleEntry(
+  overrides: Partial<SingularLibraryEntry> = {},
+): SingularLibraryEntry {
+  return {
+    archivedAt: null,
+    createdAt: new Date().toISOString(),
+    description: null,
+    id: 'entry-1',
+    kind: 'singular',
+    latestVersion: {
+      createdAt: new Date().toISOString(),
+      id: 'version-1',
+      libraryVersion: '1.0.0',
+      params: {
+        applicability: { pairs: 'USDT_ALL' },
+        conditions: { long: [], short: [] },
+        indicators: [],
+        timeframe: '1h',
+      },
+      versionTag: 'rule@fixture',
+    },
+    name: 'SMA_BELOW_30',
+    source: 'MANUAL',
+    sourceInput: null,
+    strategyId: 'rule',
+    tags: [],
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
 
 function createMockDiscovery(
   overrides?: Partial<UseDiscoverySessionResult>,
@@ -176,6 +210,26 @@ describe('Discovery UI Components', () => {
       expect(timeframeSelect).toHaveValue('15m');
       expect(maxCandidatesInput).toHaveValue(150);
       expect(timeBudgetInput).toHaveValue(30);
+    });
+
+    it('never marks a USDT_ALL Library entry unavailable, for any of the four market pairs (issue #103 follow-up)', () => {
+      const mockDiscovery = createMockDiscovery();
+      render(
+        <DiscoverySessionControl
+          builtins={builtins}
+          discovery={mockDiscovery}
+          entries={[makeRuleEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      const pairSelect = screen.getByRole('combobox', { name: /Market Pair/i });
+      for (const pair of ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'BNBUSDT']) {
+        fireEvent.change(pairSelect, { target: { value: pair } });
+        const row = screen.getByText('SMA_BELOW_30').closest('button');
+        expect(row).not.toBeDisabled();
+        expect(row).not.toHaveTextContent(/not available/i);
+      }
     });
 
     it('restores draft settings from localStorage when no active session exists', async () => {
