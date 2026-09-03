@@ -1,4 +1,10 @@
-import { render, screen, waitFor, within } from '@testing-library/react';
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OperationsSnapshot } from '@crypto-strategy-lab/shared';
 
@@ -353,6 +359,140 @@ describe('OperationsDashboard and Role Navigation', () => {
       expect(fetchMock).toHaveBeenCalledTimes(3);
 
       vi.useRealTimers();
+    });
+
+    it('paginates worker instances table when items exceed page size', async () => {
+      const workersSnapshot: OperationsSnapshot = {
+        ...mockSnapshot,
+        workers: {
+          ...mockSnapshot.workers,
+          activeCount: 7,
+          instances: Array.from({ length: 7 }, (_, i) => ({
+            instanceId: `worker-node-${i + 1}`,
+            lastSeenAt: '2026-09-03T11:59:50.000Z',
+            service: 'backtest-worker',
+            startedAt: '2026-09-03T10:00:00.000Z',
+            status: 'active',
+            stoppedAt: null,
+          })),
+        },
+      };
+
+      vi.spyOn(operationsClient, 'fetchOperationsSnapshot').mockResolvedValue(
+        workersSnapshot,
+      );
+
+      render(<OperationsDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('workers-pagination')).toBeInTheDocument();
+      });
+
+      const workerTable = screen.getByTestId('worker-instances-table');
+      expect(screen.getByTestId('workers-pagination-info')).toHaveTextContent(
+        'Showing 1 to 5 of 7 workers',
+      );
+      expect(
+        within(workerTable).getByText('worker-node-1'),
+      ).toBeInTheDocument();
+      expect(
+        within(workerTable).getByText('worker-node-5'),
+      ).toBeInTheDocument();
+      expect(
+        within(workerTable).queryByText('worker-node-6'),
+      ).not.toBeInTheDocument();
+
+      const prevBtn = screen.getByTestId('workers-pagination-prev');
+      const nextBtn = screen.getByTestId('workers-pagination-next');
+      expect(prevBtn).toBeDisabled();
+      expect(nextBtn).not.toBeDisabled();
+
+      // Click next page
+      fireEvent.click(nextBtn);
+
+      expect(screen.getByTestId('workers-pagination-info')).toHaveTextContent(
+        'Showing 6 to 7 of 7 workers',
+      );
+      expect(
+        within(workerTable).queryByText('worker-node-1'),
+      ).not.toBeInTheDocument();
+      expect(
+        within(workerTable).getByText('worker-node-6'),
+      ).toBeInTheDocument();
+      expect(
+        within(workerTable).getByText('worker-node-7'),
+      ).toBeInTheDocument();
+      expect(prevBtn).not.toBeDisabled();
+      expect(nextBtn).toBeDisabled();
+    });
+
+    it('paginates recent failures table when items exceed page size', async () => {
+      const failuresSnapshot: OperationsSnapshot = {
+        ...mockSnapshot,
+        recentFailures: Array.from({ length: 8 }, (_, i) => ({
+          createdAt: '2026-09-03T11:00:00.000Z',
+          errorSummary: `Failure reason ${i + 1}`,
+          experimentId: `exp-${i + 1}`,
+          failedAt: '2026-09-03T11:05:00.000Z',
+          failureCategory: 'TRANSIENT',
+          jobId: `job-uuid-${i + 1}`,
+          retryCount: 1,
+          workerId: 'worker-1',
+        })),
+      };
+
+      vi.spyOn(operationsClient, 'fetchOperationsSnapshot').mockResolvedValue(
+        failuresSnapshot,
+      );
+
+      render(<OperationsDashboard />);
+
+      await waitFor(() => {
+        expect(
+          screen.getByTestId('recent-failures-pagination'),
+        ).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByTestId('recent-failures-pagination-info'),
+      ).toHaveTextContent('Showing 1 to 5 of 8 failures');
+      expect(screen.getByText('Failure reason 1')).toBeInTheDocument();
+      expect(screen.queryByText('Failure reason 6')).not.toBeInTheDocument();
+
+      const nextBtn = screen.getByTestId('recent-failures-pagination-next');
+      fireEvent.click(nextBtn);
+
+      expect(
+        screen.getByTestId('recent-failures-pagination-info'),
+      ).toHaveTextContent('Showing 6 to 8 of 8 failures');
+      expect(screen.queryByText('Failure reason 1')).not.toBeInTheDocument();
+      expect(screen.getByText('Failure reason 6')).toBeInTheDocument();
+      expect(screen.getByText('Failure reason 8')).toBeInTheDocument();
+    });
+
+    it('refreshes telemetry immediately when tab becomes visible', async () => {
+      const fetchMock = vi
+        .spyOn(operationsClient, 'fetchOperationsSnapshot')
+        .mockResolvedValue(mockSnapshot);
+
+      render(<OperationsDashboard />);
+
+      await waitFor(() => {
+        expect(screen.getByTestId('operations-dashboard')).toBeInTheDocument();
+      });
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+
+      // Simulate visibility change to visible
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        value: 'visible',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+
+      await waitFor(() => {
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      });
     });
   });
 });

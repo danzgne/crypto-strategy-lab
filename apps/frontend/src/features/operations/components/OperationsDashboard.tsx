@@ -5,6 +5,8 @@ import {
   AlertCircle,
   AlertTriangle,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Cpu,
   Layers,
@@ -13,7 +15,7 @@ import {
   ShieldAlert,
   XCircle,
 } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 
 import { Panel } from '../../../shared/ui/Panel';
 import { StatusBadge } from '../../../shared/ui/StatusBadge';
@@ -55,6 +57,38 @@ export function OperationsDashboard() {
     refetch,
     snapshot,
   } = useOperationsSnapshot();
+
+  const PAGE_SIZE = 5;
+  const [workerPage, setWorkerPage] = useState(1);
+  const [deadLetterPage, setDeadLetterPage] = useState(1);
+  const [failurePage, setFailurePage] = useState(1);
+
+  const totalWorkers = snapshot?.workers.instances.length ?? 0;
+  const workerTotalPages = Math.max(1, Math.ceil(totalWorkers / PAGE_SIZE));
+  const safeWorkerPage = Math.min(workerPage, workerTotalPages);
+  const paginatedWorkers = (snapshot?.workers.instances ?? []).slice(
+    (safeWorkerPage - 1) * PAGE_SIZE,
+    safeWorkerPage * PAGE_SIZE,
+  );
+
+  const totalDeadLetters = snapshot?.outbox.recentDeadLetters.length ?? 0;
+  const deadLetterTotalPages = Math.max(
+    1,
+    Math.ceil(totalDeadLetters / PAGE_SIZE),
+  );
+  const safeDeadLetterPage = Math.min(deadLetterPage, deadLetterTotalPages);
+  const paginatedDeadLetters = (snapshot?.outbox.recentDeadLetters ?? []).slice(
+    (safeDeadLetterPage - 1) * PAGE_SIZE,
+    safeDeadLetterPage * PAGE_SIZE,
+  );
+
+  const totalFailures = snapshot?.recentFailures.length ?? 0;
+  const failureTotalPages = Math.max(1, Math.ceil(totalFailures / PAGE_SIZE));
+  const safeFailurePage = Math.min(failurePage, failureTotalPages);
+  const paginatedFailures = (snapshot?.recentFailures ?? []).slice(
+    (safeFailurePage - 1) * PAGE_SIZE,
+    safeFailurePage * PAGE_SIZE,
+  );
 
   if (isForbidden) {
     return (
@@ -348,7 +382,7 @@ export function OperationsDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-mono text-xs">
-                {snapshot.workers.instances.map((worker) => (
+                {paginatedWorkers.map((worker) => (
                   <tr
                     key={`${worker.service}-${worker.instanceId}`}
                     className="hover:bg-slate-50/50"
@@ -380,6 +414,14 @@ export function OperationsDashboard() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={safeWorkerPage}
+              itemName="workers"
+              onPageChange={setWorkerPage}
+              pageSize={PAGE_SIZE}
+              testIdPrefix="workers"
+              totalItems={totalWorkers}
+            />
           </div>
         )}
       </Panel>
@@ -450,7 +492,7 @@ export function OperationsDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {snapshot.outbox.recentDeadLetters.map((dl) => (
+                {paginatedDeadLetters.map((dl) => (
                   <tr key={dl.id} className="hover:bg-slate-50/50">
                     <td className="py-2.5 text-slate-700">{dl.eventId}</td>
                     <td className="py-2.5 font-semibold text-slate-800">
@@ -467,6 +509,14 @@ export function OperationsDashboard() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={safeDeadLetterPage}
+              itemName="dead letters"
+              onPageChange={setDeadLetterPage}
+              pageSize={PAGE_SIZE}
+              testIdPrefix="dead-letters"
+              totalItems={totalDeadLetters}
+            />
           </div>
         )}
       </Panel>
@@ -506,7 +556,7 @@ export function OperationsDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {snapshot.recentFailures.map((failure) => (
+                {paginatedFailures.map((failure) => (
                   <tr key={failure.jobId} className="hover:bg-slate-50/50">
                     <td className="py-2.5 font-semibold text-slate-800">
                       {failure.jobId.slice(0, 8)}...
@@ -538,6 +588,14 @@ export function OperationsDashboard() {
                 ))}
               </tbody>
             </table>
+            <TablePagination
+              currentPage={safeFailurePage}
+              itemName="failures"
+              onPageChange={setFailurePage}
+              pageSize={PAGE_SIZE}
+              testIdPrefix="recent-failures"
+              totalItems={totalFailures}
+            />
           </div>
         )}
       </Panel>
@@ -617,6 +675,79 @@ function CompactStat({
         {value}
       </span>
       <span className="block text-[10px] text-slate-400">{unit}</span>
+    </div>
+  );
+}
+
+interface TablePaginationProps {
+  currentPage: number;
+  totalItems: number;
+  pageSize: number;
+  itemName: string;
+  onPageChange: (page: number) => void;
+  testIdPrefix: string;
+}
+
+function TablePagination({
+  currentPage,
+  itemName,
+  onPageChange,
+  pageSize,
+  testIdPrefix,
+  totalItems,
+}: TablePaginationProps) {
+  if (totalItems <= pageSize) return null;
+
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = Math.min(startIndex + pageSize, totalItems);
+
+  return (
+    <div
+      className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between border-t border-slate-100 pt-3 text-xs"
+      data-testid={`${testIdPrefix}-pagination`}
+    >
+      <p
+        className="text-slate-500 font-sans"
+        data-testid={`${testIdPrefix}-pagination-info`}
+      >
+        Showing{' '}
+        <span className="font-semibold text-slate-700">{startIndex + 1}</span>{' '}
+        to <span className="font-semibold text-slate-700">{endIndex}</span> of{' '}
+        <span className="font-semibold text-slate-700">{totalItems}</span>{' '}
+        {itemName}
+      </p>
+
+      <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={`Previous ${itemName} page`}
+          disabled={currentPage <= 1}
+          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+          className="inline-flex size-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+          data-testid={`${testIdPrefix}-pagination-prev`}
+        >
+          <ChevronLeft className="size-3.5" />
+        </button>
+
+        <span
+          className="px-2 font-medium text-slate-600"
+          data-testid={`${testIdPrefix}-pagination-status`}
+        >
+          Page {currentPage} of {totalPages}
+        </span>
+
+        <button
+          type="button"
+          aria-label={`Next ${itemName} page`}
+          disabled={currentPage >= totalPages}
+          onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+          className="inline-flex size-7 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-white"
+          data-testid={`${testIdPrefix}-pagination-next`}
+        >
+          <ChevronRight className="size-3.5" />
+        </button>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,8 @@ import { redirect } from 'next/navigation';
 import { authServer } from '../../../../features/auth/api/authServer';
 import { OperationsDashboard } from '../../../../features/operations';
 
+export const dynamic = 'force-dynamic';
+
 export default async function OperationsPage() {
   const user = await authServer.getCurrentUser();
 

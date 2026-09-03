@@ -21,6 +21,7 @@ model ServiceHeartbeat {
 
   @@unique([service, instanceId])
   @@index([service, lastSeenAt])
+  @@index([lastSeenAt])
   @@map("service_heartbeats")
 }
 
@@ -287,6 +288,7 @@ model BacktestJob {
   @@index([status, claimedAt])
   @@index([status, nextEligibleAt])
   @@index([searchRunId])
+  @@index([updatedAt])
   @@map("backtest_jobs")
 }
 
@@ -308,6 +310,7 @@ model OutboxEvent {
 
   @@index([publishedAt, createdAt])
   @@index([publishedAt, deadLetteredAt, nextAttemptAt, createdAt])
+  @@index([deadLetteredAt])
   @@map("event_outbox")
 }
 

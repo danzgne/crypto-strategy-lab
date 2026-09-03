@@ -86,9 +86,27 @@ export function useOperationsSnapshot(
       void execute(true);
     }, refreshIntervalMs);
 
+    const handleVisibilityOrFocus = (): void => {
+      if (
+        typeof document !== 'undefined' &&
+        document.visibilityState === 'visible'
+      ) {
+        void execute(true);
+      }
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('visibilitychange', handleVisibilityOrFocus);
+      window.addEventListener('focus', handleVisibilityOrFocus);
+    }
+
     return () => {
       active = false;
       clearInterval(refreshTimer);
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('visibilitychange', handleVisibilityOrFocus);
+        window.removeEventListener('focus', handleVisibilityOrFocus);
+      }
     };
   }, [refreshIntervalMs, reloadKey]);
 

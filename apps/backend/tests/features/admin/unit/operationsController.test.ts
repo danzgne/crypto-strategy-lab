@@ -11,6 +11,7 @@ function createMockResponse(): Response {
   } as unknown as Response;
   res.status = vi.fn().mockReturnValue(res);
   res.json = vi.fn().mockReturnValue(res);
+  res.setHeader = vi.fn().mockReturnValue(res);
   return res;
 }
 
@@ -64,6 +65,12 @@ describe('OperationsController', () => {
 
     await controller.getSnapshot(req, res, next);
 
+    expect(res.setHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'no-store, no-cache, must-revalidate, proxy-revalidate',
+    );
+    expect(res.setHeader).toHaveBeenCalledWith('Pragma', 'no-cache');
+    expect(res.setHeader).toHaveBeenCalledWith('Expires', '0');
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({

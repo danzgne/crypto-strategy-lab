@@ -65,7 +65,7 @@ export class PrismaOperationsRepository implements OperationsRepository {
         COUNT(*) FILTER (WHERE status = 'COMPLETED')::int AS throughput,
         COUNT(*) FILTER (WHERE status = 'FAILED')::int AS failures,
         COALESCE(SUM("retryCount"), 0)::int AS retries,
-        COUNT(*) FILTER (WHERE "error" ILIKE '%lease%')::int AS "leaseLosses",
+        COUNT(*) FILTER (WHERE "error" ~* '\\mlease\\M')::int AS "leaseLosses",
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("claimedAt" - "createdAt")) * 1000) FILTER (WHERE "claimedAt" IS NOT NULL) AS "queueWaitP50Ms",
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("claimedAt" - "createdAt")) * 1000) FILTER (WHERE "claimedAt" IS NOT NULL) AS "queueWaitP95Ms",
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM ("updatedAt" - "claimedAt")) * 1000) FILTER (WHERE status = 'COMPLETED' AND "claimedAt" IS NOT NULL) AS "executionP50Ms",

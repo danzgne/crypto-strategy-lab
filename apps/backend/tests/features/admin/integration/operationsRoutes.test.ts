@@ -143,6 +143,7 @@ describe('Operations routes integration', () => {
     const response = await request(app).get('/api/v1/admin/operations');
 
     expect(response.status).toBe(200);
+    expect(response.headers['cache-control']).toContain('no-store');
     expect(response.body.success).toBe(true);
     expect(response.body.data).toEqual(mockSnapshot);
     expect(mockService.getSnapshot).toHaveBeenCalledTimes(1);
