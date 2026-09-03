@@ -12,11 +12,14 @@ no-improvement streak, consecutive-failure safety stop). When a run reaches a te
 the next one. This makes the Stop Policy load-bearing rather than ceremonial, and turns the per-run stop reason
 into an accumulating history worth showing.
 
-**One system scheduler, not one per user.** It round-robins across users with an active Discovery session.
-Fairness is enforced with a per-user in-flight cap (starting at 5) layered on top of #39's existing
-`maxInFlight = 10`, and job claiming stays FIFO within a user while rotating between users. Without this, the
-`BacktestJob` table is permanently saturated under multi-tenancy (ADR-0005) and `SELECT ... FOR UPDATE SKIP
-LOCKED` hands work out in insertion order, so whoever enqueued first starves everyone behind them indefinitely.
+**One system scheduler, not one per user.** The Backend owns one long-lived `SearchScheduler` instance. It starts a
+sequential chaining loop for each active User session, and clamps that session's `maxInFlight` to a per-User cap
+(currently 5) layered on top of the run's Stop Policy. This limits how much one User can submit while preserving the
+bounded-run contract.
+
+This is not a global round-robin scheduler. PostgreSQL workers claim the shared `BacktestJob` table by eligibility and
+creation order, with no cross-User rotation guarantee. The per-User cap is the implemented fairness boundary; stronger
+fairness would require a separate queue scheduling decision and is intentionally not claimed here.
 
 **Chained runs are independent.** Run N+1 samples the same Search Space from scratch rather than narrowing toward
 where run N scored well. The Scheduler exposes a re-seeding hook, but nothing implements it for now.
@@ -31,9 +34,9 @@ owner; for everything else they are pruned after a retention window, starting at
 - **A single unbounded SearchRun that simply never terminates**: rejected. It is the literal reading of "24/7",
   and it forfeits a criterion the spec says will be tested, in exchange for no capability the chained design
   lacks.
-- **One Search Scheduler per user**: rejected. Any global cap (total in-flight jobs, total worker utilisation)
-  would then need coordination between scheduler instances, which is a distributed-systems problem the project
-  has no reason to acquire. A single scheduler holds the whole picture in one process.
+- **One Search Scheduler per user**: rejected. A single Backend scheduler keeps session lifecycle in one place and
+  avoids coordinating several scheduler processes. Per-User loops are concurrent, but Job claiming remains the shared
+  queue's responsibility.
 - **Re-seeding each run's Search Space from the previous run's Leaderboard**: rejected, though tempting. It is a
   DomainGuidedGenerator wearing a scheduler's clothes, and building it into the scheduler would smear
   search-algorithm logic across a component required to stay algorithm-agnostic (constraint 4). Keeping runs

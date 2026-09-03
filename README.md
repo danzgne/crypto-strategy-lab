@@ -119,6 +119,11 @@ committed migration history once before starting application processes.
 
 ## Architecture
 
+The complete System Context, Container/Module decomposition, domain ownership, dynamic flows, provenance chain,
+failure behavior, infrastructure trade-offs, benchmark procedure, and demo path are in the
+[Architecture Document](docs/architecture.md). The sections below keep the most useful local-development flows
+close to the install instructions and link to the feature-specific notes.
+
 ### Backend HTTP flow
 
 ```text
@@ -219,8 +224,8 @@ Trades, with separate trade history and Vietnamese calculation/assumption panels
 ### Domain event catalog
 
 `packages/shared` types `MarketPriceUpdated`, `CandleClosed`, `StrategyGenerated`, `BacktestStarted`,
-`BacktestCompleted`, `StrategyEvaluated`, `LeaderboardUpdated`, `NewsCollected`, and `SentimentAnalyzed`. Every
-event carries `eventId`, `name`, `version`, `occurredAt`, and a name-specific `payload`.
+`BacktestCompleted`, `StrategyEvaluated`, `LeaderboardUpdated`, `NewsCollected`, `SentimentAnalyzed`, and
+`ExtractionValidated`. Every event carries `eventId`, `name`, `version`, `occurredAt`, and a name-specific `payload`.
 
 Detailed module rules:
 
@@ -275,3 +280,6 @@ ESLint.
 The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, `GET /api/v1/backtests` for
 owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. Completed singular and composite Experiments
 are ranked in the owner-scoped Leaderboard at `GET /api/v1/leaderboard` and shown on Discovery.
+
+For the full Discovery, News/Sentiment, administrator-observation, recovery, and provenance demo path, see the
+[Architecture Document's Demo path](docs/architecture.md#demo-path).
