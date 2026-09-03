@@ -8,7 +8,6 @@ import {
   NewsFeedList,
   ExtractionTemplatePanel,
   AnalysisOutputPanel,
-  StrategyIntegrationPanel,
   AdminSourceModal,
   AdminHtmlPasteModal,
   useNews,
@@ -128,7 +127,7 @@ export default function NewsPage() {
         isAdmin={isAdmin}
       />
 
-      {/* Main 3-Column Grid */}
+      {/* Main Two-Column Layout */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
         {/* Left Column: Incoming News (News Feed) */}
         <div className="lg:col-span-4 h-[780px]">
@@ -144,8 +143,9 @@ export default function NewsPage() {
           />
         </div>
 
-        {/* Middle Column: Extraction Template health */}
-        <div className="lg:col-span-5 space-y-6">
+        {/* Right Column: Extraction Template health & Analytics Output */}
+        <div className="lg:col-span-8 space-y-6">
+          <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
           <ExtractionTemplatePanel
             isAdmin={isAdmin}
             selectedTab={selectedTab}
@@ -167,12 +167,6 @@ export default function NewsPage() {
             onReject={extraction.handleReject}
             onUpdateSettings={extraction.handleUpdateSettings}
           />
-        </div>
-
-        {/* Right Column: Analytics Output & Strategy Integration */}
-        <div className="lg:col-span-3 space-y-6">
-          <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
-          <StrategyIntegrationPanel />
         </div>
       </div>
 
