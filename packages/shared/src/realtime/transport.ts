@@ -54,6 +54,8 @@ export interface MarketCandleUpdate extends MarketKey {
 export interface MarketSubscriptionStatus extends MarketKey {
   status: 'LIVE' | 'RECONNECTING' | 'STALE';
   detail?: string;
+  // Set only on one chart's own subscribe confirmation; omitted on room-wide broadcasts.
+  chartId?: string;
 }
 
 export interface MarketTicksSubscribeRequest {

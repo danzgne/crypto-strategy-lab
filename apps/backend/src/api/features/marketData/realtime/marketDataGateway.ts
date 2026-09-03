@@ -230,6 +230,7 @@ async function subscribeSocket(
         marketDataService === undefined
           ? 'Market Data Service is not configured'
           : 'Market subscription request is invalid',
+      chartId: request.chartId,
     });
     return;
   }
@@ -296,6 +297,7 @@ async function subscribeSocket(
       pair: normalizedRequest.pair,
       timeframe: normalizedRequest.timeframe,
       status: roomState.status,
+      chartId: normalizedRequest.chartId,
     });
   } catch (error) {
     await socket.leave(room);
@@ -317,6 +319,7 @@ async function subscribeSocket(
       timeframe: normalizedRequest.timeframe,
       status: 'STALE',
       detail: 'Market history could not be loaded',
+      chartId: normalizedRequest.chartId,
     });
   }
 }

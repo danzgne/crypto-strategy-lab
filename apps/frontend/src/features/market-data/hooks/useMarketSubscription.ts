@@ -196,7 +196,12 @@ export function useMarketSubscription({
       }));
     };
     const handleStatus = (status: MarketSubscriptionStatus): void => {
-      if (!active || status.pair !== pair || status.timeframe !== timeframe) {
+      if (
+        !active ||
+        status.pair !== pair ||
+        status.timeframe !== timeframe ||
+        (status.chartId !== undefined && status.chartId !== activeChartId)
+      ) {
         return;
       }
       updateState((current) => ({

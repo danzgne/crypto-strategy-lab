@@ -161,6 +161,89 @@ describe('useMarketSubscription', () => {
     await waitFor(() => expect(result.current.candles).toEqual([freshCandle]));
   });
 
+  it('ignores a status confirmation addressed to a different chart sharing the same room', () => {
+    const listeners = new Map<
+      string,
+      Array<(...arguments_: unknown[]) => void>
+    >();
+    const socket = {
+      connected: false,
+      on: vi.fn(
+        (event: string, listener: (...arguments_: unknown[]) => void) => {
+          listeners.set(event, [...(listeners.get(event) ?? []), listener]);
+          return socket;
+        },
+      ),
+      off: vi.fn(
+        (event: string, listener: (...arguments_: unknown[]) => void) => {
+          listeners.set(
+            event,
+            (listeners.get(event) ?? []).filter((l) => l !== listener),
+          );
+          return socket;
+        },
+      ),
+      connect: vi.fn(() => socket),
+      emit: vi.fn(() => socket),
+    } as unknown as MarketSubscriptionSocket;
+    const dispatch = (event: string, payload?: unknown): void => {
+      for (const listener of listeners.get(event) ?? []) listener(payload);
+    };
+
+    const panelA = renderHook(() =>
+      useMarketSubscription({
+        socketFactory: () => socket,
+        chartId: 'panel-a',
+        pair: 'BTCUSDT',
+        timeframe: '15m',
+        limit: 10,
+      }),
+    );
+    const panelB = renderHook(() =>
+      useMarketSubscription({
+        socketFactory: () => socket,
+        chartId: 'panel-b',
+        pair: 'BTCUSDT',
+        timeframe: '15m',
+        limit: 10,
+      }),
+    );
+
+    act(() => dispatch('connect'));
+
+    act(() =>
+      dispatch('market:status', {
+        pair: 'BTCUSDT',
+        timeframe: '15m',
+        status: 'LIVE',
+        chartId: 'panel-a',
+      }),
+    );
+    expect(panelA.result.current.phase).toBe('live');
+    expect(panelB.result.current.phase).toBe('connecting');
+
+    act(() =>
+      dispatch('market:status', {
+        pair: 'BTCUSDT',
+        timeframe: '15m',
+        status: 'RECONNECTING',
+        chartId: 'panel-b',
+      }),
+    );
+    expect(panelB.result.current.phase).toBe('reconnecting');
+    expect(panelA.result.current.phase).toBe('live');
+
+    act(() =>
+      dispatch('market:status', {
+        pair: 'BTCUSDT',
+        timeframe: '15m',
+        status: 'STALE',
+      }),
+    );
+    expect(panelA.result.current.phase).toBe('stale');
+    expect(panelB.result.current.phase).toBe('stale');
+  });
+
   it('requests and merges older candles when the chart reaches its history boundary', async () => {
     const listeners = new Map<string, (...arguments_: unknown[]) => void>();
     const emit = vi.fn((...arguments_: unknown[]) => {
