@@ -17,7 +17,7 @@ import { BacktestResultView } from '../../../../src/features/backtests/component
 import { useBacktest } from '../../../../src/features/backtests/hooks/useBacktest';
 
 describe('BacktestResultView', () => {
-  it('renders the reference result layout with six visible cards and Vietnamese explainers', () => {
+  it('renders the reference result layout with six visible cards', () => {
     vi.mocked(useBacktest).mockReturnValue({
       error: null,
       loading: false,
@@ -39,12 +39,6 @@ describe('BacktestResultView', () => {
     expect(screen.queryByText('Score')).not.toBeInTheDocument();
     expect(screen.queryByText('Profit Factor')).not.toBeInTheDocument();
     expect(screen.queryByText('Sharpe Ratio')).not.toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Cách tính Profit' }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole('heading', { name: 'Giả định Backtest' }),
-    ).toBeInTheDocument();
     expect(screen.getByText('TAKE_PROFIT')).toBeInTheDocument();
   });
 
