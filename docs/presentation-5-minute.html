@@ -7,7 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@500;600;700;800&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
     <style>
@@ -151,8 +151,9 @@
         --magenta: #ff4fa3;
         --blue: #7194ff;
         --yellow: #ffc857;
-        --font-display: 'Syne', sans-serif;
-        --font-body: 'Space Mono', monospace;
+        --font-display: 'Be Vietnam Pro', sans-serif;
+        --font-body: 'Be Vietnam Pro', sans-serif;
+        --font-code: 'IBM Plex Mono', monospace;
         --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
         --duration-normal: 0.62s;
       }
@@ -211,10 +212,10 @@
 
       .orbital-ring {
         position: absolute;
-        right: -170px;
+        right: 70px;
         top: -250px;
-        width: 760px;
-        height: 760px;
+        width: 620px;
+        height: 620px;
         border: 1px solid rgba(63, 247, 213, 0.28);
         border-radius: 50%;
         transform: rotate(-24deg) skewX(-16deg);
@@ -240,7 +241,8 @@
         justify-content: space-between;
         height: 28px;
         color: var(--muted);
-        font-size: 16px;
+        font-family: var(--font-code);
+        font-size: 14px;
         letter-spacing: 0.12em;
         text-transform: uppercase;
       }
@@ -253,6 +255,7 @@
       .section-label {
         margin-top: 42px;
         color: var(--cyan);
+        font-family: var(--font-code);
         font-size: 17px;
         letter-spacing: 0.18em;
         text-transform: uppercase;
@@ -262,7 +265,7 @@
         max-width: 1330px;
         margin: 12px 0 0;
         font-family: var(--font-display);
-        font-size: 64px;
+        font-size: 68px;
         font-weight: 800;
         line-height: 0.98;
         letter-spacing: -0.055em;
@@ -277,8 +280,8 @@
         max-width: 1160px;
         margin: 18px 0 0;
         color: var(--ink-soft);
-        font-size: 20px;
-        line-height: 1.4;
+        font-size: 21px;
+        line-height: 1.45;
       }
 
       .slide-body {
@@ -294,6 +297,7 @@
         justify-content: space-between;
         align-items: center;
         color: var(--muted);
+        font-family: var(--font-code);
         font-size: 14px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -327,7 +331,8 @@
         right: 24px;
         top: 20px;
         color: rgba(63, 247, 213, 0.66);
-        font-size: 13px;
+        font-family: var(--font-code);
+        font-size: 12px;
         letter-spacing: 0.14em;
         pointer-events: none;
       }
@@ -400,7 +405,8 @@
         border: 1px solid var(--cyan);
         color: var(--ink);
         background: rgba(15, 31, 59, 0.92);
-        font-size: 16px;
+        font-family: var(--font-code);
+        font-size: 15px;
         line-height: 1.25;
         text-align: center;
       }
@@ -414,12 +420,14 @@
       }
 
       .fallback-arrow {
+        font-family: var(--font-code);
         color: var(--cyan);
         font-size: 23px;
       }
 
       .fallback-label {
         color: var(--muted);
+        font-family: var(--font-code);
         font-size: 13px;
         letter-spacing: 0.08em;
         text-transform: uppercase;
@@ -463,7 +471,7 @@
         margin: 0 0 10px;
         color: var(--cyan);
         font-family: var(--font-display);
-        font-size: 22px;
+        font-size: 21px;
         letter-spacing: -0.03em;
         text-transform: uppercase;
       }
@@ -478,16 +486,16 @@
       .insight p {
         margin: 0;
         color: var(--ink-soft);
-        font-size: 17px;
-        line-height: 1.45;
+        font-size: 18px;
+        line-height: 1.5;
       }
 
       .context-footnote {
         padding: 16px 18px;
         border: 1px solid rgba(255, 79, 163, 0.35);
         color: var(--muted);
-        font-size: 14px;
-        line-height: 1.4;
+        font-size: 13px;
+        line-height: 1.35;
       }
 
       .context-footnote strong {
@@ -527,8 +535,8 @@
       .module-panel .lead {
         margin: 10px 0 14px;
         color: var(--ink-soft);
-        font-size: 15px;
-        line-height: 1.35;
+        font-size: 17px;
+        line-height: 1.45;
       }
 
       .module-list {
@@ -548,14 +556,14 @@
       .module-line strong {
         color: var(--cyan);
         font-family: var(--font-display);
-        font-size: 17px;
+        font-size: 16px;
         text-transform: uppercase;
       }
 
       .module-line span {
         color: var(--ink-soft);
-        font-size: 14px;
-        line-height: 1.3;
+        font-size: 16px;
+        line-height: 1.35;
       }
 
       .container-callout {
@@ -563,8 +571,8 @@
         padding: 13px 16px;
         border: 1px solid rgba(63, 247, 213, 0.3);
         color: var(--ink);
-        font-size: 14px;
-        line-height: 1.35;
+        font-size: 15px;
+        line-height: 1.4;
       }
 
       .container-callout strong {
@@ -580,7 +588,8 @@
         justify-content: space-between;
         margin-bottom: 12px;
         color: var(--muted);
-        font-size: 14px;
+        font-family: var(--font-code);
+        font-size: 13px;
         letter-spacing: 0.1em;
         text-transform: uppercase;
       }
@@ -606,7 +615,8 @@
         color: var(--cyan);
         border-top: 1px solid var(--cyan);
         border-bottom: 1px solid var(--line);
-        font-size: 13px;
+        font-family: var(--font-code);
+        font-size: 12px;
         letter-spacing: 0.12em;
         text-align: left;
         text-transform: uppercase;
@@ -616,8 +626,8 @@
         padding: 14px 15px;
         border-bottom: 1px solid var(--line);
         color: var(--ink-soft);
-        font-size: 15px;
-        line-height: 1.35;
+        font-size: 16px;
+        line-height: 1.4;
         vertical-align: top;
       }
 
@@ -647,15 +657,16 @@
       .check-table code,
       .evaluation-table code {
         color: var(--cyan);
-        font-family: var(--font-body);
+        font-family: var(--font-code);
         font-size: 0.92em;
       }
 
       .checklist-note {
         margin-top: 16px;
         color: var(--muted);
-        font-size: 14px;
-        line-height: 1.4;
+        font-family: var(--font-code);
+        font-size: 13px;
+        line-height: 1.45;
       }
 
       .evaluation-table th:nth-child(1) {
@@ -671,7 +682,7 @@
       .evaluation-table td:first-child {
         color: var(--magenta);
         font-family: var(--font-display);
-        font-size: 17px;
+        font-size: 16px;
         font-weight: 700;
         letter-spacing: -0.02em;
         text-transform: uppercase;
@@ -679,8 +690,8 @@
 
       .evaluation-table td {
         padding: 10px 14px;
-        font-size: 14px;
-        line-height: 1.3;
+        font-size: 15px;
+        line-height: 1.35;
       }
 
       .evaluation-bottom {
@@ -695,8 +706,8 @@
         border-left: 2px solid var(--yellow);
         background: rgba(255, 200, 87, 0.08);
         color: var(--ink-soft);
-        font-size: 13px;
-        line-height: 1.35;
+        font-size: 14px;
+        line-height: 1.4;
       }
 
       .trigger strong {
@@ -704,7 +715,7 @@
         margin-bottom: 5px;
         color: var(--yellow);
         font-family: var(--font-display);
-        font-size: 15px;
+        font-size: 14px;
         text-transform: uppercase;
       }
 
@@ -803,7 +814,7 @@
         border-radius: 8px;
         color: var(--ink-soft);
         background: rgba(6, 11, 21, 0.92);
-        font: 12px var(--font-body);
+        font: 12px var(--font-code);
       }
 
       body.editing .edit-bar {
@@ -833,7 +844,7 @@
         border-left: 2px solid var(--cyan);
         color: var(--ink);
         background: rgba(6, 11, 21, 0.94);
-        font: 13px var(--font-body);
+        font: 13px var(--font-code);
         opacity: 0;
         transform: translateY(8px);
         transition:
@@ -914,7 +925,7 @@
             01 — Bối cảnh hệ thống
           </p>
           <h1 class="slide-title reveal" data-editable>
-            Ranh giới rõ ràng để <span>thay đổi an toàn.</span>
+            Ranh giới rõ ràng để<br /><span>thay đổi an toàn.</span>
           </h1>
           <p class="slide-subtitle reveal" data-editable>
             Frontend chỉ gọi Backend. Provider được thay thế sau interface.
@@ -1006,8 +1017,8 @@ flowchart LR
                 </p>
               </div>
               <div class="context-footnote reveal" data-editable>
-                <strong>Deployment note:</strong> Nginx chỉ là edge profile tùy
-                chọn cho same-origin testing, không phải domain component.
+                <strong>Deployment:</strong> Nginx chỉ là edge profile tùy chọn
+                cho same-origin testing; không phải domain component.
               </div>
             </aside>
           </div>
@@ -1812,7 +1823,7 @@ flowchart LR
             clusterBkg: '#0e1a31',
             clusterBorder: '#ff4fa3',
             edgeLabelBackground: '#0a1020',
-            fontFamily: 'Space Mono, monospace',
+            fontFamily: 'IBM Plex Mono, monospace',
             fontSize: '16px',
           },
           flowchart: {
