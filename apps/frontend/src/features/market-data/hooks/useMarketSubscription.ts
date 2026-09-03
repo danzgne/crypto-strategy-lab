@@ -188,6 +188,8 @@ export function useMarketSubscription({
       updateState((current) => ({
         ...current,
         candles: nextCandles,
+        // A candle tick is direct proof of a live stream, overriding any stale status.
+        phase: 'live',
         detail: update.candle.isClosed
           ? 'Latest candle closed'
           : 'Forming candle updating live',
