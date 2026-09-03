@@ -238,6 +238,7 @@ export interface CleanupBenchmarkOptions {
   versionIds?: string[];
   definitionIds?: string[];
   silent?: boolean;
+  onProgress?: (message: string) => void;
 }
 
 async function withDeadlockRetry<T>(
@@ -269,15 +270,10 @@ export async function cleanupBenchmarkCampaign(
   prisma: WorkerPrismaClient,
   options: CleanupBenchmarkOptions,
 ): Promise<void> {
-  const {
-    ownerId,
-    snapshotId,
-    versionIds,
-    definitionIds,
-    silent = false,
-  } = options;
-  if (!silent) {
-    process.stdout.write('Cleaning up synthetic benchmark data...\n');
+  const { ownerId, snapshotId, versionIds, definitionIds, onProgress } =
+    options;
+  if (onProgress) {
+    onProgress('Cleaning up synthetic benchmark data...\n');
   }
 
   await withDeadlockRetry(() =>

@@ -265,6 +265,7 @@ export async function executeRepresentativeRun(
     definitionIds: [maDef.id, rsiDef.id, bbDef.id, compDef.id],
     ownerId,
     silent,
+    ...(silent ? {} : { onProgress: (msg) => process.stdout.write(msg) }),
     snapshotId: snapshot.id,
     versionIds: versions,
   });

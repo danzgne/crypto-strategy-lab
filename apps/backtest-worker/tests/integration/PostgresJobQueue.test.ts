@@ -363,6 +363,7 @@ describe('PostgresJobQueue Integration', () => {
     });
     expect(jobInDb.status).toBe('FAILED');
     expect(jobInDb.retryCount).toBe(4);
+    expect(jobInDb.workerId).toBe('worker-crashed');
     expect(jobInDb.failedAt).not.toBeNull();
     expect(jobInDb.failureCategory).toBe('TRANSIENT');
 

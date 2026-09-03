@@ -64,7 +64,6 @@ export class PrismaJobRepository implements JobRepository {
             error = 'Job lease expired after maximum attempts',
             "leaseExpiresAt" = NULL,
             "leaseToken" = NULL,
-            "workerId" = NULL,
             "retryCount" = "retryCount" + 1,
             "updatedAt" = NOW()
         WHERE id IN (

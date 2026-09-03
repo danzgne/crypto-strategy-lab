@@ -34,21 +34,24 @@ export interface BenchmarkOptions {
   outputJsonPath?: string;
   silent?: boolean;
   timeoutMs?: number;
+  allowBenchmark?: boolean;
 }
 
 export async function executeBenchmark(
   options: BenchmarkOptions = {},
 ): Promise<BenchmarkMetrics> {
+  const totalJobs = Math.max(1, options.jobs ?? 100_000);
+  const allowBenchmark =
+    process.env.ALLOW_BENCHMARK === 'true' || options.allowBenchmark === true;
+
   if (
-    process.env.NODE_ENV === 'production' &&
-    process.env.ALLOW_BENCHMARK !== 'true'
+    (process.env.NODE_ENV === 'production' && !allowBenchmark) ||
+    (totalJobs > 100 && !allowBenchmark)
   ) {
     throw new Error(
-      'Benchmark is guarded. Set ALLOW_BENCHMARK=true to run in production.',
+      `Benchmark campaign of ${totalJobs.toLocaleString()} jobs is guarded. Set ALLOW_BENCHMARK=true or pass --allow-benchmark to proceed.`,
     );
   }
-
-  const totalJobs = Math.max(1, options.jobs ?? 100_000);
   const batchSize = Math.max(1, Math.min(10_000, options.batchSize ?? 5_000));
   const workerCount = options.workers ?? 0;
   const shouldCleanup = options.cleanup ?? true;
@@ -287,6 +290,7 @@ export async function executeBenchmark(
       await cleanupBenchmarkCampaign(prisma, {
         ownerId,
         silent,
+        ...(silent ? {} : { onProgress: (msg) => process.stdout.write(msg) }),
         ...(definition ? { definitionIds: [definition.id] } : {}),
         ...(snapshot ? { snapshotId: snapshot.id } : {}),
         ...(version ? { versionIds: [version.id] } : {}),
@@ -317,6 +321,9 @@ if (process.argv[1]?.endsWith('runBenchmark.ts')) {
   const batchArg = getArgValue('--batch-size');
   const noCleanup = args.includes('--no-cleanup');
   const jsonOnly = args.includes('--json');
+  const allowBenchmark =
+    args.includes('--allow-benchmark') ||
+    process.env.ALLOW_BENCHMARK === 'true';
 
   const jobs = jobsArg ? parseInt(jobsArg, 10) : 100_000;
   const workers = workersArg ? parseInt(workersArg, 10) : 0;
@@ -332,6 +339,7 @@ if (process.argv[1]?.endsWith('runBenchmark.ts')) {
     batchSize,
     cleanup: !noCleanup,
     silent: jsonOnly,
+    allowBenchmark,
     ...(timeoutMs !== undefined ? { timeoutMs } : {}),
   })
     .then((metrics) => {

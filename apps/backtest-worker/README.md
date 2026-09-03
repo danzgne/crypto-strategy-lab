@@ -360,19 +360,19 @@ Every container replica writes an independent heartbeat in `service_heartbeats` 
 
 ### Running the benchmark
 
-The benchmark command creates a disposable synthetic campaign outside CI and measures throughput, latency percentiles, retries, and database load:
+The benchmark command creates a disposable synthetic campaign outside CI and measures throughput, latency percentiles, retries, and database load. Large campaigns (>100 jobs) are guarded and require `ALLOW_BENCHMARK=true` or `--allow-benchmark`:
 
 ```bash
 # In-process scaling benchmark (1, 2, or 4 workers):
-pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=1
-pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=2
-pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=1 --allow-benchmark
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=2 --allow-benchmark
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4 --allow-benchmark
 
 # Against external workers (e.g. running in Docker Compose or separate terminals):
-pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --allow-benchmark
 
 # JSON output for machine parsing:
-pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4 --json
+pnpm --filter @crypto-strategy-lab/backtest-worker benchmark --jobs=100000 --workers=4 --json --allow-benchmark
 ```
 
 ### Representative strategy benchmark
