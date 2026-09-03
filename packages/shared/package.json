@@ -11,7 +11,8 @@
     "./strategy": "./src/strategy/index.ts",
     "./strategy-version": "./src/strategyVersion.ts",
     "./backtest": "./src/backtest/index.ts",
-    "./news": "./src/news/types.ts"
+    "./news": "./src/news/types.ts",
+    "./search": "./src/search/index.ts"
   },
   "scripts": {
     "build": "tsc --project tsconfig.json",

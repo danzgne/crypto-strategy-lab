@@ -7,7 +7,12 @@ import type {
   StrategyGenerator,
   StrategySearchParamDomain,
 } from '@crypto-strategy-lab/shared';
+import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared';
 import { computeCandidateFingerprint } from '../services/fingerprint';
+import { deriveOrdinalSeed, SeededRandomSource } from './randomSource';
+import { StrategyGeneratorRegistry } from './registry';
+
+export const RANDOM_GENERATOR_ID = RANDOM_SEARCH_ALGORITHM_ID;
 
 export class InvalidSearchSpaceError extends Error {
   public constructor(message: string) {
@@ -16,35 +21,46 @@ export class InvalidSearchSpaceError extends Error {
   }
 }
 
+// Each generate() derives its own RNG stream from (seed, ordinal), so restoring at any startOrdinal reproduces the rest of the sequence without replaying prior ordinals.
 export class RandomGenerator implements StrategyGenerator {
-  private generationOrdinal = 1;
+  private nextOrdinal: number;
 
   public constructor(
     private readonly searchSpace: SearchSpace,
-    private readonly randomSource: RandomSource,
-    private readonly algorithmName: string = 'random',
-    private readonly seed?: number,
+    private readonly seed: number,
+    private readonly algorithmName: string = RANDOM_GENERATOR_ID,
+    startOrdinal = 1,
   ) {
     this.validateSearchSpace(searchSpace);
+    this.nextOrdinal = startOrdinal;
   }
 
   public generate(): CandidateStrategy {
+    const ordinal = this.nextOrdinal++;
+    const randomSource: RandomSource = new SeededRandomSource(
+      deriveOrdinalSeed(this.seed, ordinal),
+    );
+
     const enabled = this.searchSpace.enabledStrategies;
     const n = enabled.length;
-    const subsetSize = 1 + Math.floor(this.randomSource.random() * n);
+    const subsetSize = 1 + Math.floor(randomSource.random() * n);
 
     const selectedStrategies = this.sampleWithoutReplacement(
       enabled,
       subsetSize,
+      randomSource,
     );
     const strategyIds = selectedStrategies.map((strategy) => strategy.id);
     const parameterSnapshots = selectedStrategies.map((strategy) =>
-      this.sampleParameters(strategy),
+      this.sampleParameters(strategy, randomSource),
     );
 
     let combinationConfig: CombinationConfig | undefined;
     if (subsetSize >= 2) {
-      combinationConfig = this.sampleCombinationConfig(subsetSize);
+      combinationConfig = this.sampleCombinationConfig(
+        subsetSize,
+        randomSource,
+      );
     }
 
     const fingerprint = computeCandidateFingerprint(
@@ -55,8 +71,8 @@ export class RandomGenerator implements StrategyGenerator {
 
     const provenance = {
       algorithm: this.algorithmName,
-      generationOrdinal: this.generationOrdinal++,
-      ...(this.seed !== undefined ? { seed: this.seed } : {}),
+      generationOrdinal: ordinal,
+      seed: this.seed,
     };
 
     return Object.freeze({
@@ -124,11 +140,15 @@ export class RandomGenerator implements StrategyGenerator {
     }
   }
 
-  private sampleWithoutReplacement<T>(items: readonly T[], count: number): T[] {
+  private sampleWithoutReplacement<T>(
+    items: readonly T[],
+    count: number,
+    randomSource: RandomSource,
+  ): T[] {
     const copy = [...items];
     const result: T[] = [];
     for (let i = 0; i < count && copy.length > 0; i++) {
-      const index = Math.floor(this.randomSource.random() * copy.length);
+      const index = Math.floor(randomSource.random() * copy.length);
       const [item] = copy.splice(index, 1);
       if (item !== undefined) {
         result.push(item);
@@ -139,6 +159,7 @@ export class RandomGenerator implements StrategyGenerator {
 
   private sampleParameters(
     descriptor: EnabledStrategyDescriptor,
+    randomSource: RandomSource,
   ): Record<string, unknown> {
     const params: Record<string, unknown> = {};
     const domains = descriptor.paramDomains ?? {};
@@ -154,7 +175,7 @@ export class RandomGenerator implements StrategyGenerator {
       const schemaProp = schemaProps[key];
 
       if (domain) {
-        params[key] = this.sampleFromDomain(domain);
+        params[key] = this.sampleFromDomain(domain, randomSource);
       } else if (schemaProp) {
         if (
           schemaProp.minimum !== undefined &&
@@ -165,9 +186,9 @@ export class RandomGenerator implements StrategyGenerator {
           const max = schemaProp.maximum;
           if (isInt) {
             params[key] =
-              min + Math.floor(this.randomSource.random() * (max - min + 1));
+              min + Math.floor(randomSource.random() * (max - min + 1));
           } else {
-            params[key] = min + this.randomSource.random() * (max - min);
+            params[key] = min + randomSource.random() * (max - min);
           }
         } else if (schemaProp.default !== undefined) {
           params[key] = schemaProp.default;
@@ -178,11 +199,12 @@ export class RandomGenerator implements StrategyGenerator {
     return params;
   }
 
-  private sampleFromDomain(domain: StrategySearchParamDomain): unknown {
+  private sampleFromDomain(
+    domain: StrategySearchParamDomain,
+    randomSource: RandomSource,
+  ): unknown {
     if (domain.options && domain.options.length > 0) {
-      const idx = Math.floor(
-        this.randomSource.random() * domain.options.length,
-      );
+      const idx = Math.floor(randomSource.random() * domain.options.length);
       return domain.options[idx];
     }
 
@@ -195,18 +217,16 @@ export class RandomGenerator implements StrategyGenerator {
 
       if (step !== undefined && step > 0) {
         const numSteps = Math.floor((max - min) / step);
-        const chosenStep = Math.floor(
-          this.randomSource.random() * (numSteps + 1),
-        );
+        const chosenStep = Math.floor(randomSource.random() * (numSteps + 1));
         const val = min + chosenStep * step;
         return isInteger ? Math.round(val) : Number(val.toFixed(6));
       }
 
       if (isInteger) {
-        return min + Math.floor(this.randomSource.random() * (max - min + 1));
+        return min + Math.floor(randomSource.random() * (max - min + 1));
       }
 
-      const val = min + this.randomSource.random() * (max - min);
+      const val = min + randomSource.random() * (max - min);
       return Number(val.toFixed(6));
     }
 
@@ -215,33 +235,34 @@ export class RandomGenerator implements StrategyGenerator {
     }
 
     if (domain.type === 'boolean') {
-      return this.randomSource.random() < 0.5;
+      return randomSource.random() < 0.5;
     }
 
     return undefined;
   }
 
-  private sampleCombinationConfig(subsetSize: number): CombinationConfig {
+  private sampleCombinationConfig(
+    subsetSize: number,
+    randomSource: RandomSource,
+  ): CombinationConfig {
     const modes = this.searchSpace.permittedCombinationModes;
     const permitted =
       modes.length > 0 ? modes : (['majority', 'weighted'] as const);
-    const modeIndex = Math.floor(this.randomSource.random() * permitted.length);
+    const modeIndex = Math.floor(randomSource.random() * permitted.length);
     const mode = permitted[modeIndex] ?? 'majority';
 
     if (mode === 'weighted') {
       const rawWeights: number[] = [];
       let total = 0;
       for (let i = 0; i < subsetSize; i++) {
-        const w = 0.1 + this.randomSource.random() * 0.9;
+        const w = 0.1 + randomSource.random() * 0.9;
         rawWeights.push(w);
         total += w;
       }
       const normalizedWeights = rawWeights.map((w) =>
         Number((w / total).toFixed(4)),
       );
-      const threshold = Number(
-        (0.1 + this.randomSource.random() * 0.8).toFixed(2),
-      );
+      const threshold = Number((0.1 + randomSource.random() * 0.8).toFixed(2));
       return {
         mode: 'weighted',
         threshold,
@@ -254,3 +275,9 @@ export class RandomGenerator implements StrategyGenerator {
     };
   }
 }
+
+StrategyGeneratorRegistry.register(
+  RANDOM_GENERATOR_ID,
+  (searchSpace, seed, startOrdinal) =>
+    new RandomGenerator(searchSpace, seed, RANDOM_GENERATOR_ID, startOrdinal),
+);

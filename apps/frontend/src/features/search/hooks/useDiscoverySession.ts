@@ -50,6 +50,7 @@ export function useDiscoverySession(): UseDiscoverySessionResult {
         const res = await searchClient.getCurrentSession();
         if (!active) return;
         setSession(res.session);
+        setProgress(res.progress);
         const histRes = await searchClient.getHistoricalRuns();
         if (!active) return;
         setHistory(histRes.runs);

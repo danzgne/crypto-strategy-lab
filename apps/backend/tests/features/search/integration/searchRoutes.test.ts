@@ -2,6 +2,7 @@ import express from 'express';
 import request from 'supertest';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { SearchController } from '@/api/features/search/controllers/searchController';
+import { UnsupportedAlgorithmError } from '@/api/features/search/generators';
 import { createSearchFeatureRouter } from '@/api/features/search/routes/v1/search.routes';
 import type { SearchScheduler } from '@/api/features/search/services/searchScheduler';
 import type { TradeRetentionService } from '@/api/features/search/services/tradeRetentionService';
@@ -12,6 +13,7 @@ describe('search routes integration', () => {
   let fakeScheduler: {
     getHistoricalRuns: ReturnType<typeof vi.fn>;
     getSession: ReturnType<typeof vi.fn>;
+    getSessionProgress: ReturnType<typeof vi.fn>;
     pauseSession: ReturnType<typeof vi.fn>;
     resumeSession: ReturnType<typeof vi.fn>;
     startSession: ReturnType<typeof vi.fn>;
@@ -25,6 +27,7 @@ describe('search routes integration', () => {
     fakeScheduler = {
       getHistoricalRuns: vi.fn(async () => []),
       getSession: vi.fn(),
+      getSessionProgress: vi.fn(() => null),
       pauseSession: vi.fn(async () => true),
       resumeSession: vi.fn(async () => true),
       startSession: vi.fn(),
@@ -55,7 +58,7 @@ describe('search routes integration', () => {
 
   it('starts a new discovery session', async () => {
     fakeScheduler.startSession.mockResolvedValue({
-      algorithm: 'random',
+      algorithm: 'random-v1',
       bestScore: null,
       searchSpace: defaultSearchSpace,
       sessionId: 'sess-123',
@@ -69,29 +72,57 @@ describe('search routes integration', () => {
 
     const res = await request(app)
       .post('/api/v1/search/sessions')
-      .send({ searchSpace: defaultSearchSpace, algorithm: 'random' });
+      .send({ algorithm: 'random-v1', searchSpace: defaultSearchSpace });
 
     expect(res.status).toBe(201);
     expect(res.body.session.sessionId).toBe('sess-123');
     expect(fakeScheduler.startSession).toHaveBeenCalledWith({
-      algorithm: 'random',
+      algorithm: 'random-v1',
       searchSpace: defaultSearchSpace,
       stopPolicy: undefined,
       userId: 'user-integration-1',
     });
   });
 
-  it('gets current session', async () => {
+  it('rejects starting a session with an unsupported algorithm', async () => {
+    fakeScheduler.startSession.mockRejectedValue(
+      new UnsupportedAlgorithmError('domain-guided'),
+    );
+
+    const res = await request(app)
+      .post('/api/v1/search/sessions')
+      .send({ algorithm: 'domain-guided', searchSpace: defaultSearchSpace });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('UNSUPPORTED_ALGORITHM');
+    expect(res.body.algorithm).toBe('domain-guided');
+  });
+
+  it('gets current session with its live in-progress run stats', async () => {
     fakeScheduler.getSession.mockReturnValue({
-      algorithm: 'random',
+      algorithm: 'random-v1',
       bestScore: 1.2,
       sessionId: 'sess-123',
       status: 'ACTIVE',
+    });
+    fakeScheduler.getSessionProgress.mockReturnValue({
+      acceptedCandidates: 51,
+      bestScore: 0.3997,
+      inFlightJobs: 2,
+      maxCandidates: 100,
+      runStatus: 'STOPPING',
+      sessionId: 'sess-123',
+      sessionStatus: 'ACTIVE',
+      totalRunsCompleted: 0,
+      userId: 'user-integration-1',
     });
 
     const res = await request(app).get('/api/v1/search/sessions/current');
     expect(res.status).toBe(200);
     expect(res.body.session.sessionId).toBe('sess-123');
+    expect(res.body.progress.acceptedCandidates).toBe(51);
+    expect(res.body.progress.inFlightJobs).toBe(2);
+    expect(res.body.progress.runStatus).toBe('STOPPING');
   });
 
   it('pauses, resumes, and stops session', async () => {

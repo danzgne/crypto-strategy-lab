@@ -1,4 +1,21 @@
+import { randomInt } from 'node:crypto';
 import type { RandomSource } from '@crypto-strategy-lab/shared';
+
+const MAX_SIGNED_INT32 = 0x7fffffff;
+
+export function createSearchRunSeed(): number {
+  return randomInt(0, MAX_SIGNED_INT32);
+}
+
+// Murmur3-style finalizer mix, so each ordinal draws from its own independent deterministic stream.
+export function deriveOrdinalSeed(seed: number, ordinal: number): number {
+  let h = (seed >>> 0) ^ 0x9e3779b9;
+  h = Math.imul(h ^ (ordinal >>> 0), 0x85ebca6b);
+  h ^= h >>> 13;
+  h = Math.imul(h, 0xc2b2ae35);
+  h ^= h >>> 16;
+  return h >>> 0;
+}
 
 export class MathRandomSource implements RandomSource {
   public random(): number {

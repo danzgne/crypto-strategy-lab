@@ -1,6 +1,7 @@
 'use client';
 
 import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
+import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared/search';
 import type {
   LibraryBuiltin,
   Pair,
@@ -253,7 +254,7 @@ export function DiscoverySessionControl({
       });
 
       await discovery.startSession({
-        algorithm: 'random',
+        algorithm: RANDOM_SEARCH_ALGORITHM_ID,
         searchSpace: {
           enabledStrategies,
           endTime,

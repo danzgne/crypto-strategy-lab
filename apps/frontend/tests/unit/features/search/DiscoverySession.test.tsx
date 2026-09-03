@@ -69,7 +69,7 @@ describe('Discovery UI Components', () => {
 
       expect(mockDiscovery.startSession).toHaveBeenCalledWith(
         expect.objectContaining({
-          algorithm: 'random',
+          algorithm: 'random-v1',
           searchSpace: expect.objectContaining({
             pair: 'BTCUSDT',
             timeframe: '1h',

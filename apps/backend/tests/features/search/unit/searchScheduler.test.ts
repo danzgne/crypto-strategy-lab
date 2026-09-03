@@ -217,6 +217,50 @@ describe('SearchScheduler', () => {
     await scheduler.stopSession('user-3');
   });
 
+  it('forwards the selected algorithm to the coordinator instead of an implicit default', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-algo-1');
+    fakeCoordinator.waitForRunCompletion.mockReturnValue(new Promise(() => {}));
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+
+    await scheduler.startSession({
+      algorithm: 'random-v1',
+      searchSpace: defaultSearchSpace,
+      userId: 'user-algo',
+    });
+
+    expect(fakeCoordinator.startRun).toHaveBeenCalledWith(
+      expect.objectContaining({ algorithmName: 'random-v1' }),
+    );
+
+    await scheduler.stopSession('user-algo');
+  });
+
+  it('rejects an unregistered algorithm before starting any run', async () => {
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+
+    await expect(
+      scheduler.startSession({
+        algorithm: 'domain-guided',
+        searchSpace: defaultSearchSpace,
+        userId: 'user-rejected',
+      }),
+    ).rejects.toThrow('Unsupported search algorithm: domain-guided');
+
+    expect(fakeCoordinator.startRun).not.toHaveBeenCalled();
+    expect(scheduler.getSession('user-rejected')).toBeNull();
+  });
+
   it('retrieves historical runs with stop reasons', async () => {
     fakePrisma.searchRun.findMany.mockResolvedValue([
       {
@@ -279,6 +323,43 @@ describe('SearchScheduler', () => {
     expect(lastUpdate?.bestScore).toBe(2.34);
     expect(lastUpdate?.inFlightJobs).toBe(3);
     expect(lastUpdate?.runStatus).toBe('RUNNING');
+  });
+
+  it('returns the live in-progress run stats on demand, not just via the progress callback', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-pull-1');
+    fakeCoordinator.waitForRunCompletion.mockReturnValue(new Promise(() => {})); // pending
+    fakeCoordinator.getRun.mockReturnValue({
+      acceptedCandidates: 51,
+      bestScore: 0.3997,
+      inFlightJobs: 2,
+      status: 'STOPPING',
+    });
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+    await scheduler.startSession({
+      searchSpace: defaultSearchSpace,
+      userId: 'user-pull',
+    });
+
+    const progress = scheduler.getSessionProgress('user-pull');
+    expect(progress?.acceptedCandidates).toBe(51);
+    expect(progress?.inFlightJobs).toBe(2);
+    expect(progress?.runStatus).toBe('STOPPING');
+    expect(progress?.bestScore).toBe(0.3997);
+  });
+
+  it('returns null session progress for a user with no active session', () => {
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    expect(scheduler.getSessionProgress('nobody')).toBeNull();
   });
 
   it('triggers trade retention pruning when a run completes', async () => {
