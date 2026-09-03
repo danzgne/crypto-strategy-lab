@@ -128,9 +128,9 @@ export default function NewsPage() {
       />
 
       {/* Main Two-Column Layout */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Incoming News (News Feed) */}
-        <div className="lg:col-span-4 h-[780px]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 lg:items-stretch">
+        {/* Left Column: Incoming News (News Feed) — stretches to match the right column's height */}
+        <div className="lg:col-span-4">
           <NewsFeedList
             items={items}
             total={total}
@@ -144,29 +144,31 @@ export default function NewsPage() {
         </div>
 
         {/* Right Column: Extraction Template health & Analytics Output */}
-        <div className="lg:col-span-8 space-y-6">
+        <div className="flex flex-col gap-6 lg:col-span-8">
           <AnalysisOutputPanel stats={stats} lastUpdated={lastUpdated} />
-          <ExtractionTemplatePanel
-            isAdmin={isAdmin}
-            selectedTab={selectedTab}
-            websiteSources={extraction.websiteSources}
-            selectedSourceId={extraction.selectedSourceId}
-            onSelectSource={extraction.setSelectedSourceId}
-            panel={extraction.panel}
-            isLoading={extraction.isLoading}
-            candidate={extraction.candidate}
-            actionState={extraction.actionState}
-            pastedHtml={extraction.pastedHtml}
-            onPastedHtmlChange={extraction.setPastedHtml}
-            previewResult={extraction.previewResult}
-            isPreviewing={extraction.isPreviewing}
-            onGenerate={extraction.handleGenerate}
-            onPreview={extraction.handlePreview}
-            onSaveProposal={extraction.handleSaveProposal}
-            onActivate={extraction.handleActivate}
-            onReject={extraction.handleReject}
-            onUpdateSettings={extraction.handleUpdateSettings}
-          />
+          <div className="flex-1">
+            <ExtractionTemplatePanel
+              isAdmin={isAdmin}
+              selectedTab={selectedTab}
+              websiteSources={extraction.websiteSources}
+              selectedSourceId={extraction.selectedSourceId}
+              onSelectSource={extraction.setSelectedSourceId}
+              panel={extraction.panel}
+              isLoading={extraction.isLoading}
+              candidate={extraction.candidate}
+              actionState={extraction.actionState}
+              pastedHtml={extraction.pastedHtml}
+              onPastedHtmlChange={extraction.setPastedHtml}
+              previewResult={extraction.previewResult}
+              isPreviewing={extraction.isPreviewing}
+              onGenerate={extraction.handleGenerate}
+              onPreview={extraction.handlePreview}
+              onSaveProposal={extraction.handleSaveProposal}
+              onActivate={extraction.handleActivate}
+              onReject={extraction.handleReject}
+              onUpdateSettings={extraction.handleUpdateSettings}
+            />
+          </div>
         </div>
       </div>
 

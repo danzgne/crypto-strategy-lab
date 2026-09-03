@@ -121,7 +121,7 @@ export function ExtractionTemplatePanel({
   const isNonWebsiteTab = selectedTab === 'RSS' || selectedTab === 'HTML';
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white shadow-sm">
+    <div className="h-full rounded-2xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
         <div>
           <h3 className="text-base font-bold text-slate-900">
