@@ -44,10 +44,7 @@ function parseDirect(text: string): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-/**
- * Parses a listing-page timestamp: ISO-8601 and RFC-2822 both parse natively via
- * Date, so only the free-text relative-time case ("3 mins ago") needs custom logic.
- */
+// ISO-8601 and RFC-2822 both parse natively via Date; only relative text needs parseRelativeTime.
 export function parseTimestamp(raw: string, now: Date): ParsedTimestamp {
   const trimmed = raw.trim();
   const parsed =

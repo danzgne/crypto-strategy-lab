@@ -157,8 +157,14 @@ export default function NewsPage() {
             isLoading={extraction.isLoading}
             candidate={extraction.candidate}
             actionState={extraction.actionState}
+            pastedHtml={extraction.pastedHtml}
+            onPastedHtmlChange={extraction.setPastedHtml}
+            previewResult={extraction.previewResult}
+            isPreviewing={extraction.isPreviewing}
             onGenerate={extraction.handleGenerate}
+            onPreview={extraction.handlePreview}
             onSaveProposal={extraction.handleSaveProposal}
+            onActivate={extraction.handleActivate}
           />
           <SelfHealingDiagramPanel
             isAdmin={isAdmin}

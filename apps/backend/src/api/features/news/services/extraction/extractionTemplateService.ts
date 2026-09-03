@@ -19,6 +19,10 @@ import type {
 import { applyTemplate } from './templateApplier';
 import { evaluateDrift } from './driftEvaluator';
 import { isSourceHealthy } from '../sourceHealth';
+import {
+  CRAWL_INTERVAL_SETTING_KEY,
+  parseRefreshIntervalMinutes,
+} from '../refreshInterval';
 import { trimHtmlForModel } from './htmlTrimmer';
 import { validateTemplateSelectors } from './selectorValidator';
 import { normalizeGeneratedTemplate } from './normalizeGeneratedTemplate';
@@ -67,9 +71,7 @@ interface ExtractionTemplateServiceDependencies {
 
 const DRIFT_ENABLED_SETTING_KEY = 'extraction.drift_detection_enabled';
 const DRIFT_THRESHOLD_SETTING_KEY = 'extraction.drift_threshold';
-const CRAWL_INTERVAL_SETTING_KEY = 'news.crawl_interval_minutes';
 const DEFAULT_DRIFT_THRESHOLD = 0.1;
-const DEFAULT_REFRESH_INTERVAL_MINUTES = 3;
 
 export class ExtractionTemplateService implements ActiveTemplatePort {
   private readonly templateRepository: ExtractionTemplateRepository;
@@ -106,8 +108,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     this.now = now;
   }
 
-  // --- ActiveTemplatePort: consumed by WebsiteNewsProvider ---
-
   public async getActiveTemplate(
     source: NewsSource,
   ): Promise<ActiveTemplateRecord | null> {
@@ -121,8 +121,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
       ? { versionId: generated.id, template: generated.template }
       : null;
   }
-
-  // --- Authoring bench ---
 
   public async previewTemplate(
     source: NewsSource,
@@ -185,6 +183,7 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     source: NewsSource,
     template: ExtractionTemplate,
     generatedBy: string,
+    options: { html?: string | undefined } = {},
   ): Promise<ExtractionTemplateVersion> {
     const issues = validateTemplateSelectors(template);
     if (issues.length > 0) {
@@ -214,7 +213,7 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
       );
     }
 
-    const html = await this.fetchHtml(source.url);
+    const html = options.html ?? (await this.fetchHtml(source.url));
     const { metrics } = applyTemplate(
       html,
       template,
@@ -257,8 +256,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
   ): Promise<ExtractionTemplateVersion> {
     return this.templateRepository.rejectVersion(sourceId, versionId);
   }
-
-  // --- Source health / drift panel ---
 
   public async getPanelData(source: NewsSource): Promise<ExtractionPanelData> {
     const now = this.now();
@@ -330,8 +327,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     };
   }
 
-  // --- Settings ---
-
   public async getSettings(): Promise<ExtractionSettings> {
     const [enabledRaw, thresholdRaw] = await Promise.all([
       this.settingsStore.getSetting(DRIFT_ENABLED_SETTING_KEY),
@@ -377,8 +372,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     return this.getSettings();
   }
 
-  // --- Drift evaluation, triggered by ExtractionValidated ---
-
   public schedulePass(sourceId: string): void {
     if (this.isClosed) return;
     if (this.inFlightBySourceId.has(sourceId)) {
@@ -410,11 +403,7 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     await Promise.all(this.activePasses);
   }
 
-  /**
-   * Evaluates drift for one Source's active template and, only when it has crossed
-   * the threshold, generates and stores a PROPOSED replacement. Never activates
-   * anything: the returned version (if any) still needs the explicit admin action.
-   */
+  // Never activates the proposal it creates; that still needs the explicit admin action.
   public async checkAndProposeIfDrifted(
     sourceId: string,
   ): Promise<ExtractionTemplateVersion | null> {
@@ -529,8 +518,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
     });
   }
 
-  // --- Shared helpers ---
-
   private async generateAndActivateFirstVersion(
     source: NewsSource,
   ): Promise<ExtractionTemplateVersion | null> {
@@ -589,9 +576,6 @@ export class ExtractionTemplateService implements ActiveTemplatePort {
 
   private async getRefreshIntervalMinutes(): Promise<number> {
     const raw = await this.settingsStore.getSetting(CRAWL_INTERVAL_SETTING_KEY);
-    const parsed = raw === null ? Number.NaN : Number(raw);
-    return Number.isFinite(parsed) && parsed >= 1
-      ? parsed
-      : DEFAULT_REFRESH_INTERVAL_MINUTES;
+    return parseRefreshIntervalMinutes(raw);
   }
 }

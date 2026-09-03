@@ -5,11 +5,7 @@ export interface LastAttemptSummary {
   crawledAt: string;
 }
 
-/**
- * Health, not the admin's Enabled switch: a Source is active when its most recent
- * crawl attempt succeeded within twice its configured refresh interval, so one
- * skipped tick is not read as an outage.
- */
+// Health, not the admin's Enabled switch: within twice the interval, one skipped tick isn't an outage.
 export function isSourceHealthy(
   lastAttempt: LastAttemptSummary | null | undefined,
   refreshIntervalMinutes: number,

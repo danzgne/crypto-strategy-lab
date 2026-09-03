@@ -216,8 +216,14 @@ describe('News Frontend Components', () => {
         isLoading={false}
         candidate={null}
         actionState="idle"
+        pastedHtml=""
+        onPastedHtmlChange={vi.fn()}
+        previewResult={null}
+        isPreviewing={false}
         onGenerate={vi.fn()}
+        onPreview={vi.fn()}
         onSaveProposal={vi.fn()}
+        onActivate={vi.fn()}
       />,
     );
 
@@ -238,14 +244,58 @@ describe('News Frontend Components', () => {
         isLoading={false}
         candidate={null}
         actionState="idle"
+        pastedHtml=""
+        onPastedHtmlChange={vi.fn()}
+        previewResult={null}
+        isPreviewing={false}
         onGenerate={vi.fn()}
+        onPreview={vi.fn()}
         onSaveProposal={vi.fn()}
+        onActivate={vi.fn()}
       />,
     );
 
     expect(screen.getByText('Template: v1')).toBeInTheDocument();
     expect(screen.getByText('article.cs-article-card')).toBeInTheDocument();
     expect(screen.getByText('Confidence: 0.92')).toBeInTheDocument();
+  });
+
+  it('ExtractionDiagramPanel lets an admin roll back to a superseded version', () => {
+    const supersededVersion: ExtractionPanelData['versionHistory'][number] = {
+      ...activeVersionFixture,
+      id: 'version-0',
+      version: 0,
+      status: 'SUPERSEDED',
+    };
+    const onActivate = vi.fn();
+
+    render(
+      <ExtractionDiagramPanel
+        isAdmin={true}
+        selectedTab="WEBSITE"
+        websiteSources={[websiteSource]}
+        selectedSourceId="source-1"
+        onSelectSource={vi.fn()}
+        panel={{
+          ...panelFixture,
+          versionHistory: [activeVersionFixture, supersededVersion],
+        }}
+        isLoading={false}
+        candidate={null}
+        actionState="idle"
+        pastedHtml=""
+        onPastedHtmlChange={vi.fn()}
+        previewResult={null}
+        isPreviewing={false}
+        onGenerate={vi.fn()}
+        onPreview={vi.fn()}
+        onSaveProposal={vi.fn()}
+        onActivate={onActivate}
+      />,
+    );
+
+    fireEvent.click(screen.getByText('Roll back'));
+    expect(onActivate).toHaveBeenCalledWith('version-0');
   });
 
   it('SelfHealingDiagramPanel shows drift status and an admin-editable threshold', () => {
@@ -268,6 +318,10 @@ describe('News Frontend Components', () => {
     expect(
       screen.getByText(/No proposal is pending review/),
     ).toBeInTheDocument();
+
+    // Trailing-24h source health, not just the drift verdict
+    expect(screen.getByText('0.90')).toBeInTheDocument();
+    expect(screen.getByText('20')).toBeInTheDocument();
 
     const toggle = screen.getByRole('switch');
     fireEvent.click(toggle);

@@ -11,12 +11,12 @@ interface TemplateDiffViewProps {
   proposed: ExtractionTemplate;
 }
 
-const FIELD_LABELS: Record<TemplateFieldName, string> = {
-  title: 'title',
-  summary: 'summary',
-  publishedAt: 'publishedAt',
-  url: 'url',
-};
+const TEMPLATE_FIELD_NAMES: TemplateFieldName[] = [
+  'title',
+  'summary',
+  'publishedAt',
+  'url',
+];
 
 function describeLocator(locator: TemplateFieldLocator | undefined): string {
   if (!locator) return '—';
@@ -38,11 +38,11 @@ export function TemplateDiffView({ active, proposed }: TemplateDiffViewProps) {
       proposedValue: proposed.item,
       changed: active.item !== proposed.item,
     },
-    ...(Object.keys(FIELD_LABELS) as TemplateFieldName[]).map((field) => {
+    ...TEMPLATE_FIELD_NAMES.map((field) => {
       const activeValue = describeLocator(active.fields[field]);
       const proposedValue = describeLocator(proposed.fields[field]);
       return {
-        field: FIELD_LABELS[field],
+        field,
         activeValue,
         proposedValue,
         changed: activeValue !== proposedValue,

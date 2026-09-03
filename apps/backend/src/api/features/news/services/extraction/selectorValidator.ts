@@ -17,13 +17,8 @@ function matchesSupportedSubset(selector: string): boolean {
   );
 }
 
-/**
- * The generation and proposal prompts constrain the model to a CSS subset that
- * node-html-parser's selector engine fully covers: tag, class, id, attribute, and
- * the descendant combinator. This checks a candidate selector against that subset
- * and then actually runs it, so a selector that is syntactically in-subset but
- * still throws at query time (e.g. malformed brackets) is still rejected.
- */
+// Checks the CSS subset the generation prompt allows, then actually runs the
+// selector, so one that's syntactically in-subset but still throws is rejected too.
 export function isSupportedSelector(selector: string): boolean {
   if (!matchesSupportedSubset(selector)) return false;
 
@@ -35,11 +30,7 @@ export function isSupportedSelector(selector: string): boolean {
   }
 }
 
-/**
- * Validates every selector in a candidate template. Returns the empty array when
- * the template is fully usable, otherwise the dotted path of each bad selector
- * ("item", "fields.title", ...) so the caller can log or surface what failed.
- */
+// Returns the dotted path of each unsupported selector ("item", "fields.title", ...).
 export function validateTemplateSelectors(
   template: ExtractionTemplate,
 ): string[] {

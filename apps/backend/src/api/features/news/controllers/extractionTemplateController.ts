@@ -141,6 +141,7 @@ export class ExtractionTemplateController {
         source,
         parsed.data.template,
         parsed.data.generatedBy,
+        { html: parsed.data.html },
       );
       sendSuccess(res, version, 201);
     } catch (error) {

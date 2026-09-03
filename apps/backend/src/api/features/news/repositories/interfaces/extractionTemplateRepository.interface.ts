@@ -2,6 +2,7 @@ import type {
   ExtractionTemplate,
   ExtractionTemplateVersion,
 } from '@crypto-strategy-lab/shared';
+import type { DriftAttemptSample } from '../../services/extraction/driftEvaluator';
 
 export interface NewExtractionVersionInput {
   newsSourceId: string;
@@ -12,11 +13,7 @@ export interface NewExtractionVersionInput {
   projectedMalformedFieldRate?: number | null | undefined;
 }
 
-export interface ExtractionAttemptSample {
-  itemsFound: number;
-  emptyFieldRate: number;
-  malformedFieldRate: number;
-}
+export type ExtractionAttemptSample = DriftAttemptSample;
 
 export interface Trailing24hExtractionStats {
   avgConfidence: number | null;

@@ -16,23 +16,30 @@ export interface WebsiteNewsResult {
   metrics: ExtractionAttemptMetrics;
 }
 
-/**
- * Reads a listing page using its Source's active Extraction Template. Applying a
- * template is pure selector evaluation (see templateApplier); this class owns only
- * the fetch and the glue to the one-method template port. It never calls an LLM
- * itself and never falls back to a heuristic: a missing or unusable template fails
- * the crawl attempt outright, which is what keeps the drift signal honest.
- */
+interface WebsiteNewsProviderDependencies {
+  templatePort: ActiveTemplatePort;
+  fetchHtml?: ((url: string) => Promise<string>) | undefined;
+  now?: (() => Date) | undefined;
+}
+
+// Never falls back to a heuristic: a missing or unusable template fails the crawl
+// attempt outright, which is what keeps the drift signal honest.
 export class WebsiteNewsProvider implements NewsProviderWithExtractionMetrics {
   public readonly providerType: NewsProviderType = 'WEBSITE';
 
-  public constructor(
-    private readonly templatePort: ActiveTemplatePort,
-    private readonly fetchHtml: (
-      url: string,
-    ) => Promise<string> = fetchSourceHtml,
-    private readonly now: () => Date = () => new Date(),
-  ) {}
+  private readonly templatePort: ActiveTemplatePort;
+  private readonly fetchHtml: (url: string) => Promise<string>;
+  private readonly now: () => Date;
+
+  public constructor({
+    templatePort,
+    fetchHtml = fetchSourceHtml,
+    now = () => new Date(),
+  }: WebsiteNewsProviderDependencies) {
+    this.templatePort = templatePort;
+    this.fetchHtml = fetchHtml;
+    this.now = now;
+  }
 
   public async fetchNews(source: NewsSource): Promise<RawNewsItem[]> {
     return (await this.fetchNewsWithMetrics(source)).items;

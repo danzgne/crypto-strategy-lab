@@ -1,7 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import type { NewsProviderType, ExtractionPanelData } from '../types';
+import type {
+  NewsProviderType,
+  ExtractionPanelData,
+  DriftStatus,
+} from '../types';
+import type { ExtractionActionState } from '../hooks/useExtractionPanel';
 import { TemplateDiffView } from './TemplateDiffView';
 
 interface SelfHealingDiagramPanelProps {
@@ -10,7 +15,7 @@ interface SelfHealingDiagramPanelProps {
   hasWebsiteSources: boolean;
   panel: ExtractionPanelData | null;
   isLoading: boolean;
-  actionState: 'idle' | 'generating' | 'saving' | 'activating' | 'rejecting';
+  actionState: ExtractionActionState;
   onActivate: (versionId: string) => void;
   onReject: (versionId: string) => void;
   onUpdateSettings: (patch: {
@@ -19,13 +24,13 @@ interface SelfHealingDiagramPanelProps {
   }) => void;
 }
 
-const DRIFT_STATUS_LABEL: Record<string, string> = {
+const DRIFT_STATUS_LABEL: Record<DriftStatus, string> = {
   OK: 'Stable',
   DRIFTED: 'Drifted',
   INSUFFICIENT_DATA: 'Insufficient data',
 };
 
-const DRIFT_STATUS_CLASS: Record<string, string> = {
+const DRIFT_STATUS_CLASS: Record<DriftStatus, string> = {
   OK: 'text-emerald-600',
   DRIFTED: 'text-rose-600',
   INSUFFICIENT_DATA: 'text-slate-500',
@@ -128,7 +133,45 @@ export function SelfHealingDiagramPanel({
           No active version yet to evaluate drift against.
         </p>
       ) : (
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-3 text-[11px]">
+            <p className="font-semibold text-slate-700">Source health:</p>
+            <div className="mt-1.5 flex justify-between">
+              <span className="text-slate-500">Enabled:</span>
+              <span className="font-semibold text-slate-700">
+                {panel.health.enabled ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between">
+              <span className="text-slate-500">Active (health):</span>
+              <span
+                className={`font-semibold ${panel.health.active ? 'text-emerald-600' : 'text-rose-600'}`}
+              >
+                {panel.health.active ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between">
+              <span className="text-slate-500">Last attempt:</span>
+              <span className="font-semibold text-slate-700">
+                {panel.health.lastAttemptStatus ?? '—'}
+              </span>
+            </div>
+            <div className="mt-2.5 border-t border-slate-100 pt-1.5 flex justify-between">
+              <span className="text-slate-500">Avg. confidence (24h):</span>
+              <span className="font-semibold text-slate-700">
+                {panel.health.avgConfidence24h !== null
+                  ? panel.health.avgConfidence24h.toFixed(2)
+                  : '—'}
+              </span>
+            </div>
+            <div className="mt-1 flex justify-between">
+              <span className="text-slate-500">Items analysed (24h):</span>
+              <span className="font-semibold text-slate-700">
+                {panel.health.itemsAnalysed24h}
+              </span>
+            </div>
+          </div>
+
           <div className="flex flex-col rounded-xl border border-slate-200 bg-white p-3 text-[11px]">
             <p className="font-semibold text-slate-700">
               Validation metrics (since v{panel.activeVersion.version} was

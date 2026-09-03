@@ -1,5 +1,13 @@
 import { config as loadEnvironment } from 'dotenv';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+} from 'vitest';
 
 import {
   createPrismaClient,
@@ -24,6 +32,11 @@ const TEMPLATE: ExtractionTemplate = {
   confidence: 0.9,
 };
 
+// Each test creates and tears down its own News Source rather than sharing one across
+// the file: an unrelated integration suite (newsRoutes.test.ts) truncates news_sources
+// wholesale in its own beforeAll/afterAll, and vitest runs test files concurrently
+// against the same database, so a source shared for the whole file's duration would
+// race with that. Scoping creation to beforeEach shrinks the exposure to one test.
 describe('PrismaExtractionTemplateRepository', () => {
   let prisma: AppPrismaClient;
   let repository: PrismaExtractionTemplateRepository;
@@ -33,22 +46,27 @@ describe('PrismaExtractionTemplateRepository', () => {
     prisma = createPrismaClient(process.env.DATABASE_URL!);
     await prisma.$connect();
     repository = new PrismaExtractionTemplateRepository(prisma);
+  });
 
+  beforeEach(async () => {
     const source = await prisma.newsSource.create({
       data: {
         name: `Issue46 fixture ${Date.now()}`,
-        url: `https://issue46-fixture-${Date.now()}.example.com/news/`,
+        url: `https://issue46-fixture-${Date.now()}-${Math.random().toString(36).slice(2)}.example.com/news/`,
         providerType: 'WEBSITE',
       },
     });
     sourceId = source.id;
   });
 
-  afterAll(async () => {
+  afterEach(async () => {
     await prisma.extractionTemplateVersion.deleteMany({
       where: { newsSourceId: sourceId },
     });
-    await prisma.newsSource.delete({ where: { id: sourceId } });
+    await prisma.newsSource.deleteMany({ where: { id: sourceId } });
+  });
+
+  afterAll(async () => {
     await prisma.$disconnect();
   });
 
@@ -69,6 +87,13 @@ describe('PrismaExtractionTemplateRepository', () => {
   });
 
   it('rejects a second ACTIVE row for the same source at the database level', async () => {
+    await repository.createActiveVersion({
+      newsSourceId: sourceId,
+      template: TEMPLATE,
+      confidence: 0.9,
+      generatedBy: 'test-provider',
+    });
+
     await expect(
       prisma.extractionTemplateVersion.create({
         data: {
@@ -84,54 +109,82 @@ describe('PrismaExtractionTemplateRepository', () => {
   });
 
   it('numbers a proposed version 2 and links it to the active version', async () => {
-    const active = await repository.getActiveVersion(sourceId);
+    const active = await repository.createActiveVersion({
+      newsSourceId: sourceId,
+      template: TEMPLATE,
+      confidence: 0.9,
+      generatedBy: 'test-provider',
+    });
+
     const proposed = await repository.createProposedVersion({
       newsSourceId: sourceId,
       template: { ...TEMPLATE, confidence: 0.7 },
       confidence: 0.7,
       generatedBy: 'test-provider',
-      basedOnVersionId: active!.id,
+      basedOnVersionId: active.id,
       projectedEmptyFieldRate: 0.02,
       projectedMalformedFieldRate: 0.01,
     });
 
     expect(proposed.version).toBe(2);
     expect(proposed.status).toBe('PROPOSED');
-    expect(proposed.basedOnVersionId).toBe(active!.id);
+    expect(proposed.basedOnVersionId).toBe(active.id);
 
     const stillProposed = await repository.getProposedVersion(sourceId);
     expect(stillProposed?.id).toBe(proposed.id);
   });
 
   it('activating a proposed version supersedes the previously active one, in one transaction', async () => {
-    const proposed = await repository.getProposedVersion(sourceId);
-    const previousActive = await repository.getActiveVersion(sourceId);
+    const previousActive = await repository.createActiveVersion({
+      newsSourceId: sourceId,
+      template: TEMPLATE,
+      confidence: 0.9,
+      generatedBy: 'test-provider',
+    });
+    const proposed = await repository.createProposedVersion({
+      newsSourceId: sourceId,
+      template: { ...TEMPLATE, confidence: 0.7 },
+      confidence: 0.7,
+      generatedBy: 'test-provider',
+      basedOnVersionId: previousActive.id,
+    });
 
     const activated = await repository.activateVersion(
       sourceId,
-      proposed!.id,
+      proposed.id,
       new Date(),
     );
 
     expect(activated.status).toBe('ACTIVE');
-    expect(activated.id).toBe(proposed!.id);
+    expect(activated.id).toBe(proposed.id);
 
     const supersededPrevious = await repository.getVersionById(
       sourceId,
-      previousActive!.id,
+      previousActive.id,
     );
     expect(supersededPrevious?.status).toBe('SUPERSEDED');
 
     const nowActive = await repository.getActiveVersion(sourceId);
-    expect(nowActive?.id).toBe(proposed!.id);
+    expect(nowActive?.id).toBe(proposed.id);
   });
 
   it('rolling back to a superseded version mints no new version number', async () => {
-    const versionsBefore = await repository.listVersions(sourceId);
-    const supersededOne = versionsBefore.find(
-      (v) => v.status === 'SUPERSEDED',
-    )!;
+    const supersededOne = await repository.createActiveVersion({
+      newsSourceId: sourceId,
+      template: TEMPLATE,
+      confidence: 0.9,
+      generatedBy: 'test-provider',
+    });
+    const proposed = await repository.createProposedVersion({
+      newsSourceId: sourceId,
+      template: { ...TEMPLATE, confidence: 0.7 },
+      confidence: 0.7,
+      generatedBy: 'test-provider',
+      basedOnVersionId: supersededOne.id,
+    });
+    await repository.activateVersion(sourceId, proposed.id, new Date());
 
+    const versionsBefore = await repository.listVersions(sourceId);
     const rolledBack = await repository.activateVersion(
       sourceId,
       supersededOne.id,
@@ -144,13 +197,18 @@ describe('PrismaExtractionTemplateRepository', () => {
   });
 
   it('rejects a proposed version, and it cannot be reactivated', async () => {
-    const active = await repository.getActiveVersion(sourceId);
+    const active = await repository.createActiveVersion({
+      newsSourceId: sourceId,
+      template: TEMPLATE,
+      confidence: 0.9,
+      generatedBy: 'test-provider',
+    });
     const proposal = await repository.createProposedVersion({
       newsSourceId: sourceId,
       template: TEMPLATE,
       confidence: 0.6,
       generatedBy: 'test-provider',
-      basedOnVersionId: active!.id,
+      basedOnVersionId: active.id,
     });
 
     const rejected = await repository.rejectVersion(sourceId, proposal.id);

@@ -172,7 +172,7 @@ async function startBackend(): Promise<void> {
     providers: [
       new RssNewsProvider(),
       htmlPasteProvider,
-      new WebsiteNewsProvider(extractionTemplateService),
+      new WebsiteNewsProvider({ templatePort: extractionTemplateService }),
     ],
   });
   const newsScheduler = new NewsScheduler({

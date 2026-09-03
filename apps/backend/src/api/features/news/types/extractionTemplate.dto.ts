@@ -33,6 +33,7 @@ export type GenerateTemplateDto = z.infer<typeof generateTemplateSchema>;
 export const saveProposedVersionSchema = z.object({
   template: extractionTemplateSchema,
   generatedBy: z.string().min(1),
+  html: z.string().min(1).optional(),
 });
 
 export type SaveProposedVersionDto = z.infer<typeof saveProposedVersionSchema>;

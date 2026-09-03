@@ -115,20 +115,6 @@ export async function fetchExtractionPanel(
   );
 }
 
-export async function fetchTemplateVersions(
-  sourceId: string,
-): Promise<ExtractionTemplateVersion[]> {
-  return browserHttpClient<ExtractionTemplateVersion[]>(
-    `/api/v1/news/sources/${sourceId}/template/versions`,
-  );
-}
-
-export async function fetchExtractionSettings(): Promise<ExtractionSettings> {
-  return browserHttpClient<ExtractionSettings>(
-    '/api/v1/news/extraction/settings',
-  );
-}
-
 export async function updateExtractionSettings(patch: {
   driftDetectionEnabled?: boolean | undefined;
   driftThreshold?: number | undefined;
@@ -167,7 +153,11 @@ export async function generateTemplate(
 
 export async function saveProposedTemplateVersion(
   sourceId: string,
-  body: { template: ExtractionTemplate; generatedBy: string },
+  body: {
+    template: ExtractionTemplate;
+    generatedBy: string;
+    html?: string | undefined;
+  },
 ): Promise<ExtractionTemplateVersion> {
   return browserHttpClient<ExtractionTemplateVersion>(
     `/api/v1/admin/news-sources/${sourceId}/template/versions`,

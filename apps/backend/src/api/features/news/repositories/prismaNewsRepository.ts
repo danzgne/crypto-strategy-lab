@@ -24,6 +24,10 @@ import {
   type ScoredNewsItemForAnalytics,
 } from '../services/sentimentAnalytics';
 import { isSourceHealthy } from '../services/sourceHealth';
+import {
+  CRAWL_INTERVAL_SETTING_KEY,
+  parseRefreshIntervalMinutes,
+} from '../services/refreshInterval';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 function mapNewsSource(source: {
@@ -492,16 +496,14 @@ export class PrismaNewsRepository implements NewsRepository {
         include: { crawlLogs: { orderBy: { crawledAt: 'desc' }, take: 1 } },
       }),
       this.prisma.systemSetting.findUnique({
-        where: { key: 'news.crawl_interval_minutes' },
+        where: { key: CRAWL_INTERVAL_SETTING_KEY },
       }),
       this.getNewsAnalytics(pair),
     ]);
 
-    const parsedInterval = Number(refreshIntervalSetting?.value);
-    const refreshIntervalMinutes =
-      Number.isFinite(parsedInterval) && parsedInterval >= 1
-        ? parsedInterval
-        : 3;
+    const refreshIntervalMinutes = parseRefreshIntervalMinutes(
+      refreshIntervalSetting?.value,
+    );
 
     const now = new Date();
     const enabledSources = enabledSourceRows.length;

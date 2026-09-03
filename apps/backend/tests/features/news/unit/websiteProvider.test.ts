@@ -41,11 +41,11 @@ describe('WebsiteNewsProvider', () => {
         .mockResolvedValue({ versionId: 'v1', template: TEMPLATE }),
     };
     const fetchHtml = vi.fn().mockResolvedValue(HTML);
-    const provider = new WebsiteNewsProvider(
+    const provider = new WebsiteNewsProvider({
       templatePort,
       fetchHtml,
-      () => new Date('2026-09-02T15:00:00Z'),
-    );
+      now: () => new Date('2026-09-02T15:00:00Z'),
+    });
 
     const result = await provider.fetchNewsWithMetrics(SOURCE);
 
@@ -66,10 +66,10 @@ describe('WebsiteNewsProvider', () => {
         .fn()
         .mockResolvedValue({ versionId: 'v1', template: TEMPLATE }),
     };
-    const provider = new WebsiteNewsProvider(
+    const provider = new WebsiteNewsProvider({
       templatePort,
-      vi.fn().mockResolvedValue(HTML),
-    );
+      fetchHtml: vi.fn().mockResolvedValue(HTML),
+    });
 
     const items = await provider.fetchNews(SOURCE);
     expect(items).toHaveLength(1);
@@ -79,7 +79,10 @@ describe('WebsiteNewsProvider', () => {
     const templatePort: ActiveTemplatePort = {
       getActiveTemplate: vi.fn().mockResolvedValue(null),
     };
-    const provider = new WebsiteNewsProvider(templatePort, vi.fn());
+    const provider = new WebsiteNewsProvider({
+      templatePort,
+      fetchHtml: vi.fn(),
+    });
 
     await expect(provider.fetchNewsWithMetrics(SOURCE)).rejects.toThrow(
       /No usable extraction template/,

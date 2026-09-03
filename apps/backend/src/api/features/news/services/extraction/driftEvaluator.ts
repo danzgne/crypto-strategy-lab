@@ -9,16 +9,8 @@ export interface DriftAttemptSample {
 const MIN_ATTEMPTS = 3;
 const MIN_ITEMS = 10;
 
-/**
- * Pure decision function: given the validation metrics of every attempt that has
- * applied the currently ACTIVE template version since it was activated, decides
- * whether drift has crossed the threshold. Never fetches, never persists.
- *
- * An attempt whose item-container selector matched zero nodes still counts as one
- * fully-empty sample (weight 1, not 0) toward both the item-weighted mean and the
- * minimum-sample gate below, so a total-match failure cannot hide behind a "no
- * sample yet" reading and stall out the minimum-item requirement forever.
- */
+// A zero-match attempt counts as one fully-empty sample (weight 1, not 0) rather than
+// zero weight, so total match failure can't stall the minimum-sample gate forever.
 export function evaluateDrift(
   attempts: readonly DriftAttemptSample[],
   threshold: number,

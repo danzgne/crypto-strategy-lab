@@ -6,6 +6,7 @@ import type {
   ExtractionPanelData,
   ExtractionTemplate,
   TemplateGenerateResult,
+  TemplatePreviewResult,
 } from '../types';
 import {
   fetchExtractionPanel,
@@ -21,6 +22,9 @@ export interface UseExtractionPanelOptions {
   sources: NewsSource[];
   isAdmin?: boolean;
 }
+
+export type ExtractionActionState =
+  'idle' | 'generating' | 'saving' | 'activating' | 'rejecting';
 
 export function useExtractionPanel({
   sources,
@@ -42,15 +46,18 @@ export function useExtractionPanel({
   const [panel, setPanel] = useState<ExtractionPanelData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [actionState, setActionState] = useState<
-    'idle' | 'generating' | 'saving' | 'activating' | 'rejecting'
-  >('idle');
+  const [actionState, setActionState] = useState<ExtractionActionState>('idle');
   const [candidate, setCandidate] = useState<TemplateGenerateResult | null>(
     null,
   );
+  const [pastedHtml, setPastedHtml] = useState('');
+  const [previewResult, setPreviewResult] =
+    useState<TemplatePreviewResult | null>(null);
+  const [isPreviewing, setIsPreviewing] = useState(false);
 
   const refresh = useCallback(async () => {
     setCandidate(null);
+    setPreviewResult(null);
     if (!selectedSourceId) {
       setPanel(null);
       return;
@@ -82,7 +89,9 @@ export function useExtractionPanel({
     setActionState('generating');
     setErrorMessage(null);
     try {
-      const result = await generateTemplate(selectedSourceId, {});
+      const result = await generateTemplate(selectedSourceId, {
+        html: pastedHtml || undefined,
+      });
       setCandidate(result);
     } catch (err) {
       setErrorMessage(
@@ -91,12 +100,29 @@ export function useExtractionPanel({
     } finally {
       setActionState('idle');
     }
-  }, [selectedSourceId, isAdmin]);
+  }, [selectedSourceId, isAdmin, pastedHtml]);
 
-  const handlePreviewActive = useCallback(async () => {
-    if (!selectedSourceId) return null;
-    return previewTemplate(selectedSourceId, {});
-  }, [selectedSourceId]);
+  const handlePreview = useCallback(
+    async (template?: ExtractionTemplate) => {
+      if (!selectedSourceId) return;
+      setIsPreviewing(true);
+      setErrorMessage(null);
+      try {
+        const result = await previewTemplate(selectedSourceId, {
+          html: pastedHtml || undefined,
+          template,
+        });
+        setPreviewResult(result);
+      } catch (err) {
+        setErrorMessage(
+          err instanceof Error ? err.message : 'Failed to preview template',
+        );
+      } finally {
+        setIsPreviewing(false);
+      }
+    },
+    [selectedSourceId, pastedHtml],
+  );
 
   const handleSaveProposal = useCallback(
     async (template: ExtractionTemplate, generatedBy: string) => {
@@ -107,8 +133,10 @@ export function useExtractionPanel({
         await saveProposedTemplateVersion(selectedSourceId, {
           template,
           generatedBy,
+          html: pastedHtml || undefined,
         });
         setCandidate(null);
+        setPreviewResult(null);
         await refresh();
       } catch (err) {
         setErrorMessage(
@@ -118,7 +146,7 @@ export function useExtractionPanel({
         setActionState('idle');
       }
     },
-    [selectedSourceId, isAdmin, refresh],
+    [selectedSourceId, isAdmin, pastedHtml, refresh],
   );
 
   const handleActivate = useCallback(
@@ -188,9 +216,14 @@ export function useExtractionPanel({
     actionState,
     candidate,
     setCandidate,
+    pastedHtml,
+    setPastedHtml,
+    previewResult,
+    setPreviewResult,
+    isPreviewing,
     refresh,
     handleGenerate,
-    handlePreviewActive,
+    handlePreview,
     handleSaveProposal,
     handleActivate,
     handleReject,

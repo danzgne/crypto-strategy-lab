@@ -54,11 +54,7 @@ function readField(
   return collapseWhitespace(raw);
 }
 
-/**
- * Pure selector evaluation: no network call and no model. A template is only ever
- * written by an LLM at generation or proposal time (see extractionTemplateService);
- * applying one against fetched HTML is nothing more than this function.
- */
+// Pure selector evaluation: no network call and no model.
 export function applyTemplate(
   html: string,
   template: ExtractionTemplate,

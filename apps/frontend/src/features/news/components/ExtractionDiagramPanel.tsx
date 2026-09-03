@@ -1,14 +1,18 @@
 'use client';
 
-import { CheckCircle2, Sparkles, Loader2 } from 'lucide-react';
+import { useState } from 'react';
+import { CheckCircle2, Sparkles, Loader2, Eye } from 'lucide-react';
 import type {
   NewsSource,
   NewsProviderType,
   ExtractionPanelData,
+  ExtractionTemplate,
   ExtractionTemplateVersion,
   TemplateGenerateResult,
+  TemplatePreviewResult,
   TemplateFieldName,
 } from '../types';
+import type { ExtractionActionState } from '../hooks/useExtractionPanel';
 import { WebsiteSourcePicker } from './WebsiteSourcePicker';
 
 interface ExtractionDiagramPanelProps {
@@ -20,12 +24,18 @@ interface ExtractionDiagramPanelProps {
   panel: ExtractionPanelData | null;
   isLoading: boolean;
   candidate: TemplateGenerateResult | null;
-  actionState: 'idle' | 'generating' | 'saving' | 'activating' | 'rejecting';
+  actionState: ExtractionActionState;
+  pastedHtml: string;
+  onPastedHtmlChange: (html: string) => void;
+  previewResult: TemplatePreviewResult | null;
+  isPreviewing: boolean;
   onGenerate: () => void;
+  onPreview: (template?: ExtractionTemplate) => void;
   onSaveProposal: (
     template: TemplateGenerateResult['template'],
     generatedBy: string,
   ) => void;
+  onActivate: (versionId: string) => void;
 }
 
 const FIELD_ORDER: TemplateFieldName[] = [
@@ -54,9 +64,16 @@ export function ExtractionDiagramPanel({
   isLoading,
   candidate,
   actionState,
+  pastedHtml,
+  onPastedHtmlChange,
+  previewResult,
+  isPreviewing,
   onGenerate,
+  onPreview,
   onSaveProposal,
+  onActivate,
 }: ExtractionDiagramPanelProps) {
+  const [showBench, setShowBench] = useState(false);
   const isNonWebsiteTab = selectedTab === 'RSS' || selectedTab === 'HTML';
 
   return (
@@ -130,11 +147,11 @@ export function ExtractionDiagramPanel({
 
           <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
             <span className="text-xs font-bold text-slate-800">Versions</span>
-            <div className="mt-2 space-y-1.5">
-              {panel.versionHistory.slice(0, 6).map((version) => (
+            <div className="mt-2 max-h-48 space-y-1.5 overflow-y-auto">
+              {panel.versionHistory.map((version) => (
                 <div
                   key={version.id}
-                  className={`flex items-center justify-between rounded-lg border px-2 py-1 text-[10px] font-medium ${
+                  className={`flex items-center justify-between gap-2 rounded-lg border px-2 py-1 text-[10px] font-medium ${
                     version.status === 'ACTIVE'
                       ? 'border-emerald-200 bg-emerald-50/60 text-emerald-900'
                       : 'border-slate-100 bg-slate-50 text-slate-600'
@@ -149,6 +166,17 @@ export function ExtractionDiagramPanel({
                       {formatDate(version.createdAt)}
                     </p>
                   </div>
+                  {isAdmin && version.status === 'SUPERSEDED' && (
+                    <button
+                      type="button"
+                      disabled={actionState === 'activating'}
+                      onClick={() => onActivate(version.id)}
+                      className="shrink-0 rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"
+                      title="Roll back to this version"
+                    >
+                      Roll back
+                    </button>
+                  )}
                 </div>
               ))}
               {panel.versionHistory.length === 0 && (
@@ -161,31 +189,80 @@ export function ExtractionDiagramPanel({
 
           {isAdmin && (
             <div className="flex flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-              <span className="text-xs font-bold text-slate-800">
-                Generate a new version (trial)
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-800">
+                  Authoring bench
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowBench((v) => !v)}
+                  className="text-[10px] font-semibold text-blue-600 hover:text-blue-700"
+                >
+                  {showBench ? 'Use live page' : 'Paste HTML…'}
+                </button>
+              </div>
               <p className="mt-1 text-[10px] text-slate-500">
-                Use the LLM to generate a candidate template from the live page,
-                to review before saving it as a proposal.
+                Generate or preview a candidate template, then save it as a
+                proposal for review before it can ever be activated.
               </p>
 
-              {!candidate ? (
+              {showBench && (
+                <textarea
+                  value={pastedHtml}
+                  onChange={(e) => onPastedHtmlChange(e.target.value)}
+                  placeholder="Paste HTML to test against instead of the live page…"
+                  rows={3}
+                  className="mt-2 w-full rounded-lg border border-slate-200 p-1.5 font-mono text-[10px] text-slate-700 focus:border-blue-500 focus:outline-none"
+                />
+              )}
+
+              <div className="mt-2 flex gap-1.5">
                 <button
                   type="button"
                   onClick={onGenerate}
                   disabled={actionState === 'generating'}
-                  className="mt-3 flex items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 py-1.5 text-[11px] font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
                 >
                   {actionState === 'generating' ? (
                     <Loader2 className="size-3.5 animate-spin" />
                   ) : (
                     <Sparkles className="size-3.5" />
                   )}
-                  {actionState === 'generating'
-                    ? 'Generating…'
-                    : 'Generate candidate template'}
+                  {actionState === 'generating' ? 'Generating…' : 'Generate'}
                 </button>
-              ) : (
+                <button
+                  type="button"
+                  onClick={() => onPreview(candidate?.template)}
+                  disabled={isPreviewing}
+                  className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-200 bg-white py-1.5 text-[11px] font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                >
+                  {isPreviewing ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <Eye className="size-3.5" />
+                  )}
+                  {isPreviewing ? 'Previewing…' : 'Preview'}
+                </button>
+              </div>
+
+              {previewResult && (
+                <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2 text-[10px] text-slate-600">
+                  <p className="font-semibold text-slate-700">
+                    {previewResult.items.length} item(s) extracted
+                  </p>
+                  <p className="mt-0.5">
+                    Empty:{' '}
+                    {(previewResult.metrics.emptyFieldRate * 100).toFixed(1)}% ·
+                    Malformed:{' '}
+                    {(previewResult.metrics.malformedFieldRate * 100).toFixed(
+                      1,
+                    )}
+                    %
+                  </p>
+                </div>
+              )}
+
+              {candidate && (
                 <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2 text-[10px]">
                   <p className="font-mono text-slate-700">
                     {candidate.template.item}
