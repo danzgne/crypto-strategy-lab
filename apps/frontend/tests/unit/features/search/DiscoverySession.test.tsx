@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import type {
+  CompositeLibraryEntry,
   LibraryBuiltin,
   SingularLibraryEntry,
 } from '@crypto-strategy-lab/shared';
@@ -41,6 +42,31 @@ function makeRuleEntry(
     source: 'MANUAL',
     sourceInput: null,
     strategyId: 'rule',
+    tags: [],
+    updatedAt: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function makeCompositeEntry(
+  overrides: Partial<CompositeLibraryEntry> = {},
+): CompositeLibraryEntry {
+  return {
+    archivedAt: null,
+    createdAt: new Date().toISOString(),
+    description: null,
+    id: 'composite-entry-1',
+    kind: 'composite',
+    latestVersion: {
+      createdAt: new Date().toISOString(),
+      id: 'composite-version-1',
+      libraryVersion: '1.0.0',
+      versionTag: 'composite@fixture',
+    },
+    name: 'MA + RSI Composite',
+    source: 'MANUAL',
+    sourceInput: null,
+    strategyId: 'composite',
     tags: [],
     updatedAt: new Date().toISOString(),
     ...overrides,
@@ -230,6 +256,70 @@ describe('Discovery UI Components', () => {
         expect(row).not.toBeDisabled();
         expect(row).not.toHaveTextContent(/not available/i);
       }
+    });
+
+    it('hides live-only builtins and composite Library entries from the pool instead of showing them disabled', () => {
+      const builtinsWithSentiment: LibraryBuiltin[] = [
+        ...builtins,
+        {
+          liveOnly: true,
+          paramsSchema: { properties: {}, type: 'object' },
+          strategyId: 'news-sentiment',
+        },
+      ];
+      const mockDiscovery = createMockDiscovery();
+      render(
+        <DiscoverySessionControl
+          builtins={builtinsWithSentiment}
+          discovery={mockDiscovery}
+          entries={[makeRuleEntry(), makeCompositeEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      expect(screen.queryByText('NEWS-SENTIMENT')).not.toBeInTheDocument();
+      expect(screen.queryByText('MA + RSI Composite')).not.toBeInTheDocument();
+      expect(screen.getByText('SMA_BELOW_30')).toBeInTheDocument();
+      expect(screen.getByText('MA')).toBeInTheDocument();
+    });
+
+    it('drops a stored selection referencing a now-hidden composite or live-only id on restore', async () => {
+      const builtinsWithSentiment: LibraryBuiltin[] = [
+        ...builtins,
+        {
+          liveOnly: true,
+          paramsSchema: { properties: {}, type: 'object' },
+          strategyId: 'news-sentiment',
+        },
+      ];
+      const storedConfig = {
+        strategies: [
+          'builtin:ma',
+          'builtin:news-sentiment',
+          'entry:composite-entry-1',
+        ],
+      };
+      localStorage.setItem(
+        'crypto-strategy-lab:discovery-form-config:v2',
+        JSON.stringify(storedConfig),
+      );
+
+      const mockDiscovery = createMockDiscovery({ session: null });
+      render(
+        <DiscoverySessionControl
+          builtins={builtinsWithSentiment}
+          discovery={mockDiscovery}
+          entries={[makeCompositeEntry()]}
+          libraryLoading={false}
+        />,
+      );
+
+      const maCheckbox = await screen.findByRole('button', { name: /^MA$/i });
+      expect(maCheckbox.querySelector('input')).toBeChecked();
+      expect(screen.queryByText('MA + RSI Composite')).not.toBeInTheDocument();
+      expect(screen.queryByText('NEWS-SENTIMENT')).not.toBeInTheDocument();
+
+      localStorage.removeItem('crypto-strategy-lab:discovery-form-config:v2');
     });
 
     it('restores draft settings from localStorage when no active session exists', async () => {

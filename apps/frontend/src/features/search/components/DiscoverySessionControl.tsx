@@ -82,13 +82,24 @@ function getServerMountedSnapshot() {
   return false;
 }
 
-function builtinDisabledReason(builtin: LibraryBuiltin): string | null {
-  return builtin.liveOnly === true
-    ? 'Live only — preview it on the realtime chart instead'
-    : null;
+function isBuiltinSelectable(builtin: LibraryBuiltin): boolean {
+  return builtin.liveOnly !== true;
 }
 
-function entryApplicabilityReason(
+// A composite entry, or an entry backed by a live-only builtin (e.g. sentiment), can never be
+// added to a Search Space regardless of pair/timeframe — so it's excluded from the pool entirely
+// rather than shown disabled. Applicability (pair/timeframe) mismatches stay show-disabled below,
+// since changing the Search Space's pair/timeframe can make those selectable.
+function isEntrySelectable(
+  entry: LibraryEntry,
+  builtins: readonly LibraryBuiltin[],
+): boolean {
+  if (entry.kind === 'composite') return false;
+  const builtin = builtins.find((b) => b.strategyId === entry.strategyId);
+  return builtin ? isBuiltinSelectable(builtin) : true;
+}
+
+function libraryEntryDisabledReason(
   entry: LibraryEntry,
   pair: Pair,
   timeframe: Timeframe,
@@ -108,20 +119,6 @@ function entryApplicabilityReason(
   return pairMatchesRuleApplicability(pair, applicability)
     ? null
     : `Not available for ${pair}`;
-}
-
-function libraryEntryDisabledReason(
-  entry: LibraryEntry,
-  builtins: readonly LibraryBuiltin[],
-  pair: Pair,
-  timeframe: Timeframe,
-): string | null {
-  if (entry.kind === 'composite') {
-    return "Composite entries can't be added to a Search Space yet";
-  }
-  const builtin = builtins.find((b) => b.strategyId === entry.strategyId);
-  const builtinReason = builtin ? builtinDisabledReason(builtin) : null;
-  return builtinReason ?? entryApplicabilityReason(entry, pair, timeframe);
 }
 
 interface DiscoverySessionControlProps {
@@ -186,9 +183,13 @@ export function DiscoverySessionControl({
     }
     if (Array.isArray(stored.strategies)) {
       const validIds = new Set([
-        ...builtins.map((b) => builtinOptionId(b.strategyId)),
+        ...builtins
+          .filter(isBuiltinSelectable)
+          .map((b) => builtinOptionId(b.strategyId)),
         ...entries
-          .filter((e) => e.archivedAt === null)
+          .filter(
+            (e) => e.archivedAt === null && isEntrySelectable(e, builtins),
+          )
           .map((e) => entryOptionId(e.id)),
       ]);
       const restored = stored.strategies.filter((id) => validIds.has(id));
@@ -321,16 +322,28 @@ export function DiscoverySessionControl({
     saveToStorage({ timeBudgetMinutes: val });
   };
 
+  const selectableEntries = useMemo(
+    () =>
+      entries.filter(
+        (e) => e.archivedAt === null && isEntrySelectable(e, builtins),
+      ),
+    [entries, builtins],
+  );
+
+  const visibleBuiltins = useMemo(
+    () => builtins.filter(isBuiltinSelectable),
+    [builtins],
+  );
+
   const visibleEntries = useMemo(() => {
-    const nonArchived = entries.filter((e) => e.archivedAt === null);
     const query = libraryFilter.trim().toLowerCase();
-    if (!query) return nonArchived;
-    return nonArchived.filter(
+    if (!query) return selectableEntries;
+    return selectableEntries.filter(
       (e) =>
         e.name.toLowerCase().includes(query) ||
         e.tags.some((tag) => tag.toLowerCase().includes(query)),
     );
-  }, [entries, libraryFilter]);
+  }, [selectableEntries, libraryFilter]);
 
   const handleStart = async () => {
     if (selectedStrategies.length === 0 || permittedModes.length === 0) return;
@@ -524,18 +537,15 @@ export function DiscoverySessionControl({
           Built-in
         </p>
         <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-3">
-          {builtins.map((builtin) => {
+          {visibleBuiltins.map((builtin) => {
             const value = builtinOptionId(builtin.strategyId);
             const isSelected = currentStrategies.includes(value);
-            const disabledReason = builtinDisabledReason(builtin);
-            const isDisabled =
-              isSessionActive || isSessionPaused || disabledReason !== null;
+            const isDisabled = isSessionActive || isSessionPaused;
             return (
               <button
                 key={builtin.strategyId}
                 type="button"
                 disabled={isDisabled}
-                title={disabledReason ?? undefined}
                 onClick={() => toggleStrategy(value)}
                 className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-left text-xs transition ${
                   isSelected
@@ -552,11 +562,6 @@ export function DiscoverySessionControl({
                 <span className="min-w-0 flex-1 truncate">
                   {builtin.strategyId.toUpperCase()}
                 </span>
-                {disabledReason && (
-                  <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[9px] font-semibold text-amber-700">
-                    Live only
-                  </span>
-                )}
               </button>
             );
           })}
@@ -566,7 +571,7 @@ export function DiscoverySessionControl({
           <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
             My Library
           </p>
-          {entries.length > 5 && (
+          {selectableEntries.length > 5 && (
             <input
               type="search"
               value={libraryFilter}
@@ -579,7 +584,7 @@ export function DiscoverySessionControl({
 
         {visibleEntries.length === 0 ? (
           <p className="mt-1.5 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-3 text-[11px] text-slate-500">
-            {entries.length === 0
+            {selectableEntries.length === 0
               ? 'Strategies you save to your Library will show up here.'
               : 'No Library entries match this filter.'}
           </p>
@@ -590,7 +595,6 @@ export function DiscoverySessionControl({
               const isSelected = currentStrategies.includes(value);
               const disabledReason = libraryEntryDisabledReason(
                 entry,
-                builtins,
                 currentPair,
                 currentTimeframe,
               );
