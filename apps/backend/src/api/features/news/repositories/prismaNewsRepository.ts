@@ -23,6 +23,11 @@ import {
   normalizeBaseAsset,
   type ScoredNewsItemForAnalytics,
 } from '../services/sentimentAnalytics';
+import { isSourceHealthy } from '../services/sourceHealth';
+import {
+  CRAWL_INTERVAL_SETTING_KEY,
+  parseRefreshIntervalMinutes,
+} from '../services/refreshInterval';
 import { Prisma } from '../../../../../../../generated/prisma/client';
 
 function mapNewsSource(source: {
@@ -110,6 +115,10 @@ function mapCrawlAttempt(attempt: {
   itemsFound: number;
   itemsPersisted: number;
   errorMessage: string | null;
+  templateVersionId?: string | null;
+  emptyFieldRate?: Prisma.Decimal | null;
+  malformedFieldRate?: Prisma.Decimal | null;
+  avgConfidence?: Prisma.Decimal | null;
   crawledAt: Date;
 }): NewsCrawlAttempt {
   return {
@@ -119,6 +128,20 @@ function mapCrawlAttempt(attempt: {
     itemsFound: attempt.itemsFound,
     itemsPersisted: attempt.itemsPersisted,
     errorMessage: attempt.errorMessage,
+    templateVersionId: attempt.templateVersionId ?? null,
+    emptyFieldRate:
+      attempt.emptyFieldRate === null || attempt.emptyFieldRate === undefined
+        ? null
+        : Number(attempt.emptyFieldRate),
+    malformedFieldRate:
+      attempt.malformedFieldRate === null ||
+      attempt.malformedFieldRate === undefined
+        ? null
+        : Number(attempt.malformedFieldRate),
+    avgConfidence:
+      attempt.avgConfidence === null || attempt.avgConfidence === undefined
+        ? null
+        : Number(attempt.avgConfidence),
     crawledAt: attempt.crawledAt.toISOString(),
   };
 }
@@ -425,6 +448,10 @@ export class PrismaNewsRepository implements NewsRepository {
     itemsFound: number;
     itemsPersisted: number;
     errorMessage?: string | null | undefined;
+    templateVersionId?: string | null | undefined;
+    emptyFieldRate?: number | null | undefined;
+    malformedFieldRate?: number | null | undefined;
+    avgConfidence?: number | null | undefined;
   }): Promise<NewsCrawlAttempt> {
     const attempt = await this.prisma.newsCrawlAttempt.create({
       data: {
@@ -433,6 +460,10 @@ export class PrismaNewsRepository implements NewsRepository {
         itemsFound: data.itemsFound,
         itemsPersisted: data.itemsPersisted,
         errorMessage: data.errorMessage ?? null,
+        templateVersionId: data.templateVersionId ?? null,
+        emptyFieldRate: data.emptyFieldRate ?? null,
+        malformedFieldRate: data.malformedFieldRate ?? null,
+        avgConfidence: data.avgConfidence ?? null,
       },
     });
     return mapCrawlAttempt(attempt);
@@ -451,20 +482,54 @@ export class PrismaNewsRepository implements NewsRepository {
       OR: [{ newsSource: { isActive: true } }, { newsSourceId: null }],
     };
 
-    const [totalItems, totalSources, activeSources, analytics] =
-      await Promise.all([
-        this.prisma.newsItem.count({ where: activeNewsFilter }),
-        this.prisma.newsSource.count(),
-        this.prisma.newsSource.count({ where: { isActive: true } }),
-        this.getNewsAnalytics(pair),
-      ]);
+    const [
+      totalItems,
+      totalSources,
+      enabledSourceRows,
+      refreshIntervalSetting,
+      analytics,
+    ] = await Promise.all([
+      this.prisma.newsItem.count({ where: activeNewsFilter }),
+      this.prisma.newsSource.count(),
+      this.prisma.newsSource.findMany({
+        where: { isActive: true },
+        include: { crawlLogs: { orderBy: { crawledAt: 'desc' }, take: 1 } },
+      }),
+      this.prisma.systemSetting.findUnique({
+        where: { key: CRAWL_INTERVAL_SETTING_KEY },
+      }),
+      this.getNewsAnalytics(pair),
+    ]);
+
+    const refreshIntervalMinutes = parseRefreshIntervalMinutes(
+      refreshIntervalSetting?.value,
+    );
+
+    const now = new Date();
+    const enabledSources = enabledSourceRows.length;
+    const activeSources = enabledSourceRows.filter((source) => {
+      const lastAttempt = source.crawlLogs[0];
+      return isSourceHealthy(
+        lastAttempt
+          ? {
+              status: lastAttempt.status,
+              crawledAt: lastAttempt.crawledAt.toISOString(),
+            }
+          : null,
+        refreshIntervalMinutes,
+        now,
+      );
+    }).length;
 
     const coveragePercent =
-      totalSources > 0 ? Math.round((activeSources / totalSources) * 100) : 0;
+      enabledSources > 0
+        ? Math.round((activeSources / enabledSources) * 100)
+        : 0;
 
     return {
       totalItems,
       totalSources,
+      enabledSources,
       activeSources,
       coveragePercent,
       analytics,

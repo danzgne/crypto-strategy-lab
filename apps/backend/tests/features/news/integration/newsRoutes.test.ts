@@ -9,6 +9,8 @@ import {
   NewsCrawler,
   NewsScheduler,
   NewsService,
+  HtmlPasteNewsProvider,
+  RssNewsProvider,
 } from '@/api/features/news';
 import { InMemoryDomainEventBus } from '@/events/inMemoryDomainEventBus';
 import { createAppLogger } from '@/utils/logger';
@@ -58,10 +60,13 @@ describe('News API Integration Tests', () => {
     const eventBus = new InMemoryDomainEventBus();
     const logger = createAppLogger({ service: 'test', enabled: false });
     const newsRepository = new PrismaNewsRepository(prisma);
+    const htmlPasteProvider = new HtmlPasteNewsProvider();
     const newsCrawler = new NewsCrawler({
       newsRepository,
       eventPublisher: eventBus,
       logger,
+      htmlPasteProvider,
+      providers: [new RssNewsProvider(), htmlPasteProvider],
     });
     newsScheduler = new NewsScheduler({
       crawler: newsCrawler,

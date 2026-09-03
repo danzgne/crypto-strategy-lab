@@ -6,13 +6,13 @@ import {
   NewsHeader,
   NewsControlBar,
   NewsFeedList,
-  ExtractionDiagramPanel,
-  SelfHealingDiagramPanel,
+  ExtractionTemplatePanel,
   AnalysisOutputPanel,
   StrategyIntegrationPanel,
   AdminSourceModal,
   AdminHtmlPasteModal,
   useNews,
+  useExtractionPanel,
 } from '../../../features/news';
 import { useAuth } from '../../../features/auth';
 
@@ -44,6 +44,8 @@ export default function NewsPage() {
     handleIngestHtml,
   } = useNews({ isAdmin });
 
+  const extraction = useExtractionPanel({ sources, isAdmin });
+
   const [isSourceModalOpen, setIsSourceModalOpen] = useState(false);
   const [isHtmlModalOpen, setIsHtmlModalOpen] = useState(false);
 
@@ -74,10 +76,10 @@ export default function NewsPage() {
             <div className="space-y-1">
               <p className="font-semibold">
                 {crawlNotice.type === 'success'
-                  ? 'Crawl thành công'
+                  ? 'Crawl succeeded'
                   : crawlNotice.type === 'warning'
-                    ? 'Crawl hoàn tất có cảnh báo lỗi nguồn'
-                    : 'Crawl thất bại'}
+                    ? 'Crawl completed with source errors'
+                    : 'Crawl failed'}
               </p>
               <p className="whitespace-pre-line font-medium opacity-90 leading-relaxed">
                 {crawlNotice.message}
@@ -128,7 +130,7 @@ export default function NewsPage() {
 
       {/* Main 3-Column Grid */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 items-start">
-        {/* Left Column: Tin tức đầu vào (News Feed) */}
+        {/* Left Column: Incoming News (News Feed) */}
         <div className="lg:col-span-4 h-[780px]">
           <NewsFeedList
             items={items}
@@ -142,10 +144,29 @@ export default function NewsPage() {
           />
         </div>
 
-        {/* Middle Column: LLM Extraction & Self-Healing */}
+        {/* Middle Column: Extraction Template health */}
         <div className="lg:col-span-5 space-y-6">
-          <ExtractionDiagramPanel isAdmin={isAdmin} />
-          <SelfHealingDiagramPanel isAdmin={isAdmin} />
+          <ExtractionTemplatePanel
+            isAdmin={isAdmin}
+            selectedTab={selectedTab}
+            websiteSources={extraction.websiteSources}
+            selectedSourceId={extraction.selectedSourceId}
+            onSelectSource={extraction.setSelectedSourceId}
+            panel={extraction.panel}
+            isLoading={extraction.isLoading}
+            candidate={extraction.candidate}
+            actionState={extraction.actionState}
+            pastedHtml={extraction.pastedHtml}
+            onPastedHtmlChange={extraction.setPastedHtml}
+            previewResult={extraction.previewResult}
+            isPreviewing={extraction.isPreviewing}
+            onGenerate={extraction.handleGenerate}
+            onPreview={extraction.handlePreview}
+            onSaveProposal={extraction.handleSaveProposal}
+            onActivate={extraction.handleActivate}
+            onReject={extraction.handleReject}
+            onUpdateSettings={extraction.handleUpdateSettings}
+          />
         </div>
 
         {/* Right Column: Analytics Output & Strategy Integration */}

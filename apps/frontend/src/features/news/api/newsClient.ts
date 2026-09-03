@@ -7,6 +7,12 @@ import type {
   NewsListResponse,
   NewsProviderType,
   CrawlSummary,
+  ExtractionTemplate,
+  ExtractionTemplateVersion,
+  ExtractionSettings,
+  ExtractionPanelData,
+  TemplatePreviewResult,
+  TemplateGenerateResult,
 } from '../types';
 
 export async function fetchNewsItems(
@@ -98,6 +104,84 @@ export async function deleteNewsSource(
     {
       method: 'DELETE',
     },
+  );
+}
+
+export async function fetchExtractionPanel(
+  sourceId: string,
+): Promise<ExtractionPanelData> {
+  return browserHttpClient<ExtractionPanelData>(
+    `/api/v1/news/sources/${sourceId}/extraction-panel`,
+  );
+}
+
+export async function updateExtractionSettings(patch: {
+  driftDetectionEnabled?: boolean | undefined;
+  driftThreshold?: number | undefined;
+}): Promise<ExtractionSettings> {
+  return browserHttpClient<ExtractionSettings>(
+    '/api/v1/admin/extraction/settings',
+    {
+      method: 'PUT',
+      body: JSON.stringify(patch),
+    },
+  );
+}
+
+export async function previewTemplate(
+  sourceId: string,
+  body: {
+    html?: string | undefined;
+    template?: ExtractionTemplate | undefined;
+  },
+): Promise<TemplatePreviewResult> {
+  return browserHttpClient<TemplatePreviewResult>(
+    `/api/v1/admin/news-sources/${sourceId}/template/preview`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function generateTemplate(
+  sourceId: string,
+  body: { html?: string | undefined },
+): Promise<TemplateGenerateResult> {
+  return browserHttpClient<TemplateGenerateResult>(
+    `/api/v1/admin/news-sources/${sourceId}/template/generate`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function saveProposedTemplateVersion(
+  sourceId: string,
+  body: {
+    template: ExtractionTemplate;
+    generatedBy: string;
+    html?: string | undefined;
+  },
+): Promise<ExtractionTemplateVersion> {
+  return browserHttpClient<ExtractionTemplateVersion>(
+    `/api/v1/admin/news-sources/${sourceId}/template/versions`,
+    { method: 'POST', body: JSON.stringify(body) },
+  );
+}
+
+export async function activateTemplateVersion(
+  sourceId: string,
+  versionId: string,
+): Promise<ExtractionTemplateVersion> {
+  return browserHttpClient<ExtractionTemplateVersion>(
+    `/api/v1/admin/news-sources/${sourceId}/template/versions/${versionId}/activate`,
+    { method: 'POST' },
+  );
+}
+
+export async function rejectTemplateVersion(
+  sourceId: string,
+  versionId: string,
+): Promise<ExtractionTemplateVersion> {
+  return browserHttpClient<ExtractionTemplateVersion>(
+    `/api/v1/admin/news-sources/${sourceId}/template/versions/${versionId}/reject`,
+    { method: 'POST' },
   );
 }
 

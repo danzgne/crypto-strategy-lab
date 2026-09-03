@@ -2,9 +2,11 @@ import { Router } from 'express';
 import { Role } from '@crypto-strategy-lab/shared';
 import { authorizeRole } from '@/api/middlewares/auth/authorizeRole';
 import { AdminController } from '../../controllers/adminController';
+import type { ExtractionTemplateController } from '@/api/features/news/controllers/extractionTemplateController';
 
 export function createAdminFeatureRouter(
   adminController: AdminController,
+  extractionTemplateController?: ExtractionTemplateController,
 ): Router {
   const router = Router();
 
@@ -26,6 +28,34 @@ export function createAdminFeatureRouter(
 
   // 4. HTML paste ingest
   router.post('/ingest/html', adminController.ingestHtml);
+
+  // 5. Extraction Templates: authoring bench, versions, and drift settings
+  if (extractionTemplateController) {
+    router.post(
+      '/news-sources/:id/template/preview',
+      extractionTemplateController.preview,
+    );
+    router.post(
+      '/news-sources/:id/template/generate',
+      extractionTemplateController.generate,
+    );
+    router.post(
+      '/news-sources/:id/template/versions',
+      extractionTemplateController.saveProposedVersion,
+    );
+    router.post(
+      '/news-sources/:id/template/versions/:versionId/activate',
+      extractionTemplateController.activateVersion,
+    );
+    router.post(
+      '/news-sources/:id/template/versions/:versionId/reject',
+      extractionTemplateController.rejectVersion,
+    );
+    router.put(
+      '/extraction/settings',
+      extractionTemplateController.updateSettings,
+    );
+  }
 
   return router;
 }

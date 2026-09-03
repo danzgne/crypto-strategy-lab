@@ -73,6 +73,10 @@ export interface NewsCrawlAttempt {
   itemsFound: number;
   itemsPersisted: number;
   errorMessage?: string | null | undefined;
+  templateVersionId?: string | null | undefined;
+  emptyFieldRate?: number | null | undefined;
+  malformedFieldRate?: number | null | undefined;
+  avgConfidence?: number | null | undefined;
   crawledAt: string;
 }
 
@@ -105,7 +109,11 @@ export interface NewsListFilterQuery {
 export interface NewsStats {
   totalItems: number;
   totalSources: number;
+  /** Enabled Sources: the admin's on/off switch, independent of health. */
+  enabledSources: number;
+  /** Health-active Sources: most recent attempt succeeded within twice the refresh interval. */
   activeSources: number;
+  /** Active over Enabled, not active over total configured. */
   coveragePercent: number;
   analytics?: NewsAnalytics | null | undefined;
 }
@@ -139,6 +147,12 @@ export const DEFAULT_NEWS_SOURCES = [
     name: 'Bankless',
     url: 'https://www.bankless.com/rss/feed',
     providerType: 'RSS' as const,
+    isActive: true,
+  },
+  {
+    name: 'CryptoSlate',
+    url: 'https://cryptoslate.com/news/',
+    providerType: 'WEBSITE' as const,
     isActive: true,
   },
 ];

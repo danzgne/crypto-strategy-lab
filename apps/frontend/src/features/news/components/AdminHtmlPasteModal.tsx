@@ -88,10 +88,10 @@ export function AdminHtmlPasteModal({
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-900">
-                Nhập tin tức bằng Raw HTML
+                Import news via raw HTML
               </h3>
               <p className="text-xs text-slate-500">
-                Thêm bài báo trực tiếp vào kho dữ liệu tin tức chung
+                Add an article directly into the shared news store
               </p>
             </div>
           </div>
@@ -118,18 +118,18 @@ export function AdminHtmlPasteModal({
           {success && (
             <div className="flex items-center gap-2 rounded-lg bg-emerald-50 p-3 text-xs text-emerald-700 border border-emerald-200">
               <Check className="size-4" />
-              <span>Đã nhập bài báo thành công!</span>
+              <span>Article imported successfully!</span>
             </div>
           )}
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Tiêu đề bài viết *
+              Article title *
             </label>
             <input
               type="text"
               required
-              placeholder="VD: Bitcoin ETF Inflows Reach All-Time High"
+              placeholder="e.g. Bitcoin ETF Inflows Reach All-Time High"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -139,11 +139,11 @@ export function AdminHtmlPasteModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Tên nguồn
+                Source name
               </label>
               <input
                 type="text"
-                placeholder="VD: CoinDesk"
+                placeholder="e.g. CoinDesk"
                 value={source}
                 onChange={(e) => setSource(e.target.value)}
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -152,7 +152,7 @@ export function AdminHtmlPasteModal({
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Coins liên quan (phân tách bằng dấu phẩy)
+                Related coins (comma-separated)
               </label>
               <input
                 type="text"
@@ -166,7 +166,7 @@ export function AdminHtmlPasteModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              URL bài viết gốc (Tùy chọn)
+              Original article URL (optional)
             </label>
             <input
               type="url"
@@ -179,12 +179,12 @@ export function AdminHtmlPasteModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1">
-              Nội dung HTML hoặc Text thô *
+              HTML or raw text content *
             </label>
             <textarea
               required
               rows={6}
-              placeholder="<div><h1>...</h1><p>Dán đoạn mã HTML bài báo vào đây...</p></div>"
+              placeholder="<div><h1>...</h1><p>Paste the article's HTML markup here...</p></div>"
               value={html}
               onChange={(e) => setHtml(e.target.value)}
               className="w-full rounded-xl border border-slate-200 p-3 font-mono text-xs focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
@@ -198,7 +198,7 @@ export function AdminHtmlPasteModal({
               onClick={onClose}
               className="rounded-xl border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition"
             >
-              Hủy
+              Cancel
             </button>
             <button
               type="submit"
@@ -208,7 +208,7 @@ export function AdminHtmlPasteModal({
               {isSubmitting ? (
                 <Loader2 className="size-3.5 animate-spin" />
               ) : null}
-              <span>Nhập bài báo</span>
+              <span>Import article</span>
             </button>
           </div>
         </form>

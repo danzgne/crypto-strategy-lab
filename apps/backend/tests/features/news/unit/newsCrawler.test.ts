@@ -124,6 +124,10 @@ class FakeNewsRepository implements NewsRepository {
     itemsFound: number;
     itemsPersisted: number;
     errorMessage?: string | null | undefined;
+    templateVersionId?: string | null | undefined;
+    emptyFieldRate?: number | null | undefined;
+    malformedFieldRate?: number | null | undefined;
+    avgConfidence?: number | null | undefined;
   }): Promise<NewsCrawlAttempt> {
     const attempt: NewsCrawlAttempt = {
       id: 'attempt-1',
@@ -132,6 +136,10 @@ class FakeNewsRepository implements NewsRepository {
       itemsFound: data.itemsFound,
       itemsPersisted: data.itemsPersisted,
       errorMessage: data.errorMessage ?? null,
+      templateVersionId: data.templateVersionId ?? null,
+      emptyFieldRate: data.emptyFieldRate ?? null,
+      malformedFieldRate: data.malformedFieldRate ?? null,
+      avgConfidence: data.avgConfidence ?? null,
       crawledAt: new Date().toISOString(),
     };
     this.attempts.push(attempt);
@@ -144,6 +152,7 @@ class FakeNewsRepository implements NewsRepository {
     return {
       totalItems: this.items.length,
       totalSources: this.sources.length,
+      enabledSources: this.sources.filter((s) => s.isActive).length,
       activeSources: this.sources.filter((s) => s.isActive).length,
       coveragePercent: 100,
     };

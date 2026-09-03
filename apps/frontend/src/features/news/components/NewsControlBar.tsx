@@ -38,7 +38,7 @@ export function NewsControlBar({
         {/* Source Tabs */}
         <div className="flex items-center gap-2">
           <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            Nguồn
+            Source
           </span>
           <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
             <button
@@ -86,7 +86,7 @@ export function NewsControlBar({
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Tất cả
+              All
             </button>
           </div>
         </div>
@@ -101,7 +101,7 @@ export function NewsControlBar({
             onChange={(e) => onSelectCoin(e.target.value)}
             className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
           >
-            <option value="ALL">BTC, ETH, SOL (Tất cả)</option>
+            <option value="ALL">BTC, ETH, SOL (All)</option>
             <option value="BTC">BTC (Bitcoin)</option>
             <option value="ETH">ETH (Ethereum)</option>
             <option value="SOL">SOL (Solana)</option>
@@ -117,18 +117,18 @@ export function NewsControlBar({
             <select
               value={intervalMinutes}
               onChange={(e) => onIntervalChange(Number(e.target.value))}
-              aria-label="Chu kỳ tự động làm mới"
+              aria-label="Auto-refresh interval"
               className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-800 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 cursor-pointer"
             >
               {intervals.map((min) => (
                 <option key={min} value={min}>
-                  {min} phút
+                  {min} min
                 </option>
               ))}
             </select>
           ) : (
             <span className="inline-flex items-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700">
-              {intervalMinutes} phút
+              {intervalMinutes} min
             </span>
           )}
         </div>
@@ -143,7 +143,7 @@ export function NewsControlBar({
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
           >
             <Code2 className="size-4 text-purple-600" />
-            Nhập HTML
+            Paste HTML
           </button>
 
           <button
@@ -152,7 +152,7 @@ export function NewsControlBar({
             className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 hover:text-slate-900 transition"
           >
             <Settings className="size-4 text-slate-500" />
-            Cấu hình nguồn
+            Configure sources
           </button>
 
           <button
@@ -166,7 +166,7 @@ export function NewsControlBar({
             ) : (
               <Play className="size-4 fill-white" />
             )}
-            {isCrawling ? 'Đang crawl...' : 'Bắt đầu crawl'}
+            {isCrawling ? 'Crawling...' : 'Start crawl'}
           </button>
         </div>
       )}

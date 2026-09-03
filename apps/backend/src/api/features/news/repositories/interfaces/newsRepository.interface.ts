@@ -63,6 +63,10 @@ export interface NewsRepository {
     itemsFound: number;
     itemsPersisted: number;
     errorMessage?: string | null | undefined;
+    templateVersionId?: string | null | undefined;
+    emptyFieldRate?: number | null | undefined;
+    malformedFieldRate?: number | null | undefined;
+    avgConfidence?: number | null | undefined;
   }): Promise<NewsCrawlAttempt>;
   getRecentCrawlAttempts(limit?: number): Promise<NewsCrawlAttempt[]>;
 

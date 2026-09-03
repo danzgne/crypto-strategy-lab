@@ -8,10 +8,10 @@ export function StrategyIntegrationPanel() {
       {/* Header */}
       <div className="border-b border-slate-100 pb-3">
         <h3 className="text-sm font-bold text-slate-900">
-          Tích hợp với Strategy
+          Strategy integration
         </h3>
         <p className="mt-0.5 text-xs text-slate-500">
-          News Sentiment được sử dụng trong Strategy Engine
+          How News Sentiment is used in the Strategy Engine
         </p>
       </div>
 
@@ -35,14 +35,14 @@ export function StrategyIntegrationPanel() {
             <span className="text-[10px] font-bold text-indigo-900">
               Condition
             </span>
-            <p className="text-[9px] text-indigo-600">(Điều kiện vào lệnh)</p>
+            <p className="text-[9px] text-indigo-600">(entry condition)</p>
           </div>
         </div>
 
         {/* Middle connector */}
         <div className="my-3 flex items-center gap-1 text-[10px] text-slate-400">
           <ArrowDown className="size-3 text-slate-400" />
-          <span>Hoặc sử dụng trực tiếp</span>
+          <span>Or use it directly</span>
         </div>
 
         {/* Bottom card */}
@@ -54,7 +54,7 @@ export function StrategyIntegrationPanel() {
             <p className="text-xs font-bold text-purple-950">
               NewsSentimentStrategy
             </p>
-            <p className="text-[10px] text-purple-700">(Chiến lược mẫu)</p>
+            <p className="text-[10px] text-purple-700">(sample strategy)</p>
           </div>
         </div>
       </div>

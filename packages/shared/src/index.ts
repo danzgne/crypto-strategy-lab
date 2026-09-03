@@ -7,6 +7,7 @@ export * from './auth';
 export * from './strategy';
 export * from './queue';
 export * from './news/types';
+export * from './news/extractionTemplate';
 export * from './backtest';
 export * from './leaderboard/types';
 export * from './search';

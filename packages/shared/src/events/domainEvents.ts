@@ -118,6 +118,11 @@ export interface SentimentAnalyzedPayload {
   relatedCoins: string[];
 }
 
+export interface ExtractionValidatedPayload {
+  newsSourceId: string;
+  templateVersionId: string;
+}
+
 export interface DomainEventCatalog {
   MarketPriceUpdated: MarketPriceUpdatedPayload;
   CandleClosed: CandleClosedPayload;
@@ -128,6 +133,7 @@ export interface DomainEventCatalog {
   LeaderboardUpdated: LeaderboardUpdatedPayload;
   NewsCollected: NewsCollectedPayload;
   SentimentAnalyzed: SentimentAnalyzedPayload;
+  ExtractionValidated: ExtractionValidatedPayload;
 }
 
 export type DomainEventName = keyof DomainEventCatalog;
@@ -156,6 +162,7 @@ export const DOMAIN_EVENT_VERSIONS = {
   LeaderboardUpdated: 2,
   NewsCollected: 1,
   SentimentAnalyzed: 2,
+  ExtractionValidated: 1,
 } as const satisfies Record<DomainEventName, 1 | 2>;
 
 interface EventMetadata {

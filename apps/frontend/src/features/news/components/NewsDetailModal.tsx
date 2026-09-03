@@ -30,7 +30,7 @@ function formatFullDateTime(isoString?: string): string {
   try {
     const date = new Date(isoString);
     if (Number.isNaN(date.getTime())) return '';
-    return date.toLocaleString('vi-VN', {
+    return date.toLocaleString('en-US', {
       year: 'numeric',
       month: '2-digit',
       day: '2-digit',
@@ -98,7 +98,7 @@ export function NewsDetailModal({
           <button
             type="button"
             onClick={onClose}
-            aria-label="Đóng"
+            aria-label="Close"
             className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition"
           >
             <X className="size-5" />
@@ -113,15 +113,13 @@ export function NewsDetailModal({
             </h2>
             <div className="mt-2 flex items-center gap-2 text-xs text-slate-400">
               <Calendar className="size-3.5" />
-              <span>
-                Thời gian đăng: {formatFullDateTime(item.publishedAt)}
-              </span>
+              <span>Published: {formatFullDateTime(item.publishedAt)}</span>
             </div>
           </div>
 
           <div className="rounded-xl border border-slate-100 bg-slate-50/70 p-4">
             <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
-              Nội dung bài viết
+              Article content
             </h3>
             <p className="whitespace-pre-line text-sm leading-relaxed text-slate-800 font-normal selection:bg-blue-100">
               {item.content}
@@ -132,8 +130,8 @@ export function NewsDetailModal({
             <div className="rounded-lg bg-slate-100/80 px-3.5 py-2.5 text-xs text-slate-600 border border-slate-200/70 flex items-center gap-2">
               <Code2 className="size-4 shrink-0 text-slate-500" />
               <span>
-                Tin tức này được nhập trực tiếp qua HTML và không có liên kết
-                trang ngoài.
+                This article was imported directly via HTML and has no external
+                link.
               </span>
             </div>
           )}
@@ -149,12 +147,12 @@ export function NewsDetailModal({
                 rel="noreferrer"
                 className="inline-flex items-center gap-1.5 rounded-xl border border-blue-200 bg-blue-50 px-3.5 py-2 text-xs font-semibold text-blue-700 shadow-xs hover:bg-blue-100 transition"
               >
-                <span>Mở bài viết gốc</span>
+                <span>Open original article</span>
                 <ExternalLink className="size-3.5" />
               </a>
             ) : (
               <span className="text-xs text-slate-400 italic">
-                Nguồn lưu trữ nội bộ
+                Internally stored source
               </span>
             )}
           </div>
@@ -164,7 +162,7 @@ export function NewsDetailModal({
             onClick={onClose}
             className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-xs hover:bg-slate-50 hover:text-slate-900 transition"
           >
-            Đóng
+            Close
           </button>
         </div>
       </div>
