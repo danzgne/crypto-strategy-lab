@@ -18,13 +18,13 @@ describe('useRealtimeConnection', () => {
           requestId: 'request-27',
           clientSentAt: '2026-08-21T10:00:00.000Z',
           serverReceivedAt: '2026-08-21T10:00:00.010Z',
-          source: 'Binance API + WebSocket',
+          source: 'Configured market adapter',
         })
         .mockResolvedValueOnce({
           requestId: 'request-28',
           clientSentAt: '2026-08-21T10:00:05.000Z',
           serverReceivedAt: '2026-08-21T10:00:05.010Z',
-          source: 'Binance API + WebSocket',
+          source: 'Configured market adapter',
         });
       let connected = false;
       const socket = {
@@ -66,7 +66,7 @@ describe('useRealtimeConnection', () => {
         expect.objectContaining({ requestId: expect.any(String) }),
       );
       expect(result.current.serverTime).toBe('2026-08-21T10:00:00.010Z');
-      expect(result.current.dataSource).toBe('Binance API + WebSocket');
+      expect(result.current.dataSource).toBe('Configured market adapter');
       expect(result.current.latencyMs).not.toBeNull();
 
       act(() =>

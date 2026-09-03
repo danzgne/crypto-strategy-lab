@@ -18,7 +18,7 @@ export function NewsHeader() {
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50/80 px-3 py-1 text-xs font-medium text-emerald-800 shadow-sm">
           <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>Data source: Binance API + WebSocket</span>
+          <span>Data source: News providers</span>
         </div>
 
         <button

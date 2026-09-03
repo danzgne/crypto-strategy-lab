@@ -79,6 +79,7 @@ interface CandleUpdate {
 }
 
 interface ActiveMarketDataState extends MarketKey {
+  initialQuery: CandleQuery;
   candles: Map<number, Candle>;
   closedOpenTimes: Set<number>;
   bufferedUpdates: CandleUpdate[];
@@ -90,6 +91,7 @@ interface ActiveMarketDataState extends MarketKey {
   closeStream: CloseExchangeStream | undefined;
   initialization: Promise<void>;
   status: ExchangeStreamStatus;
+  historyReady: boolean;
   streamGeneration: number;
   streamConnected: boolean;
   reconnectAttempt: number;
@@ -351,6 +353,7 @@ export class MarketDataService {
     const state: ActiveMarketDataState = {
       pair: query.pair,
       timeframe: query.timeframe,
+      initialQuery: query,
       candles: new Map<number, Candle>(),
       closedOpenTimes: new Set<number>(),
       bufferedUpdates: [],
@@ -362,6 +365,7 @@ export class MarketDataService {
       closeStream: undefined,
       initialization: Promise.resolve(),
       status: 'RECONNECTING',
+      historyReady: false,
       streamGeneration: 0,
       streamConnected: false,
       reconnectAttempt: 0,
@@ -387,21 +391,58 @@ export class MarketDataService {
       streamPromise,
       historyPromise,
     ]);
-    if (streamResult.status === 'rejected') {
-      throw streamResult.reason;
-    }
-    if (historyResult.status === 'rejected') {
-      await this.stopStream(state, streamResult.value);
-      throw historyResult.reason;
-    }
-
     if (state.disposed) {
-      await this.stopStream(state, streamResult.value);
+      if (streamResult.status === 'fulfilled') {
+        await this.stopStream(state, streamResult.value);
+      }
       return;
     }
 
-    state.closeStream = streamResult.value;
-    await this.mergeInitialCandles(state, historyResult.value);
+    let initialFailure = false;
+    if (streamResult.status === 'fulfilled') {
+      state.closeStream = streamResult.value;
+    } else {
+      initialFailure = true;
+      state.streamConnected = false;
+      this.logger.error(
+        {
+          err: streamResult.reason,
+          pair: state.pair,
+          timeframe: state.timeframe,
+        },
+        'Market data exchange stream initialization failed',
+      );
+    }
+
+    if (historyResult.status === 'fulfilled') {
+      try {
+        if (historyResult.value.length === 0) {
+          throw new Error('Market data history returned no candles');
+        }
+        await this.mergeInitialCandles(state, historyResult.value);
+        state.historyReady = true;
+      } catch (error) {
+        initialFailure = true;
+        this.logger.error(
+          {
+            err: error,
+            pair: state.pair,
+            timeframe: state.timeframe,
+          },
+          'Market data history initialization failed',
+        );
+      }
+    } else {
+      initialFailure = true;
+      this.logger.error(
+        {
+          err: historyResult.reason,
+          pair: state.pair,
+          timeframe: state.timeframe,
+        },
+        'Market data history initialization failed',
+      );
+    }
 
     while (state.bufferedUpdates.length > 0) {
       const bufferedUpdates = state.bufferedUpdates.splice(
@@ -414,7 +455,11 @@ export class MarketDataService {
     }
 
     state.ready = true;
-    if (state.recoveryRequested || !state.streamConnected) {
+    if (initialFailure) {
+      state.recoveryRequested = true;
+      this.updateStatus(state, 'STALE');
+      this.scheduleRecovery(state);
+    } else if (state.recoveryRequested || !state.streamConnected) {
       this.updateStatus(
         state,
         state.status === 'STALE' ? 'STALE' : 'RECONNECTING',
@@ -654,6 +699,11 @@ export class MarketDataService {
     if (status === 'LIVE') {
       state.streamConnected = true;
       if (!state.recovering) {
+        if (!state.historyReady && state.ready) {
+          state.recoveryRequested = true;
+          this.updateStatus(state, 'STALE');
+          return;
+        }
         state.recoveryRequested = false;
         state.reconnectAttempt = 0;
         this.updateStatus(state, 'LIVE');
@@ -678,6 +728,11 @@ export class MarketDataService {
   private confirmStreamLive(state: ActiveMarketDataState): void {
     if (state.streamConnected) return;
     state.streamConnected = true;
+    if (!state.historyReady) {
+      state.recoveryRequested = true;
+      this.updateStatus(state, 'STALE');
+      return;
+    }
     state.recoveryRequested = false;
     state.reconnectAttempt = 0;
     if (state.reconnectTimer !== undefined) {
@@ -736,6 +791,21 @@ export class MarketDataService {
     this.updateStatus(state, 'RECONNECTING');
     let reconciled = false;
     let recoveryStream: CloseExchangeStream | undefined;
+    const openRecoveryStream = (): Promise<CloseExchangeStream> =>
+      this.openStream(state).then((stream) => {
+        recoveryStream = stream;
+        if (state.disposed || state.referenceCount === 0) {
+          void Promise.resolve(stream()).catch((error: unknown) => {
+            this.logger.error(
+              { err: error, pair: state.pair, timeframe: state.timeframe },
+              'Market data recovery stream could not be closed',
+            );
+          });
+        } else {
+          state.closeStream = stream;
+        }
+        return stream;
+      });
 
     try {
       await state.updateQueue;
@@ -743,6 +813,38 @@ export class MarketDataService {
       if (state.disposed || state.referenceCount === 0) return;
 
       const interval = TIMEFRAME_INTERVAL_MS[state.timeframe];
+      if (!state.historyReady) {
+        const streamPromise = openRecoveryStream();
+        const historyPromise = this.fetchCandles(state.initialQuery);
+        const [streamResult, historyResult] = await Promise.allSettled([
+          streamPromise,
+          historyPromise,
+        ]);
+        if (streamResult.status === 'rejected') {
+          throw streamResult.reason;
+        }
+        recoveryStream = streamResult.value;
+        if (historyResult.status === 'rejected') {
+          throw historyResult.reason;
+        }
+        if (historyResult.value.length === 0) {
+          throw new Error('Market data recovery returned no candles');
+        }
+        if (state.disposed || state.referenceCount === 0) return;
+        if (!state.streamConnected || state.recoveryRequested) {
+          throw new Error('Market data stream closed during recovery');
+        }
+        await this.applyRecoveredCandles(state, historyResult.value);
+        if (!state.streamConnected || state.recoveryRequested) {
+          throw new Error('Market data stream closed during recovery');
+        }
+
+        state.recoveryRequested = false;
+        state.reconnectAttempt = 0;
+        reconciled = true;
+        this.updateStatus(state, 'LIVE');
+        return;
+      }
       const lastClosedOpenTime =
         state.closedOpenTimes.size > 0
           ? Math.max(...state.closedOpenTimes)
@@ -757,7 +859,7 @@ export class MarketDataService {
         endTime,
       };
 
-      const streamPromise = this.openStream(state);
+      const streamPromise = openRecoveryStream();
       const historyPromise = this.fetchCandles(query);
       const [streamResult, historyResult] = await Promise.allSettled([
         streamPromise,
@@ -767,7 +869,6 @@ export class MarketDataService {
         throw streamResult.reason;
       }
       recoveryStream = streamResult.value;
-      state.closeStream = recoveryStream;
       if (historyResult.status === 'rejected') {
         throw historyResult.reason;
       }
@@ -788,16 +889,7 @@ export class MarketDataService {
       if (!state.streamConnected || state.recoveryRequested) {
         throw new Error('Market data stream closed during recovery');
       }
-      await this.enqueueUpdate(state, async () => {
-        await this.mergeRecoveredCandles(state, historyResult.value);
-        const bufferedUpdates = state.recoveryBufferedUpdates.splice(
-          0,
-          state.recoveryBufferedUpdates.length,
-        );
-        for (const update of bufferedUpdates) {
-          await this.applyLiveCandle(state, update.candle, update.metadata);
-        }
-      });
+      await this.applyRecoveredCandles(state, historyResult.value);
       if (!state.streamConnected || state.recoveryRequested) {
         throw new Error('Market data stream closed during recovery');
       }
@@ -828,6 +920,23 @@ export class MarketDataService {
     const next = state.updateQueue.then(update, update);
     state.updateQueue = next.catch(() => undefined);
     return next;
+  }
+
+  private async applyRecoveredCandles(
+    state: ActiveMarketDataState,
+    candles: Candle[],
+  ): Promise<void> {
+    await this.enqueueUpdate(state, async () => {
+      await this.mergeRecoveredCandles(state, candles);
+      state.historyReady = true;
+      const bufferedUpdates = state.recoveryBufferedUpdates.splice(
+        0,
+        state.recoveryBufferedUpdates.length,
+      );
+      for (const update of bufferedUpdates) {
+        await this.applyLiveCandle(state, update.candle, update.metadata);
+      }
+    });
   }
 
   private async stopStream(
@@ -862,7 +971,6 @@ export class MarketDataService {
     state.recoveryBufferedUpdates = [];
     await this.stopStream(state);
     await state.initialization.catch(() => undefined);
-    await state.recoveryPromise?.catch(() => undefined);
   }
 
   private async publishDomainEvent(event: AnyDomainEvent): Promise<void> {

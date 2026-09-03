@@ -36,7 +36,7 @@ vi.mock(
   () => ({
     useRealtimeConnection: (): RealtimeConnectionState => ({
       phase: 'live',
-      dataSource: 'Binance API + WebSocket',
+      dataSource: 'Configured market adapter',
       latencyMs: 12,
       lastDataAt: '2026-08-24T00:00:00.000Z',
       serverTime: '2026-08-24T00:00:00.000Z',
@@ -148,6 +148,8 @@ describe('MarketDataDashboard', () => {
       'sm:grid-cols-2',
     );
     expect(screen.getByTestId('recent-ticks-card')).toBeInTheDocument();
+    expect(screen.getByText('Configured market adapter')).toBeInTheDocument();
+    expect(screen.queryByText(/API \+ WebSocket/)).not.toBeInTheDocument();
     expect(
       screen.getAllByRole('option', { name: '1d' }).length,
     ).toBeGreaterThan(0);
