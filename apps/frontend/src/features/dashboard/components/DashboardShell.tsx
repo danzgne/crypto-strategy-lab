@@ -47,7 +47,7 @@ const navigation: NavItem[] = [
     href: '/news',
     implemented: true,
   },
-  { label: 'Settings', icon: Settings, href: '#settings', implemented: false },
+  { label: 'Settings', icon: Settings, href: '#settings', implemented: true },
 ];
 
 export function DashboardShell({
