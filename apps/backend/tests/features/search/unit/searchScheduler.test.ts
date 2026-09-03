@@ -325,6 +325,43 @@ describe('SearchScheduler', () => {
     expect(lastUpdate?.runStatus).toBe('RUNNING');
   });
 
+  it('returns the live in-progress run stats on demand, not just via the progress callback', async () => {
+    fakeCoordinator.startRun.mockResolvedValue('run-pull-1');
+    fakeCoordinator.waitForRunCompletion.mockReturnValue(new Promise(() => {})); // pending
+    fakeCoordinator.getRun.mockReturnValue({
+      acceptedCandidates: 51,
+      bestScore: 0.3997,
+      inFlightJobs: 2,
+      status: 'STOPPING',
+    });
+
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    await scheduler.start();
+    await scheduler.startSession({
+      searchSpace: defaultSearchSpace,
+      userId: 'user-pull',
+    });
+
+    const progress = scheduler.getSessionProgress('user-pull');
+    expect(progress?.acceptedCandidates).toBe(51);
+    expect(progress?.inFlightJobs).toBe(2);
+    expect(progress?.runStatus).toBe('STOPPING');
+    expect(progress?.bestScore).toBe(0.3997);
+  });
+
+  it('returns null session progress for a user with no active session', () => {
+    const scheduler = new SearchScheduler({
+      coordinator: fakeCoordinator as unknown as SearchCoordinator,
+      prisma: fakePrisma as unknown as AppPrismaClient,
+    });
+
+    expect(scheduler.getSessionProgress('nobody')).toBeNull();
+  });
+
   it('triggers trade retention pruning when a run completes', async () => {
     fakeCoordinator.startRun.mockResolvedValue('run-prune-1');
     fakeCoordinator.waitForRunCompletion.mockImplementation(async () => {

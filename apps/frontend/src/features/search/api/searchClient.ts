@@ -1,4 +1,5 @@
 import type {
+  DiscoveryProgressPayload,
   DiscoverySessionState,
   SearchRunSummary,
   StartDiscoverySessionInput,
@@ -20,10 +21,12 @@ export const searchClient = {
 
   async getCurrentSession(): Promise<{
     session: DiscoverySessionState | null;
+    progress: DiscoveryProgressPayload | null;
   }> {
-    return browserHttpClient<{ session: DiscoverySessionState | null }>(
-      '/api/v1/search/sessions/current',
-    );
+    return browserHttpClient<{
+      session: DiscoverySessionState | null;
+      progress: DiscoveryProgressPayload | null;
+    }>('/api/v1/search/sessions/current');
   },
 
   async pauseSession(): Promise<{ status: string }> {

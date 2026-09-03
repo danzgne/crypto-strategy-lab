@@ -207,6 +207,11 @@ export class SearchScheduler {
     return session ? this.toSessionState(session) : null;
   }
 
+  public getSessionProgress(userId: string): DiscoveryProgressPayload | null {
+    const session = this.activeSessions.get(userId);
+    return session ? this.buildProgressPayload(session) : null;
+  }
+
   public getActiveSessions(): DiscoverySessionState[] {
     return Array.from(this.activeSessions.values()).map((s) =>
       this.toSessionState(s),
@@ -345,14 +350,10 @@ export class SearchScheduler {
     }
   }
 
-  private emitProgress(
+  private buildProgressPayload(
     session: ActiveUserSession,
     activeRunProgress?: SearchCoordinatorProgressEvent,
-  ): void {
-    if (!this.onProgress) {
-      return;
-    }
-
+  ): DiscoveryProgressPayload {
     const run = session.currentRunId
       ? this.coordinator.getRun(session.currentRunId)
       : undefined;
@@ -375,7 +376,7 @@ export class SearchScheduler {
     const bestCandidate =
       activeRunProgress?.bestCandidate ?? session.bestCandidate;
 
-    const payload: DiscoveryProgressPayload = {
+    return {
       acceptedCandidates: currentAccepted,
       bestCandidate,
       bestScore,
@@ -391,8 +392,17 @@ export class SearchScheduler {
       totalRunsCompleted: session.totalRunsCompleted,
       userId: session.userId,
     };
+  }
 
-    void this.onProgress(payload);
+  private emitProgress(
+    session: ActiveUserSession,
+    activeRunProgress?: SearchCoordinatorProgressEvent,
+  ): void {
+    if (!this.onProgress) {
+      return;
+    }
+
+    void this.onProgress(this.buildProgressPayload(session, activeRunProgress));
   }
 
   private toSessionState(session: ActiveUserSession): DiscoverySessionState {

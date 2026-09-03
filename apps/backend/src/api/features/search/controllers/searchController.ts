@@ -66,7 +66,8 @@ export class SearchController {
     }
 
     const session = this.scheduler.getSession(userId);
-    res.json({ session });
+    const progress = this.scheduler.getSessionProgress(userId);
+    res.json({ progress, session });
   };
 
   public pauseSession = async (req: Request, res: Response): Promise<void> => {

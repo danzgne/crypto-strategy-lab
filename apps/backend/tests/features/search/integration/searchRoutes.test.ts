@@ -13,6 +13,7 @@ describe('search routes integration', () => {
   let fakeScheduler: {
     getHistoricalRuns: ReturnType<typeof vi.fn>;
     getSession: ReturnType<typeof vi.fn>;
+    getSessionProgress: ReturnType<typeof vi.fn>;
     pauseSession: ReturnType<typeof vi.fn>;
     resumeSession: ReturnType<typeof vi.fn>;
     startSession: ReturnType<typeof vi.fn>;
@@ -26,6 +27,7 @@ describe('search routes integration', () => {
     fakeScheduler = {
       getHistoricalRuns: vi.fn(async () => []),
       getSession: vi.fn(),
+      getSessionProgress: vi.fn(() => null),
       pauseSession: vi.fn(async () => true),
       resumeSession: vi.fn(async () => true),
       startSession: vi.fn(),
@@ -96,17 +98,31 @@ describe('search routes integration', () => {
     expect(res.body.algorithm).toBe('domain-guided');
   });
 
-  it('gets current session', async () => {
+  it('gets current session with its live in-progress run stats', async () => {
     fakeScheduler.getSession.mockReturnValue({
-      algorithm: 'random',
+      algorithm: 'random-v1',
       bestScore: 1.2,
       sessionId: 'sess-123',
       status: 'ACTIVE',
+    });
+    fakeScheduler.getSessionProgress.mockReturnValue({
+      acceptedCandidates: 51,
+      bestScore: 0.3997,
+      inFlightJobs: 2,
+      maxCandidates: 100,
+      runStatus: 'STOPPING',
+      sessionId: 'sess-123',
+      sessionStatus: 'ACTIVE',
+      totalRunsCompleted: 0,
+      userId: 'user-integration-1',
     });
 
     const res = await request(app).get('/api/v1/search/sessions/current');
     expect(res.status).toBe(200);
     expect(res.body.session.sessionId).toBe('sess-123');
+    expect(res.body.progress.acceptedCandidates).toBe(51);
+    expect(res.body.progress.inFlightJobs).toBe(2);
+    expect(res.body.progress.runStatus).toBe('STOPPING');
   });
 
   it('pauses, resumes, and stops session', async () => {

@@ -87,7 +87,10 @@ export interface SearchCoordinatorDependencies {
   onProgress?: ((event: SearchCoordinatorProgressEvent) => void) | undefined;
   enqueueJob?: ((input: EnqueueJobInput) => Promise<string>) | undefined;
   logger?: AppLogger | undefined;
+  reconcileIntervalMs?: number | undefined;
 }
+
+const DEFAULT_RECONCILE_INTERVAL_MS = 30_000;
 
 interface ActiveRunState {
   searchRunId: string;
@@ -128,9 +131,11 @@ export class SearchCoordinator {
     ((event: SearchCoordinatorProgressEvent) => void) | undefined;
   private readonly enqueueJobFn: (input: EnqueueJobInput) => Promise<string>;
   private readonly logger: SearchCoordinatorDependencies['logger'];
+  private readonly reconcileIntervalMs: number;
   private readonly activeRuns = new Map<string, ActiveRunState>();
   private unsubscribeEvaluated?: (() => void) | undefined;
   private unsubscribeCompleted?: (() => void) | undefined;
+  private reconcileTimer?: NodeJS.Timeout | undefined;
 
   public constructor(deps: SearchCoordinatorDependencies) {
     this.prisma = deps.prisma;
@@ -138,6 +143,8 @@ export class SearchCoordinator {
     this.historyProvider = deps.historyProvider;
     this.onProgress = deps.onProgress;
     this.logger = deps.logger;
+    this.reconcileIntervalMs =
+      deps.reconcileIntervalMs ?? DEFAULT_RECONCILE_INTERVAL_MS;
     this.enqueueJobFn =
       deps.enqueueJob ??
       (async (input: EnqueueJobInput) => {
@@ -169,6 +176,11 @@ export class SearchCoordinator {
     );
 
     await this.restoreRunningRuns();
+
+    this.reconcileTimer = setInterval(() => {
+      void this.reconcileActiveRuns();
+    }, this.reconcileIntervalMs);
+    this.reconcileTimer.unref?.();
   }
 
   public stop(): void {
@@ -176,6 +188,11 @@ export class SearchCoordinator {
     this.unsubscribeCompleted?.();
     this.unsubscribeEvaluated = undefined;
     this.unsubscribeCompleted = undefined;
+
+    if (this.reconcileTimer) {
+      clearInterval(this.reconcileTimer);
+      this.reconcileTimer = undefined;
+    }
 
     for (const run of this.activeRuns.values()) {
       if (run.timeBudgetTimer) {
@@ -859,6 +876,7 @@ export class SearchCoordinator {
 
       await this.prisma.searchRun.update({
         data: {
+          inFlightJobs: run.inFlightJobs,
           status: terminalStatus,
           stopReason: run.stopReason,
           stoppedAt: new Date(),
@@ -896,6 +914,48 @@ export class SearchCoordinator {
     for (const resolve of resolvers) {
       resolve();
     }
+  }
+
+  // Self-heals in-flight counts a lost completion event left stale, so a run can never get stuck in RUNNING/STOPPING forever.
+  public async reconcileActiveRuns(): Promise<void> {
+    for (const run of this.activeRuns.values()) {
+      if (run.status !== 'RUNNING' && run.status !== 'STOPPING') continue;
+      if (run.activeExperimentIds.size === 0) continue;
+      await this.reconcileInFlight(run);
+    }
+  }
+
+  private async reconcileInFlight(run: ActiveRunState): Promise<void> {
+    const tracked = [...run.activeExperimentIds];
+    const jobs = await this.prisma.backtestJob.findMany({
+      select: { experimentId: true, status: true },
+      where: { experimentId: { in: tracked } },
+    });
+    const stillActiveIds = new Set(
+      jobs
+        .filter((job) => job.status === 'PENDING' || job.status === 'CLAIMED')
+        .map((job) => job.experimentId),
+    );
+
+    if (stillActiveIds.size === run.activeExperimentIds.size) return;
+
+    const resolvedCount = run.activeExperimentIds.size - stillActiveIds.size;
+    run.activeExperimentIds = stillActiveIds;
+    run.inFlightJobs = stillActiveIds.size;
+
+    this.logger?.warn(
+      { resolvedCount, searchRunId: run.searchRunId },
+      'Reconciled in-flight count against Backtest Job state after it drifted from lost completion events',
+    );
+
+    await this.prisma.searchRun.update({
+      data: { inFlightJobs: run.inFlightJobs, updatedAt: new Date() },
+      where: { id: run.searchRunId },
+    });
+
+    this.notifyProgress(run);
+    this.notifyInFlightAvailable(run);
+    await this.checkTerminalState(run);
   }
 
   private async restoreRunningRuns(): Promise<void> {
