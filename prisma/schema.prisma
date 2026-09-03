@@ -282,16 +282,23 @@ model BacktestJob {
 }
 
 model OutboxEvent {
-  id          String    @id @default(uuid()) @db.Uuid
-  eventId     String    @unique @db.Uuid
-  name        String
-  version     Int
-  occurredAt  DateTime  @db.Timestamptz(3)
-  payload     Json
-  publishedAt DateTime? @db.Timestamptz(3)
-  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  id             String    @id @default(uuid()) @db.Uuid
+  eventId        String    @unique @db.Uuid
+  name           String
+  version        Int
+  occurredAt     DateTime  @db.Timestamptz(3)
+  payload        Json
+  publishedAt    DateTime? @db.Timestamptz(3)
+  claimToken     String?   @db.Uuid
+  claimExpiresAt DateTime? @db.Timestamptz(3)
+  attemptCount   Int       @default(0)
+  lastError      String?   @db.Text
+  nextAttemptAt  DateTime? @db.Timestamptz(3)
+  deadLetteredAt DateTime? @db.Timestamptz(3)
+  createdAt      DateTime  @default(now()) @db.Timestamptz(3)
 
   @@index([publishedAt, createdAt])
+  @@index([publishedAt, deadLetteredAt, nextAttemptAt, createdAt])
   @@map("event_outbox")
 }
 
