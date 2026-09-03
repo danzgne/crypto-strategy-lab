@@ -1,17 +1,18 @@
 'use client';
 
 import { TIMEFRAME_INTERVAL_MS } from '@crypto-strategy-lab/shared/market-data';
-import { RANDOM_SEARCH_ALGORITHM_ID } from '@crypto-strategy-lab/shared/search';
-import { isVersionMember } from '@crypto-strategy-lab/shared';
+import type { Pair, Timeframe } from '@crypto-strategy-lab/shared/market-data';
+import {
+  isVersionMember,
+  RANDOM_SEARCH_ALGORITHM_ID,
+} from '@crypto-strategy-lab/shared/search';
+import type { EnabledStrategyDescriptor } from '@crypto-strategy-lab/shared/search';
 import { pairMatchesRuleApplicability } from '@crypto-strategy-lab/shared/strategy';
-import type { RuleApplicability } from '@crypto-strategy-lab/shared/strategy';
 import type {
-  EnabledStrategyDescriptor,
   LibraryBuiltin,
   LibraryEntry,
-  Pair,
-  Timeframe,
-} from '@crypto-strategy-lab/shared';
+  RuleApplicability,
+} from '@crypto-strategy-lab/shared/strategy';
 import {
   Sparkles,
   Play,
