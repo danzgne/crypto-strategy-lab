@@ -183,39 +183,19 @@ export function OperationsDashboard() {
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-indigo-600">
             Admin console
           </p>
-          <div className="mt-2 flex items-center gap-3">
-            <h1 className="text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
-              Operations & Telemetry Dashboard
-            </h1>
-            <span className="rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 ring-1 ring-indigo-200">
-              Read-Only
-            </span>
-          </div>
-          <p className="mt-3 text-sm text-slate-500">
-            Real-time backtest job queue capacity, worker heartbeats, and
-            transactional outbox metrics
-          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-[-0.035em] text-slate-950 sm:text-4xl">
+            Operations & Telemetry Dashboard
+          </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          {isStale ? (
+          {isStale && (
             <span
               className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700 ring-1 ring-amber-300"
               data-testid="stale-data-badge"
             >
               <AlertTriangle className="size-3.5" />
               Stale Telemetry
-            </span>
-          ) : (
-            <span
-              className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-emerald-300"
-              data-testid="live-status-badge"
-            >
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-              </span>
-              Live (5s Refresh)
             </span>
           )}
 

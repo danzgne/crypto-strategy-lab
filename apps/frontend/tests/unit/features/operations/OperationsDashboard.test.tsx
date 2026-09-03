@@ -267,9 +267,6 @@ describe('OperationsDashboard and Role Navigation', () => {
       expect(
         screen.getByText('Operations & Telemetry Dashboard'),
       ).toBeInTheDocument();
-      expect(screen.getByTestId('live-status-badge')).toHaveTextContent(
-        'Live (5s Refresh)',
-      );
 
       // Job counts
       expect(screen.getByText('Pending Jobs')).toBeInTheDocument();
