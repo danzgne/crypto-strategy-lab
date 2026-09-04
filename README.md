@@ -195,32 +195,6 @@ historical indicator points in one `strategy:snapshot`, then streams new closed-
 `strategy:signal`; the browser never recomputes MA or calls an exchange. See
 [ADR-0010](docs/adr/0010-lightweight-charts-renderer-seam.md).
 
-### Backtest flow (Issue #37)
-
-```text
-Manual Backtest UI
-  → POST /api/v1/backtests (owner-scoped)
-  → Backtest Service
-  → validate target/range and create queued Experiment + PENDING Backtest Job
-  → 202 response; history polls while preparation continues
-  → Backend preparation coordinator
-  → Market Data Service → Exchange Adapter → Binance
-  → validate closed/contiguous UTC candles and prepend warm-up
-  → attach immutable Dataset Snapshot; worker claim becomes eligible
-  → Backtest Worker claims a lease
-  → Backtester → Evaluator
-  → Trades + Metrics + completed Job + lifecycle events in one transaction
-  → Backend outbox dispatcher (expiring claims, concurrent delivery, bounded retries)
-  → in-memory Domain Event Bus
-  → GET /api/v1/backtests and /api/v1/backtests/:experimentId (1s frontend polling)
-```
-
-The worker never fetches Binance data: it consumes the exact Dataset Snapshot selected by the backend. Strategy
-versions, simulation rules, evaluator rules, transaction cost, and slippage are retained with the Experiment.
-Signals are evaluated once per closed Candle, filled at the next Candle open, and shown in the result chart as two
-markers per closed Trade. The result page displays Winrate, Wins, Losses, Total Profit, Max Drawdown, and Total
-Trades, with separate trade history and Vietnamese calculation/assumption panels.
-
 ### Domain event catalog
 
 `packages/shared` types `MarketPriceUpdated`, `CandleClosed`, `StrategyGenerated`, `BacktestStarted`,
@@ -249,37 +223,3 @@ pnpm check
 CI applies the committed Prisma migration to PostgreSQL before running the complete check. Backend and worker logs
 use asynchronous structured Pino output; direct `console.*` calls are prohibited by both repository policy and
 ESLint.
-
-## Issue #29 demo
-
-1. Start Compose and open the dashboard.
-2. Confirm **Connected**, a measured round-trip latency, and the right-rail **Recent Ticks** card updating from
-   normalized trade events.
-3. Confirm four BTCUSDT panels reach **LIVE**, with independent 1m/5m/15m/1h timeframe selectors and one global
-   pair selector.
-4. Set two panels to the same timeframe and confirm they continue receiving updates through one shared backend room.
-5. Watch the latest forming candle update before its `CandleClosed` event persists it.
-6. Pan, zoom, and inspect the interactive candlestick/volume chart; confirm strategy overlays and BUY/SELL markers
-   render from the existing normalized contracts.
-7. Request `/api/v1/health/ready` to confirm PostgreSQL is connected, then inspect the `candles` table for closed
-   bars.
-8. Stop and restart the backend or interrupt the Binance stream to see panels move from **RECONNECTING** through
-   backfill to **LIVE**; a failed recovery remains **STALE** without inventing candles.
-
-## Issue #37 manual backtest demo
-
-1. Log in and open **Backtest** from the dashboard navigation.
-2. Select a USDT pair, timeframe, UTC start/end dates, initial investment, transaction cost, slippage, and either an
-   inline strategy or a saved Strategy Version (including a saved Composite Strategy).
-3. Submit the form. The backend captures and fingerprints the selected closed-candle series plus warm-up history,
-   enqueues a job, and returns an Experiment ID without waiting for simulation.
-4. The result page polls the owner-scoped Experiment until the Backtest Worker completes it.
-5. Inspect the selected-range chart, LONG/SHORT entry and exit markers, risk lines, six metric cards, paginated trade
-   history, and the **Cách tính Profit** / **Giả định Backtest** panels.
-
-The HTTP contract is `POST /api/v1/backtests` → `202 { experimentId, jobId, status }`, `GET /api/v1/backtests` for
-owner-scoped history, followed by `GET /api/v1/backtests/:experimentId`. Completed singular and composite Experiments
-are ranked in the owner-scoped Leaderboard at `GET /api/v1/leaderboard` and shown on Discovery.
-
-For the full Discovery, News/Sentiment, administrator-observation, recovery, and provenance demo path, see the
-[Architecture Document's Demo path](docs/architecture.md#demo-path).
