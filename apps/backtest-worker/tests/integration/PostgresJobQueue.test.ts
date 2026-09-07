@@ -5,10 +5,7 @@ import {
   type WorkerPrismaClient,
 } from '../../src/database/prismaClient';
 import { PrismaJobRepository } from '../../src/repositories/prisma/prismaJobRepository';
-import {
-  InvalidConfigError,
-  InvalidDatasetSnapshotError,
-} from '../../src/errors';
+import { InvalidConfigError } from '../../src/errors';
 
 describe('PostgresJobQueue Integration', () => {
   let prisma: WorkerPrismaClient;
@@ -145,7 +142,7 @@ describe('PostgresJobQueue Integration', () => {
     expect(claimed!.status).toBe('CLAIMED');
   });
 
-  it('claims a job even without dataset snapshot, failing permanently on loadInput', async () => {
+  it('leaves a job unclaimable until its dataset snapshot is attached', async () => {
     const experiment = await prisma.experiment.create({
       data: {
         ownerId,
@@ -161,29 +158,29 @@ describe('PostgresJobQueue Integration', () => {
     experimentIds.push(experiment.id);
     const jobId = await queue.enqueue(experiment.id, ownerId);
 
+    expect(await queue.claim('worker-1')).toBeNull();
+
+    const snapshot = await prisma.datasetSnapshot.create({
+      data: {
+        candles: [],
+        endTime: 1_000,
+        fingerprint: `queue-test-unclaimable-${Date.now()}-${Math.random()}`,
+        pair: 'BTCUSDT',
+        startTime: 0,
+        timeframe: '1h',
+        warmupCandleCount: 0,
+      },
+    });
+    snapshotIds.push(snapshot.id);
+    await prisma.experiment.update({
+      data: { datasetSnapshotId: snapshot.id },
+      where: { id: experiment.id },
+    });
+
     const claimed = await queue.claim('worker-1');
     expect(claimed).not.toBeNull();
     expect(claimed!.id).toBe(jobId);
-
-    await expect(queue.loadInput(claimed!)).rejects.toThrow(
-      'Backtest job has no immutable dataset snapshot',
-    );
-
-    const failed = await queue.failClaim(
-      claimed!,
-      new InvalidDatasetSnapshotError(
-        'Backtest job has no immutable dataset snapshot',
-      ),
-      'PERMANENT',
-    );
-    expect(failed).toBe(true);
-
-    const jobInDb = await prisma.backtestJob.findUniqueOrThrow({
-      where: { id: jobId },
-    });
-    expect(jobInDb.status).toBe('FAILED');
-    expect(jobInDb.failureCategory).toBe('PERMANENT');
-    expect(jobInDb.retryCount).toBe(1);
+    expect(claimed!.retryCount).toBe(0);
   });
 
   it('should not allow concurrent claims of the same job (SKIP LOCKED)', async () => {

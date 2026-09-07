@@ -117,6 +117,7 @@ export class PrismaJobRepository implements JobRepository {
                 SELECT 1
                 FROM experiments
                 WHERE experiments.id = backtest_jobs."experimentId"
+                  AND experiments."datasetSnapshotId" IS NOT NULL
               )
             )
             OR (
